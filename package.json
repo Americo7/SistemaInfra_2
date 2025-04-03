@@ -10,6 +10,7 @@
     "@prisma/client": "^6.5.0",
     "@redwoodjs/core": "7.7.5",
     "@redwoodjs/project-config": "7.7.5",
+    "prettier-plugin-tailwindcss": "0.4.1",
     "prisma": "^6.5.0"
   },
   "eslintConfig": {
@@ -22,5 +23,14 @@
   "prisma": {
     "seed": "yarn rw exec seed"
   },
-  "packageManager": "yarn@4.6.0"
+  "packageManager": "yarn@4.6.0",
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.0.1",
+    "@mui/material": "^7.0.1",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
+    "material-react-table": "^3.2.1"
+  }
 }

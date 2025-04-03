@@ -273,7 +273,7 @@ model Maquina {
   servidor_maquina     ServidorMaquina[]
   usuario_roles        UsuarioRol[]
 
-  @@map("maquina")
+  @@map("maquinas")
   @@schema("registro")
 }
 
