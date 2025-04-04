@@ -22,7 +22,7 @@ export const createHardware = ({ input }) => {
       estado_operativo: input.estado_operativo,
       estado: input.estado,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario,
+      usuario_creacion: 1,
     },
   })
 }
@@ -39,7 +39,7 @@ export const updateHardware = ({ id, input }) => {
       estado_operativo: input.estado_operativo,
       estado: input.estado,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.modificacion,
+      usuario_modificacion: 1,
     },
     where: { id },
   })
@@ -53,6 +53,12 @@ export const deleteHardware = ({ id }) => {
 
 export const Hardware = {
   data_centers: (_obj, { root }) => {
+    return db.hardware.findUnique({ where: { id: root?.id } }).data_centers()
+  },
+  infra_afectada: (_obj, { root }) => {
+    return db.hardware.findUnique({ where: { id: root?.id } }).infra_afectada()
+  },
+  servidores: (_obj, { root }) => {
     return db.hardware.findUnique({ where: { id: root?.id } }).servidores()
   },
 }

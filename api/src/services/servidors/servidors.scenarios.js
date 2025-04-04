@@ -4,11 +4,11 @@ export const standard = defineScenario({
       data: {
         serie_servidor: 'String',
         cod_inventario_agetic: 'String',
-        ram: 1993833,
-        almacenamiento: 8181598,
+        ram: 1553909,
+        almacenamiento: 4465118,
         estado_operativo: 'String',
         estado: 'ACTIVO',
-        usuario_creacion: 2694476,
+        usuario_creacion: 3195518,
         hardware: {
           create: {
             serie: 'String',
@@ -18,12 +18,12 @@ export const standard = defineScenario({
             modelo: 'String',
             estado_operativo: 'String',
             estado: 'ACTIVO',
-            usuario_creacion: 1964676,
+            usuario_creacion: 9414980,
             data_centers: {
               create: {
                 nombre: 'String',
                 ubicacion: 'String',
-                usuario_creacion: 1282531,
+                usuario_creacion: 3055134,
               },
             },
           },
@@ -34,11 +34,11 @@ export const standard = defineScenario({
       data: {
         serie_servidor: 'String',
         cod_inventario_agetic: 'String',
-        ram: 5572258,
-        almacenamiento: 2011947,
+        ram: 3620302,
+        almacenamiento: 7730194,
         estado_operativo: 'String',
         estado: 'ACTIVO',
-        usuario_creacion: 2964784,
+        usuario_creacion: 3294858,
         hardware: {
           create: {
             serie: 'String',
@@ -48,12 +48,12 @@ export const standard = defineScenario({
             modelo: 'String',
             estado_operativo: 'String',
             estado: 'ACTIVO',
-            usuario_creacion: 1369836,
+            usuario_creacion: 3260371,
             data_centers: {
               create: {
                 nombre: 'String',
                 ubicacion: 'String',
-                usuario_creacion: 7025136,
+                usuario_creacion: 4572342,
               },
             },
           },

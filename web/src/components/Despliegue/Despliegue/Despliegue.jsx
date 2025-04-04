@@ -3,7 +3,7 @@ import { useMutation } from '@redwoodjs/web'
 
 import { toast } from '@redwoodjs/web/toast'
 
-import { checkboxInputTag, formatEnum, timeTag } from 'src/lib/formatters'
+import { formatEnum, timeTag } from 'src/lib/formatters'
 
 const DELETE_DESPLIEGUE_MUTATION = gql`
   mutation DeleteDespliegueMutation($id: Int!) {
@@ -53,18 +53,6 @@ const Despliegue = ({ despliegue }) => {
               <td>{despliegue.id_maquina}</td>
             </tr>
             <tr>
-              <th>Cod tipo despliegue</th>
-              <td>{despliegue.cod_tipo_despliegue}</td>
-            </tr>
-            <tr>
-              <th>Es cluster</th>
-              <td>{checkboxInputTag(despliegue.es_cluster)}</td>
-            </tr>
-            <tr>
-              <th>Nombre cluster</th>
-              <td>{despliegue.nombre_cluster}</td>
-            </tr>
-            <tr>
               <th>Fecha despliegue</th>
               <td>{timeTag(despliegue.fecha_despliegue)}</td>
             </tr>
@@ -87,6 +75,30 @@ const Despliegue = ({ despliegue }) => {
             <tr>
               <th>Usuario modificacion</th>
               <td>{despliegue.usuario_modificacion}</td>
+            </tr>
+            <tr>
+              <th>Fecha solicitud</th>
+              <td>{timeTag(despliegue.fecha_solicitud)}</td>
+            </tr>
+            <tr>
+              <th>Unidad solicitante</th>
+              <td>{despliegue.unidad_solicitante}</td>
+            </tr>
+            <tr>
+              <th>Solicitante</th>
+              <td>{despliegue.solicitante}</td>
+            </tr>
+            <tr>
+              <th>Cod tipo respaldo</th>
+              <td>{despliegue.cod_tipo_respaldo}</td>
+            </tr>
+            <tr>
+              <th>Referencia respaldo</th>
+              <td>{despliegue.referencia_respaldo}</td>
+            </tr>
+            <tr>
+              <th>Estado despliegue</th>
+              <td>{despliegue.estado_despliegue}</td>
             </tr>
           </tbody>
         </table>

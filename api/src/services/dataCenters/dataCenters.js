@@ -17,7 +17,7 @@ export const createDataCenter = ({ input }) => {
       ubicacion: input.ubicacion,
       estado: input.estado,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
+      usuario_creacion: 1,
     },
   })
 }
@@ -29,7 +29,7 @@ export const updateDataCenter = ({ id, input }) => {
       ubicacion: input.ubicacion,
       estado: input.estado,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
+      usuario_modificacion: 1,
     },
     where: { id },
   })
@@ -44,5 +44,10 @@ export const deleteDataCenter = ({ id }) => {
 export const DataCenter = {
   hardware: (_obj, { root }) => {
     return db.dataCenter.findUnique({ where: { id: root?.id } }).hardware()
+  },
+  infra_afectada: (_obj, { root }) => {
+    return db.dataCenter
+      .findUnique({ where: { id: root?.id } })
+      .infra_afectada()
   },
 }

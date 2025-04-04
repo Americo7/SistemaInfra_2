@@ -8,15 +8,18 @@ export const QUERY = gql`
       id
       id_componente
       id_maquina
-      cod_tipo_despliegue
-      es_cluster
-      nombre_cluster
       fecha_despliegue
       estado
       fecha_creacion
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      fecha_solicitud
+      unidad_solicitante
+      solicitante
+      cod_tipo_respaldo
+      referencia_respaldo
+      estado_despliegue
     }
   }
 `

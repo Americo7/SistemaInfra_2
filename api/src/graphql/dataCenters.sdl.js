@@ -9,6 +9,7 @@ export const schema = gql`
     fecha_modificacion: DateTime
     usuario_modificacion: Int
     hardware: [Hardware]!
+    infra_afectada: [InfraAfectada]!
   }
 
   enum estado {

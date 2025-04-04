@@ -30,23 +30,31 @@ describe('despliegues', () => {
       input: {
         id_componente: scenario.despliegue.two.id_componente,
         id_maquina: scenario.despliegue.two.id_maquina,
-        cod_tipo_despliegue: 'String',
-        es_cluster: true,
-        fecha_despliegue: '2025-04-03T16:24:08.090Z',
+        fecha_despliegue: '2025-04-04T12:50:57.321Z',
         estado: 'ACTIVO',
-        usuario_creacion: 5023161,
+        usuario_creacion: 8294855,
+        fecha_solicitud: '2025-04-04T12:50:57.321Z',
+        unidad_solicitante: 'String',
+        solicitante: 'String',
+        cod_tipo_respaldo: 'String',
+        referencia_respaldo: 'String',
+        estado_despliegue: 'String',
       },
     })
 
     expect(result.id_componente).toEqual(scenario.despliegue.two.id_componente)
     expect(result.id_maquina).toEqual(scenario.despliegue.two.id_maquina)
-    expect(result.cod_tipo_despliegue).toEqual('String')
-    expect(result.es_cluster).toEqual(true)
     expect(result.fecha_despliegue).toEqual(
-      new Date('2025-04-03T16:24:08.090Z')
+      new Date('2025-04-04T12:50:57.321Z')
     )
     expect(result.estado).toEqual('ACTIVO')
-    expect(result.usuario_creacion).toEqual(5023161)
+    expect(result.usuario_creacion).toEqual(8294855)
+    expect(result.fecha_solicitud).toEqual(new Date('2025-04-04T12:50:57.321Z'))
+    expect(result.unidad_solicitante).toEqual('String')
+    expect(result.solicitante).toEqual('String')
+    expect(result.cod_tipo_respaldo).toEqual('String')
+    expect(result.referencia_respaldo).toEqual('String')
+    expect(result.estado_despliegue).toEqual('String')
   })
 
   scenario('updates a despliegue', async (scenario) => {
@@ -55,10 +63,12 @@ describe('despliegues', () => {
     })
     const result = await updateDespliegue({
       id: original.id,
-      input: { cod_tipo_despliegue: 'String2' },
+      input: { fecha_despliegue: '2025-04-05T12:50:57.321Z' },
     })
 
-    expect(result.cod_tipo_despliegue).toEqual('String2')
+    expect(result.fecha_despliegue).toEqual(
+      new Date('2025-04-05T12:50:57.321Z')
+    )
   })
 
   scenario('deletes a despliegue', async (scenario) => {

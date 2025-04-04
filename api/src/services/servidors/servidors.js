@@ -23,7 +23,7 @@ export const createServidor = ({ input }) => {
       estado_operativo: input.estado_operativo,
       estado: input.estado,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
+      usuario_creacion: 1,
     },
   })
 }
@@ -41,7 +41,7 @@ export const updateServidor = ({ id, input }) => {
       estado_operativo: input.estado_operativo,
       estado: input.estado,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
+      usuario_modificacion: 1,
     },
     where: { id },
   })
@@ -54,10 +54,13 @@ export const deleteServidor = ({ id }) => {
 }
 
 export const Servidor = {
-  servidor_maquina: (_obj, { root }) => {
+  asignacion_servidor_maquina: (_obj, { root }) => {
     return db.servidor
       .findUnique({ where: { id: root?.id } })
-      .servidor_maquina()
+      .asignacion_servidor_maquina()
+  },
+  infra_afectada: (_obj, { root }) => {
+    return db.servidor.findUnique({ where: { id: root?.id } }).infra_afectada()
   },
   hardware: (_obj, { root }) => {
     return db.servidor.findUnique({ where: { id: root?.id } }).hardware()

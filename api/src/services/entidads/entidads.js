@@ -18,7 +18,7 @@ export const createEntidad = ({ input }) => {
       nombre: input.nombre,
       estado: input.estado,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
+      usuario_creacion: 1,
     },
   })
 }
@@ -31,7 +31,7 @@ export const updateEntidad = ({ id, input }) => {
       nombre: input.nombre,
       estado: input.estado,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
+      usuario_modificacion: 1,
     },
     where: { id },
   })

@@ -31,22 +31,22 @@ describe('servidors', () => {
         id_hardware: scenario.servidor.two.id_hardware,
         serie_servidor: 'String',
         cod_inventario_agetic: 'String',
-        ram: 3548497,
-        almacenamiento: 6053308,
+        ram: 2820256,
+        almacenamiento: 999806,
         estado_operativo: 'String',
         estado: 'ACTIVO',
-        usuario_creacion: 1938453,
+        usuario_creacion: 5285626,
       },
     })
 
     expect(result.id_hardware).toEqual(scenario.servidor.two.id_hardware)
     expect(result.serie_servidor).toEqual('String')
     expect(result.cod_inventario_agetic).toEqual('String')
-    expect(result.ram).toEqual(3548497)
-    expect(result.almacenamiento).toEqual(6053308)
+    expect(result.ram).toEqual(2820256)
+    expect(result.almacenamiento).toEqual(999806)
     expect(result.estado_operativo).toEqual('String')
     expect(result.estado).toEqual('ACTIVO')
-    expect(result.usuario_creacion).toEqual(1938453)
+    expect(result.usuario_creacion).toEqual(5285626)
   })
 
   scenario('updates a servidor', async (scenario) => {

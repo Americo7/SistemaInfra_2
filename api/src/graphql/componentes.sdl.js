@@ -17,6 +17,8 @@ export const schema = gql`
     usuario_modificacion: Int
     sistemas: Sistema!
     despliegue: [Despliegue]!
+
+    version: String
   }
 
   enum estado {
@@ -44,6 +46,8 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+
+    version: String
   }
 
   input UpdateComponenteInput {
@@ -61,6 +65,8 @@ export const schema = gql`
     usuario_creacion: Int
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+
+    version: String
   }
 
   type Mutation {

@@ -9,12 +9,12 @@ export const standard = defineScenario({
         modelo: 'String',
         estado_operativo: 'String',
         estado: 'ACTIVO',
-        usuario_creacion: 489679,
+        usuario_creacion: 3331487,
         data_centers: {
           create: {
             nombre: 'String',
             ubicacion: 'String',
-            usuario_creacion: 85712,
+            usuario_creacion: 876620,
           },
         },
       },
@@ -28,12 +28,12 @@ export const standard = defineScenario({
         modelo: 'String',
         estado_operativo: 'String',
         estado: 'ACTIVO',
-        usuario_creacion: 8351971,
+        usuario_creacion: 8287306,
         data_centers: {
           create: {
             nombre: 'String',
             ubicacion: 'String',
-            usuario_creacion: 3631864,
+            usuario_creacion: 6129464,
           },
         },
       },

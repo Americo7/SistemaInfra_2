@@ -3,17 +3,21 @@ export const schema = gql`
     id: Int!
     id_componente: Int!
     id_maquina: Int!
-    cod_tipo_despliegue: String!
-    es_cluster: Boolean!
-    nombre_cluster: String
     fecha_despliegue: DateTime!
     estado: estado!
     fecha_creacion: DateTime!
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    fecha_solicitud: DateTime!
+    unidad_solicitante: String!
+    solicitante: String!
+    cod_tipo_respaldo: String!
+    referencia_respaldo: String!
+    estado_despliegue: String!
     componentes: Componente!
     maquinas: Maquina!
+    despliegue_bitacora: [DespliegueBitacora]!
   }
 
   enum estado {
@@ -29,29 +33,35 @@ export const schema = gql`
   input CreateDespliegueInput {
     id_componente: Int!
     id_maquina: Int!
-    cod_tipo_despliegue: String!
-    es_cluster: Boolean!
-    nombre_cluster: String
-    fecha_despliegue: DateTime!
+    fecha_despliegue: DateTime
     estado: estado!
     fecha_creacion: DateTime
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    fecha_solicitud: DateTime!
+    unidad_solicitante: String!
+    solicitante: String!
+    cod_tipo_respaldo: String!
+    referencia_respaldo: String!
+    estado_despliegue: String!
   }
 
   input UpdateDespliegueInput {
     id_componente: Int
     id_maquina: Int
-    cod_tipo_despliegue: String
-    es_cluster: Boolean
-    nombre_cluster: String
     fecha_despliegue: DateTime
     estado: estado
     fecha_creacion: DateTime
     usuario_creacion: Int
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    fecha_solicitud: DateTime
+    unidad_solicitante: String
+    solicitante: String
+    cod_tipo_respaldo: String
+    referencia_respaldo: String
+    estado_despliegue: String
   }
 
   type Mutation {

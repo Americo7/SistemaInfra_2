@@ -4,14 +4,14 @@ export const standard = defineScenario({
       data: {
         nombre: 'String',
         ubicacion: 'String',
-        usuario_creacion: 6842491,
+        usuario_creacion: 4020279,
       },
     },
     two: {
       data: {
         nombre: 'String',
         ubicacion: 'String',
-        usuario_creacion: 8679592,
+        usuario_creacion: 7582594,
       },
     },
   },

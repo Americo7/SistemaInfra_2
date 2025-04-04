@@ -4,12 +4,7 @@ import { useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/Despliegue/DesplieguesCell'
-import {
-  checkboxInputTag,
-  formatEnum,
-  timeTag,
-  truncate,
-} from 'src/lib/formatters'
+import { formatEnum, timeTag, truncate } from 'src/lib/formatters'
 
 const DELETE_DESPLIEGUE_MUTATION = gql`
   mutation DeleteDespliegueMutation($id: Int!) {
@@ -48,15 +43,18 @@ const DesplieguesList = ({ despliegues }) => {
             <th>Id</th>
             <th>Id componente</th>
             <th>Id maquina</th>
-            <th>Cod tipo despliegue</th>
-            <th>Es cluster</th>
-            <th>Nombre cluster</th>
             <th>Fecha despliegue</th>
             <th>Estado</th>
             <th>Fecha creacion</th>
             <th>Usuario creacion</th>
             <th>Fecha modificacion</th>
             <th>Usuario modificacion</th>
+            <th>Fecha solicitud</th>
+            <th>Unidad solicitante</th>
+            <th>Solicitante</th>
+            <th>Cod tipo respaldo</th>
+            <th>Referencia respaldo</th>
+            <th>Estado despliegue</th>
             <th>&nbsp;</th>
           </tr>
         </thead>
@@ -66,15 +64,18 @@ const DesplieguesList = ({ despliegues }) => {
               <td>{truncate(despliegue.id)}</td>
               <td>{truncate(despliegue.id_componente)}</td>
               <td>{truncate(despliegue.id_maquina)}</td>
-              <td>{truncate(despliegue.cod_tipo_despliegue)}</td>
-              <td>{checkboxInputTag(despliegue.es_cluster)}</td>
-              <td>{truncate(despliegue.nombre_cluster)}</td>
               <td>{timeTag(despliegue.fecha_despliegue)}</td>
               <td>{formatEnum(despliegue.estado)}</td>
               <td>{timeTag(despliegue.fecha_creacion)}</td>
               <td>{truncate(despliegue.usuario_creacion)}</td>
               <td>{timeTag(despliegue.fecha_modificacion)}</td>
               <td>{truncate(despliegue.usuario_modificacion)}</td>
+              <td>{timeTag(despliegue.fecha_solicitud)}</td>
+              <td>{truncate(despliegue.unidad_solicitante)}</td>
+              <td>{truncate(despliegue.solicitante)}</td>
+              <td>{truncate(despliegue.cod_tipo_respaldo)}</td>
+              <td>{truncate(despliegue.referencia_respaldo)}</td>
+              <td>{truncate(despliegue.estado_despliegue)}</td>
               <td>
                 <nav className="rw-table-actions">
                   <Link

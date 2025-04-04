@@ -14,8 +14,9 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    asignacion_servidor_maquina: [AsignacionServidorMaquina]!
     despliegue: [Despliegue]!
-    servidor_maquina: [ServidorMaquina]!
+    infra_afectada: [InfraAfectada]!
     usuario_roles: [UsuarioRol]!
   }
 

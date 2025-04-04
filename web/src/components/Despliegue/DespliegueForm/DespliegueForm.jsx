@@ -4,10 +4,9 @@ import {
   FieldError,
   Label,
   NumberField,
-  TextField,
-  CheckboxField,
   DatetimeLocalField,
   RadioField,
+  TextField,
   Submit,
 } from '@redwoodjs/forms'
 
@@ -67,58 +66,6 @@ const DespliegueForm = (props) => {
         />
 
         <FieldError name="id_maquina" className="rw-field-error" />
-
-        <Label
-          name="cod_tipo_despliegue"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Cod tipo despliegue
-        </Label>
-
-        <TextField
-          name="cod_tipo_despliegue"
-          defaultValue={props.despliegue?.cod_tipo_despliegue}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="cod_tipo_despliegue" className="rw-field-error" />
-
-        <Label
-          name="es_cluster"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Es cluster
-        </Label>
-
-        <CheckboxField
-          name="es_cluster"
-          defaultChecked={props.despliegue?.es_cluster}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="es_cluster" className="rw-field-error" />
-
-        <Label
-          name="nombre_cluster"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Nombre cluster
-        </Label>
-
-        <TextField
-          name="nombre_cluster"
-          defaultValue={props.despliegue?.nombre_cluster}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="nombre_cluster" className="rw-field-error" />
 
         <Label
           name="fecha_despliegue"
@@ -225,6 +172,114 @@ const DespliegueForm = (props) => {
         />
 
         <FieldError name="usuario_modificacion" className="rw-field-error" />
+
+        <Label
+          name="fecha_solicitud"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Fecha solicitud
+        </Label>
+
+        <DatetimeLocalField
+          name="fecha_solicitud"
+          defaultValue={formatDatetime(props.despliegue?.fecha_solicitud)}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+          validation={{ required: true }}
+        />
+
+        <FieldError name="fecha_solicitud" className="rw-field-error" />
+
+        <Label
+          name="unidad_solicitante"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Unidad solicitante
+        </Label>
+
+        <TextField
+          name="unidad_solicitante"
+          defaultValue={props.despliegue?.unidad_solicitante}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+          validation={{ required: true }}
+        />
+
+        <FieldError name="unidad_solicitante" className="rw-field-error" />
+
+        <Label
+          name="solicitante"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Solicitante
+        </Label>
+
+        <TextField
+          name="solicitante"
+          defaultValue={props.despliegue?.solicitante}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+          validation={{ required: true }}
+        />
+
+        <FieldError name="solicitante" className="rw-field-error" />
+
+        <Label
+          name="cod_tipo_respaldo"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Cod tipo respaldo
+        </Label>
+
+        <TextField
+          name="cod_tipo_respaldo"
+          defaultValue={props.despliegue?.cod_tipo_respaldo}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+          validation={{ required: true }}
+        />
+
+        <FieldError name="cod_tipo_respaldo" className="rw-field-error" />
+
+        <Label
+          name="referencia_respaldo"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Referencia respaldo
+        </Label>
+
+        <TextField
+          name="referencia_respaldo"
+          defaultValue={props.despliegue?.referencia_respaldo}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+          validation={{ required: true }}
+        />
+
+        <FieldError name="referencia_respaldo" className="rw-field-error" />
+
+        <Label
+          name="estado_despliegue"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Estado despliegue
+        </Label>
+
+        <TextField
+          name="estado_despliegue"
+          defaultValue={props.despliegue?.estado_despliegue}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+          validation={{ required: true }}
+        />
+
+        <FieldError name="estado_despliegue" className="rw-field-error" />
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">

@@ -30,13 +30,13 @@ describe('dataCenters', () => {
       input: {
         nombre: 'String',
         ubicacion: 'String',
-        usuario_creacion: 1062368,
+        usuario_creacion: 1463225,
       },
     })
 
     expect(result.nombre).toEqual('String')
     expect(result.ubicacion).toEqual('String')
-    expect(result.usuario_creacion).toEqual(1062368)
+    expect(result.usuario_creacion).toEqual(1463225)
   })
 
   scenario('updates a dataCenter', async (scenario) => {

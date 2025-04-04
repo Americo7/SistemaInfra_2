@@ -1,23 +1,118 @@
+import { useState } from 'react'
+
 import {
   Form,
   FormError,
   FieldError,
   Label,
-  NumberField,
+  SelectField,
   TextField,
-  TextAreaField,
   RadioField,
-  DatetimeLocalField,
   Submit,
 } from '@redwoodjs/forms'
-
-const formatDatetime = (value) => {
-  if (value) {
-    return value.replace(/:\d{2}\.\d{3}\w/, '')
+import { useQuery } from '@redwoodjs/web'
+const OBTENER_SISTEMAS = gql`
+  query ObtenerSistemas {
+    sistemas {
+      id
+      nombre
+    }
   }
+`
+const GET_PARAMETROS = gql`
+  query GetParametros {
+    parametros {
+      id
+      codigo
+      nombre
+      grupo
+    }
+  }
+`
+const RespaldoField = ({ defaultValue, onRespaldoChange }) => {
+  const [respaldoData, setRespaldoData] = useState(
+    defaultValue || {
+      tecnologia: '',
+      version: '',
+    }
+  )
+
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    const newData = { ...respaldoData, [name]: value }
+    setRespaldoData(newData)
+    onRespaldoChange(newData)
+  }
+
+  return (
+    <div className="respaldo-section">
+      <div className="form-grid">
+        <div className="form-group">
+          <Label className="input-label">Tecnología</Label>
+          <TextField
+            value={respaldoData.tecnologia}
+            onChange={handleChange}
+            name="tecnologia"
+            className="input-field"
+            placeholder=""
+          />
+        </div>
+
+        <div className="form-group">
+          <Label className="input-label">Version</Label>
+          <TextField
+            value={respaldoData.version}
+            onChange={handleChange}
+            name="version"
+            className="input-field"
+            placeholder=""
+          />
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const ComponenteForm = (props) => {
+  const { data: sistemasData } = useQuery(OBTENER_SISTEMAS)
+  const { data: parametrosData } = useQuery(GET_PARAMETROS)
+
+  const parametrosDeEntorno = parametrosData?.parametros.filter((param) => {
+    return param.grupo === 'ENTORNO'
+  })
+
+  const parametrosDeCategoria = parametrosData?.parametros.filter(
+    (param) => param.grupo === 'CATEGORIA'
+  )
+
+  const [respaldoData, setRespaldoData] = useState({
+    tecnologia: '',
+    version: '',
+  })
+  const [setFormData] = useState({
+    nombre: '',
+    dominio: '',
+    descripcion: '',
+  })
+  // Función para validar que el campo no contenga números
+  const validateNoNumbers = (value) => {
+    const regex = /\d/ // Expresión regular que busca números
+    return !regex.test(value)
+  }
+
+  // Manejador de cambio para los campos de texto con validación
+  const handleTextChange = (event) => {
+    const { name, value } = event.target
+    if (validateNoNumbers(value)) {
+      setFormData((prevState) => ({
+        ...prevState,
+        [name]: value,
+      }))
+    } else {
+      alert('No se pueden ingresar números en este campo')
+    }
+  }
+  // Enviar datos
   const onSubmit = (data) => {
     props.onSave(data, props?.componente?.id)
   }
@@ -32,23 +127,19 @@ const ComponenteForm = (props) => {
           listClassName="rw-form-error-list"
         />
 
-        <Label
+        <Label className="input-label">Sistema</Label>
+        <SelectField
           name="id_sistema"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
+          defaultValue={props.componente?.id_sistema || ''}
+          className="input-field select-field"
         >
-          Id sistema
-        </Label>
-
-        <NumberField
-          name="id_sistema"
-          defaultValue={props.componente?.id_sistema}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="id_sistema" className="rw-field-error" />
+          <option value="">Seleccionar sistema...</option>
+          {sistemasData?.sistemas.map((sistema) => (
+            <option key={sistema.id} value={sistema.id}>
+              {sistema.nombre}
+            </option>
+          ))}
+        </SelectField>
 
         <Label
           name="nombre"
@@ -61,6 +152,7 @@ const ComponenteForm = (props) => {
         <TextField
           name="nombre"
           defaultValue={props.componente?.nombre}
+          onChange={handleTextChange}
           className="rw-input"
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
@@ -104,41 +196,33 @@ const ComponenteForm = (props) => {
 
         <FieldError name="descripcion" className="rw-field-error" />
 
-        <Label
+        <Label className="input-label">Entorno</Label>
+        <SelectField
           name="cod_entorno"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
+          defaultValue={props.componente?.cod_entorno || ''}
+          className="input-field select-field"
         >
-          Cod entorno
-        </Label>
+          <option value="">Seleccionar Entorno...</option>
+          {parametrosDeEntorno?.map((entorno) => (
+            <option key={entorno.id} value={entorno.id}>
+              {entorno.codigo}
+            </option>
+          ))}
+        </SelectField>
 
-        <TextField
-          name="cod_entorno"
-          defaultValue={props.componente?.cod_entorno}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="cod_entorno" className="rw-field-error" />
-
-        <Label
+        <Label className="input-label">Entorno</Label>
+        <SelectField
           name="cod_categoria"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
+          defaultValue={props.componente?.cod_categoria || ''}
+          className="input-field select-field"
         >
-          Cod categoria
-        </Label>
-
-        <TextField
-          name="cod_categoria"
-          defaultValue={props.componente?.cod_categoria}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="cod_categoria" className="rw-field-error" />
+          <option value="">Seleccionar Categoria...</option>
+          {parametrosDeCategoria?.map((categoria) => (
+            <option key={categoria.id} value={categoria.id}>
+              {categoria.codigo}
+            </option>
+          ))}
+        </SelectField>
 
         <Label
           name="gitlab_repo"
@@ -174,23 +258,10 @@ const ComponenteForm = (props) => {
 
         <FieldError name="gitlab_rama" className="rw-field-error" />
 
-        <Label
-          name="tecnologia"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Tecnologia
-        </Label>
-
-        <TextAreaField
-          name="tecnologia"
-          defaultValue={JSON.stringify(props.componente?.tecnologia)}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ valueAsJSON: true }}
+        <RespaldoField
+          defaultValue={respaldoData}
+          onRespaldoChange={setRespaldoData}
         />
-
-        <FieldError name="tecnologia" className="rw-field-error" />
 
         <Label
           name="estado"
@@ -199,86 +270,22 @@ const ComponenteForm = (props) => {
         >
           Estado
         </Label>
-
         <div className="rw-check-radio-items">
           <RadioField
             id="componente-estado-0"
             name="estado"
             defaultValue="ACTIVO"
-            defaultChecked={props.componente?.estado?.includes('ACTIVO')}
+            defaultChecked={
+              props.componente?.estado
+                ? props.componente.estado.includes('ACTIVO')
+                : true
+            }
             className="rw-input"
             errorClassName="rw-input rw-input-error"
           />
-
           <div>Activo</div>
         </div>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="componente-estado-1"
-            name="estado"
-            defaultValue="INACTIVO"
-            defaultChecked={props.componente?.estado?.includes('INACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Inactivo</div>
-        </div>
-
         <FieldError name="estado" className="rw-field-error" />
-
-        <Label
-          name="usuario_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario creacion
-        </Label>
-
-        <NumberField
-          name="usuario_creacion"
-          defaultValue={props.componente?.usuario_creacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="usuario_creacion" className="rw-field-error" />
-
-        <Label
-          name="fecha_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Fecha modificacion
-        </Label>
-
-        <DatetimeLocalField
-          name="fecha_modificacion"
-          defaultValue={formatDatetime(props.componente?.fecha_modificacion)}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="fecha_modificacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario modificacion
-        </Label>
-
-        <NumberField
-          name="usuario_modificacion"
-          defaultValue={props.componente?.usuario_modificacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="usuario_modificacion" className="rw-field-error" />
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">

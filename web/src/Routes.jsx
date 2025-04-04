@@ -47,7 +47,7 @@ const Routes = () => {
           <Route path="/sistemas/{id:Int}" page={SistemaSistemaPage} name="sistema" />
           <Route path="/sistemas" page={SistemaSistemasPage} name="sistemas" />
         </Set>
-        <Set wrap={ScaffoldLayout} title="UsuarioRols" titleTo="usuarioRols" buttonLabel="New UsuarioRol" buttonTo="newUsuarioRol">
+        <Set wrap={ScaffoldLayout} title="Usuario Roles" titleTo="usuarioRols" buttonLabel="New UsuarioRol" buttonTo="newUsuarioRol">
           <Route path="/usuario-rols/new" page={UsuarioRolNewUsuarioRolPage} name="newUsuarioRol" />
           <Route path="/usuario-rols/{id:Int}/edit" page={UsuarioRolEditUsuarioRolPage} name="editUsuarioRol" />
           <Route path="/usuario-rols/{id:Int}" page={UsuarioRolUsuarioRolPage} name="usuarioRol" />
@@ -71,13 +71,7 @@ const Routes = () => {
           <Route path="/maquinas/{id:Int}" page={MaquinaMaquinaPage} name="maquina" />
           <Route path="/maquinas" page={MaquinaMaquinasPage} name="maquinas" />
         </Set>
-        <Set wrap={ScaffoldLayout} title="ServidorMaquinas" titleTo="servidorMaquinas" buttonLabel="New ServidorMaquina" buttonTo="newServidorMaquina">
-          <Route path="/servidor-maquinas/new" page={ServidorMaquinaNewServidorMaquinaPage} name="newServidorMaquina" />
-          <Route path="/servidor-maquinas/{id:Int}/edit" page={ServidorMaquinaEditServidorMaquinaPage} name="editServidorMaquina" />
-          <Route path="/servidor-maquinas/{id:Int}" page={ServidorMaquinaServidorMaquinaPage} name="servidorMaquina" />
-          <Route path="/servidor-maquinas" page={ServidorMaquinaServidorMaquinasPage} name="servidorMaquinas" />
-        </Set>
-        <Set wrap={ScaffoldLayout} title="Servidors" titleTo="servidors" buttonLabel="New Servidor" buttonTo="newServidor">
+        <Set wrap={ScaffoldLayout} title="Servidores" titleTo="servidors" buttonLabel="New Servidor" buttonTo="newServidor">
           <Route path="/servidors/new" page={ServidorNewServidorPage} name="newServidor" />
           <Route path="/servidors/{id:Int}/edit" page={ServidorEditServidorPage} name="editServidor" />
           <Route path="/servidors/{id:Int}" page={ServidorServidorPage} name="servidor" />
@@ -88,6 +82,42 @@ const Routes = () => {
           <Route path="/roles/{id:Int}/edit" page={RoleEditRolePage} name="editRole" />
           <Route path="/roles/{id:Int}" page={RoleRolePage} name="role" />
           <Route path="/roles" page={RoleRolesPage} name="roles" />
+        </Set>
+        <Set wrap={ScaffoldLayout} title="Eventos" titleTo="eventos" buttonLabel="New Evento" buttonTo="newEvento">
+          <Route path="/eventos/new" page={EventoNewEventoPage} name="newEvento" />
+          <Route path="/eventos/{id:Int}/edit" page={EventoEditEventoPage} name="editEvento" />
+          <Route path="/eventos/{id:Int}" page={EventoEventoPage} name="evento" />
+          <Route path="/eventos" page={EventoEventosPage} name="eventos" />
+        </Set>
+        <Set wrap={ScaffoldLayout} title="Eventos Bitacoras" titleTo="eventosBitacoras" buttonLabel="New EventosBitacora" buttonTo="newEventosBitacora">
+          <Route path="/eventos-bitacoras/new" page={EventosBitacoraNewEventosBitacoraPage} name="newEventosBitacora" />
+          <Route path="/eventos-bitacoras/{id:Int}/edit" page={EventosBitacoraEditEventosBitacoraPage} name="editEventosBitacora" />
+          <Route path="/eventos-bitacoras/{id:Int}" page={EventosBitacoraEventosBitacoraPage} name="eventosBitacora" />
+          <Route path="/eventos-bitacoras" page={EventosBitacoraEventosBitacorasPage} name="eventosBitacoras" />
+        </Set>
+        <Set wrap={ScaffoldLayout} title="Infra Afectadas" titleTo="infraAfectadas" buttonLabel="New InfraAfectada" buttonTo="newInfraAfectada">
+          <Route path="/infra-afectadas/new" page={InfraAfectadaNewInfraAfectadaPage} name="newInfraAfectada" />
+          <Route path="/infra-afectadas/{id:Int}/edit" page={InfraAfectadaEditInfraAfectadaPage} name="editInfraAfectada" />
+          <Route path="/infra-afectadas/{id:Int}" page={InfraAfectadaInfraAfectadaPage} name="infraAfectada" />
+          <Route path="/infra-afectadas" page={InfraAfectadaInfraAfectadasPage} name="infraAfectadas" />
+        </Set>
+        <Set wrap={ScaffoldLayout} title="Asignacion de Servidor y Maquinas" titleTo="asignacionServidorMaquinas" buttonLabel="New AsignacionServidorMaquina" buttonTo="newAsignacionServidorMaquina">
+          <Route path="/asignacion-servidor-maquinas/new" page={AsignacionServidorMaquinaNewAsignacionServidorMaquinaPage} name="newAsignacionServidorMaquina" />
+          <Route path="/asignacion-servidor-maquinas/{id:Int}/edit" page={AsignacionServidorMaquinaEditAsignacionServidorMaquinaPage} name="editAsignacionServidorMaquina" />
+          <Route path="/asignacion-servidor-maquinas/{id:Int}" page={AsignacionServidorMaquinaAsignacionServidorMaquinaPage} name="asignacionServidorMaquina" />
+          <Route path="/asignacion-servidor-maquinas" page={AsignacionServidorMaquinaAsignacionServidorMaquinasPage} name="asignacionServidorMaquinas" />
+        </Set>
+        <Set wrap={ScaffoldLayout} title="Clusters" titleTo="clusters" buttonLabel="New Cluster" buttonTo="newCluster">
+          <Route path="/clusters/new" page={ClusterNewClusterPage} name="newCluster" />
+          <Route path="/clusters/{id:Int}/edit" page={ClusterEditClusterPage} name="editCluster" />
+          <Route path="/clusters/{id:Int}" page={ClusterClusterPage} name="cluster" />
+          <Route path="/clusters" page={ClusterClustersPage} name="clusters" />
+        </Set>
+        <Set wrap={ScaffoldLayout} title="Despliegue Bitacoras" titleTo="despliegueBitacoras" buttonLabel="New DespliegueBitacora" buttonTo="newDespliegueBitacora">
+          <Route path="/despliegue-bitacoras/new" page={DespliegueBitacoraNewDespliegueBitacoraPage} name="newDespliegueBitacora" />
+          <Route path="/despliegue-bitacoras/{id:Int}/edit" page={DespliegueBitacoraEditDespliegueBitacoraPage} name="editDespliegueBitacora" />
+          <Route path="/despliegue-bitacoras/{id:Int}" page={DespliegueBitacoraDespliegueBitacoraPage} name="despliegueBitacora" />
+          <Route path="/despliegue-bitacoras" page={DespliegueBitacoraDespliegueBitacorasPage} name="despliegueBitacoras" />
         </Set>
         <Route notfound page={NotFoundPage} />
       </Set>

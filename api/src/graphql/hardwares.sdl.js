@@ -14,6 +14,7 @@ export const schema = gql`
     fecha_modificacion: DateTime
     usuario_modificacion: Int
     data_centers: DataCenter!
+    infra_afectada: [InfraAfectada]!
     servidores: [Servidor]!
   }
 

@@ -36,7 +36,7 @@ describe('hardwares', () => {
         modelo: 'String',
         estado_operativo: 'String',
         estado: 'ACTIVO',
-        usuario_creacion: 7628267,
+        usuario_creacion: 4086504,
       },
     })
 
@@ -48,7 +48,7 @@ describe('hardwares', () => {
     expect(result.modelo).toEqual('String')
     expect(result.estado_operativo).toEqual('String')
     expect(result.estado).toEqual('ACTIVO')
-    expect(result.usuario_creacion).toEqual(7628267)
+    expect(result.usuario_creacion).toEqual(4086504)
   })
 
   scenario('updates a hardware', async (scenario) => {

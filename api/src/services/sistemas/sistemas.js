@@ -28,7 +28,7 @@ export const createSistema = ({ input }) => {
       estado: input.estado,
       respaldo_creacion: respaldoData,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
+      usuario_creacion: 1,
     },
   })
 }
@@ -51,7 +51,7 @@ export const updateSistema = ({ id, input }) => {
       estado: input.estado,
       respaldo_creacion: respaldoData,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
+      usuario_modificacion: 1,
     },
     where: { id },
   })

@@ -32,11 +32,11 @@ describe('maquinas', () => {
         nombre: 'String',
         ip: 'String',
         so: 'String',
-        ram: 8949152,
+        ram: 8821912,
         almacenamiento: { foo: 'bar' },
-        cpu: 7071063,
+        cpu: 8156604,
         estado: 'ACTIVO',
-        usuario_creacion: 6308827,
+        usuario_creacion: 7379723,
       },
     })
 
@@ -44,11 +44,11 @@ describe('maquinas', () => {
     expect(result.nombre).toEqual('String')
     expect(result.ip).toEqual('String')
     expect(result.so).toEqual('String')
-    expect(result.ram).toEqual(8949152)
+    expect(result.ram).toEqual(8821912)
     expect(result.almacenamiento).toEqual({ foo: 'bar' })
-    expect(result.cpu).toEqual(7071063)
+    expect(result.cpu).toEqual(8156604)
     expect(result.estado).toEqual('ACTIVO')
-    expect(result.usuario_creacion).toEqual(6308827)
+    expect(result.usuario_creacion).toEqual(7379723)
   })
 
   scenario('updates a maquina', async (scenario) => {

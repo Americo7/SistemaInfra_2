@@ -6,7 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["autenticacion", "registro", "parametricas"]
+  schemas  = ["autenticacion", "parametricas", "registro"]
 }
 
 model Rol {
@@ -69,37 +69,26 @@ model Componente {
   @@schema("registro")
 }
 
-model DataCenter {
-  id                   Int        @id(map: "data_centers_pk") @default(autoincrement())
-  nombre               String     @db.VarChar(15)
-  ubicacion            String
-  estado               estado     @default(ACTIVO) @map("_estado")
-  fecha_creacion       DateTime   @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
-  usuario_creacion     Int        @map("_usuario_creacion")
-  fecha_modificacion   DateTime?  @map("_fecha_modificacion") @db.Timestamp(6)
-  usuario_modificacion Int?       @map("_usuario_modificacion")
-  hardware             Hardware[]
-
-  @@map("data_centers")
-  @@schema("registro")
-}
-
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model Despliegue {
-  id                   Int        @id(map: "despliegue_pk") @default(autoincrement())
+  id                   Int                  @id(map: "despliegue_pk") @default(autoincrement())
   id_componente        Int
   id_maquina           Int
-  cod_tipo_despliegue  String     @db.VarChar(20)
-  es_cluster           Boolean
-  nombre_cluster       String?    @db.VarChar(15)
-  fecha_despliegue     DateTime   @db.Timestamp(6)
-  estado               estado     @map("_estado")
-  fecha_creacion       DateTime   @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
-  usuario_creacion     Int        @map("_usuario_creacion")
-  fecha_modificacion   DateTime?  @map("_fecha_modificacion") @db.Timestamp(6)
-  usuario_modificacion Int?       @map("_usuario_modificacion")
-  componentes          Componente @relation(fields: [id_componente], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_componente_id")
-  maquinas             Maquina    @relation(fields: [id_maquina], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_desppliegue_maquina")
+  fecha_despliegue     DateTime             @db.Timestamp(6)
+  estado               estado               @map("_estado")
+  fecha_creacion       DateTime             @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion     Int                  @map("_usuario_creacion")
+  fecha_modificacion   DateTime?            @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion Int?                 @map("_usuario_modificacion")
+  fecha_solicitud      DateTime             @db.Timestamp(6)
+  unidad_solicitante   String               @db.VarChar(10)
+  solicitante          String
+  cod_tipo_respaldo    String               @db.VarChar(20)
+  referencia_respaldo  String               @db.VarChar(100)
+  estado_despliegue    String               @db.VarChar(20)
+  componentes          Componente           @relation(fields: [id_componente], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_componente_id")
+  maquinas             Maquina              @relation(fields: [id_maquina], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_desppliegue_maquina")
+  despliegue_bitacora  DespliegueBitacora[]
 
   @@map("despliegue")
   @@schema("registro")
@@ -136,29 +125,6 @@ model Role {
   usuario_roles        UsuarioRol[]
 
   @@map("roles")
-  @@schema("registro")
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model Servidor {
-  id                    Int               @id(map: "servidor_pk") @default(autoincrement())
-  id_hardware           Int
-  serie_servidor        String            @db.VarChar(25)
-  cod_inventario_agetic String            @db.VarChar(10)
-  chasis                String?           @db.VarChar(10)
-  cuchilla              String?           @db.VarChar(10)
-  ram                   Int               @db.SmallInt
-  almacenamiento        Int               @db.SmallInt
-  estado_operativo      String            @db.VarChar(15)
-  estado                estado            @map("_estado")
-  fecha_creacion        DateTime          @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
-  usuario_creacion      Int               @map("_usuario_creacion")
-  fecha_modificacion    DateTime?         @map("_fecha_modificacion") @db.Timestamp(6)
-  usuario_modificacion  Int?              @map("_usuario_modificacion")
-  servidor_maquina      ServidorMaquina[]
-  hardware              Hardware          @relation(fields: [id_hardware], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_servidor_hardware")
-
-  @@map("servidores")
   @@schema("registro")
 }
 
@@ -231,77 +197,6 @@ model Usuario {
   @@schema("registro")
 }
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model Hardware {
-  id                   Int        @id(map: "hardware_pk") @default(autoincrement())
-  id_data_center       Int
-  serie                String     @db.VarChar(20)
-  cod_activo_agetic    String     @db.VarChar(10)
-  cod_tipo_hw          String     @db.VarChar(20)
-  marca                String     @db.VarChar(30)
-  modelo               String     @db.VarChar(30)
-  estado_operativo     String     @db.VarChar(15)
-  estado               estado     @map("_estado")
-  fecha_creacion       DateTime   @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
-  usuario_creacion     Int        @map("_usuario_creacion")
-  fecha_modificacion   DateTime?  @map("_fecha_modificacion") @db.Timestamp(6)
-  usuario_modificacion Int?       @map("_usuario_modificacion")
-  data_centers         DataCenter @relation(fields: [id_data_center], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_hardware_data_center")
-  servidores           Servidor[]
-
-  @@map("hardware")
-  @@schema("registro")
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model Maquina {
-  id                   Int               @id(map: "maquina_pk") @default(autoincrement())
-  codigo               Int?
-  cod_tipo_maquina     String            @db.VarChar(20)
-  nombre               String            @db.VarChar(25)
-  ip                   String            @db.Inet
-  so                   String            @db.VarChar(25)
-  ram                  Int               @db.SmallInt
-  almacenamiento       Json              @db.Json
-  cpu                  Int               @db.SmallInt
-  estado               estado            @map("_estado")
-  fecha_creacion       DateTime          @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
-  usuario_creacion     Int               @map("_usuario_creacion")
-  fecha_modificacion   DateTime?         @map("_fecha_modificacion") @db.Timestamp(6)
-  usuario_modificacion Int?              @map("_usuario_modificacion")
-  despliegue           Despliegue[]
-  servidor_maquina     ServidorMaquina[]
-  usuario_roles        UsuarioRol[]
-
-  @@map("maquinas")
-  @@schema("registro")
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model ServidorMaquina {
-  id                   Int       @id(map: "servidor_maquina_pk") @default(autoincrement())
-  id_servidor          Int
-  id_maquina           Int
-  estado               estado    @map("_estado")
-  fecha_creacion       DateTime  @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
-  usuario_creacion     Int       @map("_usuario_creacion")
-  fecha_modificacion   DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
-  usuario_modificacion Int?      @map("_usuario_modificacion")
-  maquinas             Maquina   @relation(fields: [id_servidor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_maquina_servidor")
-  servidores           Servidor  @relation(fields: [id_servidor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_servidor_maquina")
-
-  @@map("servidor_maquina")
-  @@schema("registro")
-}
-
-enum estado {
-  ACTIVO
-  INACTIVO
-
-  @@map("_estado")
-  @@schema("registro")
-}
-
 model Parametro {
   id                   Int       @id(map: "parametros_pk") @default(autoincrement())
   codigo               String    @db.VarChar(20)
@@ -315,4 +210,212 @@ model Parametro {
 
   @@map("parametros")
   @@schema("parametricas")
+}
+
+model DataCenter {
+  id                   Int             @id(map: "data_centers_pk") @default(autoincrement())
+  nombre               String          @db.VarChar(15)
+  ubicacion            String
+  estado               estado          @default(ACTIVO) @map("_estado")
+  fecha_creacion       DateTime        @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion     Int             @map("_usuario_creacion")
+  fecha_modificacion   DateTime?       @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion Int?            @map("_usuario_modificacion")
+  hardware             Hardware[]
+  infra_afectada       InfraAfectada[]
+
+  @@map("data_centers")
+  @@schema("registro")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Evento {
+  id                   Int               @id(map: "evento_pk") @default(autoincrement())
+  cod_tipo_evento      String            @db.VarChar(20)
+  descripcion          String
+  fecha_evento         DateTime          @db.Timestamp(6)
+  responsables         Int[]
+  estado_evento        String            @db.VarChar(20)
+  respaldo             Json?
+  estado               estado            @map("_estado")
+  fecha_creacion       DateTime          @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion     Int               @map("_usuario_creacion")
+  fecha_modificacion   DateTime?         @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion Int?              @map("_usuario_modificacion")
+  eventos_bitacora     EventosBitacora[]
+  infra_afectada       InfraAfectada[]
+
+  @@map("eventos")
+  @@schema("registro")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model EventosBitacora {
+  id                   Int       @id(map: "evento_bitacora_pk") @default(autoincrement())
+  id_evento            Int
+  fecha_creacion       DateTime  @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion     Int       @map("_usuario_creacion")
+  fecha_modificacion   DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion Int?      @map("_usuario_modificacion")
+  estado_anterior      String    @db.VarChar(20)
+  estado_actual        String    @db.VarChar(20)
+  eventos              Evento    @relation(fields: [id_evento], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evento_bitacora")
+
+  @@map("eventos_bitacora")
+  @@schema("registro")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Hardware {
+  id                   Int             @id(map: "hardware_pk") @default(autoincrement())
+  id_data_center       Int
+  serie                String          @db.VarChar(20)
+  cod_activo_agetic    String          @db.VarChar(10)
+  cod_tipo_hw          String          @db.VarChar(20)
+  marca                String          @db.VarChar(30)
+  modelo               String          @db.VarChar(30)
+  estado_operativo     String          @db.VarChar(15)
+  estado               estado          @map("_estado")
+  fecha_creacion       DateTime        @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion     Int             @map("_usuario_creacion")
+  fecha_modificacion   DateTime?       @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion Int?            @map("_usuario_modificacion")
+  data_centers         DataCenter      @relation(fields: [id_data_center], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_hardware_data_center")
+  infra_afectada       InfraAfectada[]
+  servidores           Servidor[]
+
+  @@map("hardware")
+  @@schema("registro")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model InfraAfectada {
+  id                   Int         @id(map: "infra_afectada_pk") @default(autoincrement())
+  id_evento            Int
+  id_data_center       Int?
+  id_hardware          Int?
+  id_servidor          Int?
+  id_maquina           Int?
+  estado               estado      @map("_estado")
+  fecha_creacion       DateTime    @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion     Int         @map("_usuario_creacion")
+  fecha_modificacion   DateTime?   @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion Int?        @map("_usuario_modificacion")
+  data_centers         DataCenter? @relation(fields: [id_data_center], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_dtacenter_evento")
+  eventos              Evento      @relation(fields: [id_evento], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_eventos")
+  hardware             Hardware?   @relation(fields: [id_hardware], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_hardware_evento")
+  maquinas             Maquina?    @relation(fields: [id_maquina], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_maquina_evento")
+  servidores           Servidor?   @relation(fields: [id_servidor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_servidor_evento")
+
+  @@map("infra_afectada")
+  @@schema("registro")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Maquina {
+  id                          Int                         @id(map: "maquina_pk") @default(autoincrement())
+  codigo                      Int?
+  cod_tipo_maquina            String                      @db.VarChar(20)
+  nombre                      String                      @db.VarChar(25)
+  ip                          String                      @db.Inet
+  so                          String                      @db.VarChar(25)
+  ram                         Int                         @db.SmallInt
+  almacenamiento              Json                        @db.Json
+  cpu                         Int                         @db.SmallInt
+  estado                      estado                      @map("_estado")
+  fecha_creacion              DateTime                    @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion            Int                         @map("_usuario_creacion")
+  fecha_modificacion          DateTime?                   @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion        Int?                        @map("_usuario_modificacion")
+  asignacion_servidor_maquina AsignacionServidorMaquina[]
+  despliegue                  Despliegue[]
+  infra_afectada              InfraAfectada[]
+  usuario_roles               UsuarioRol[]
+
+  @@map("maquinas")
+  @@schema("registro")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Servidor {
+  id                          Int                         @id(map: "servidor_pk") @default(autoincrement())
+  id_hardware                 Int
+  serie_servidor              String                      @db.VarChar(25)
+  cod_inventario_agetic       String                      @db.VarChar(10)
+  chasis                      String?                     @db.VarChar(10)
+  cuchilla                    String?                     @db.VarChar(10)
+  ram                         Int                         @db.SmallInt
+  almacenamiento              Int                         @db.SmallInt
+  estado_operativo            String                      @db.VarChar(15)
+  estado                      estado                      @map("_estado")
+  fecha_creacion              DateTime                    @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion            Int                         @map("_usuario_creacion")
+  fecha_modificacion          DateTime?                   @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion        Int?                        @map("_usuario_modificacion")
+  asignacion_servidor_maquina AsignacionServidorMaquina[]
+  infra_afectada              InfraAfectada[]
+  hardware                    Hardware                    @relation(fields: [id_hardware], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_servidor_hardware")
+
+  @@map("servidores")
+  @@schema("registro")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model AsignacionServidorMaquina {
+  id                   Int       @id(map: "asignacion_ms_pk") @default(autoincrement())
+  id_servidor          Int
+  id_maquina           Int
+  id_cluster           Int?
+  estado               estado    @map("_estado")
+  fecha_creacion       DateTime  @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion     Int       @map("_usuario_creacion")
+  fecha_modificacion   DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion Int?      @map("_usuario_modificacion")
+  clusters             Cluster?  @relation(fields: [id_cluster], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "cluster_fk")
+  maquinas             Maquina   @relation(fields: [id_maquina], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_maquina_servidor")
+  servidores           Servidor  @relation(fields: [id_servidor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_servidor_maquina")
+
+  @@map("asignacion_servidor_maquina")
+  @@schema("registro")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Cluster {
+  id                          Int                         @id(map: "cluster_pk") @default(autoincrement())
+  nombre                      String                      @db.VarChar(25)
+  cod_tipo_cluster            String                      @db.VarChar(20)
+  descripcion                 String
+  estado                      estado                      @map("_estado")
+  fecha_creacion              DateTime                    @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion            Int                         @map("_usuario_creacion")
+  fecha_modificacion          DateTime?                   @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion        Int?                        @map("_usuario_modificacion")
+  asignacion_servidor_maquina AsignacionServidorMaquina[]
+
+  @@map("clusters")
+  @@schema("registro")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model DespliegueBitacora {
+  id                   Int        @id(map: "despliegue_bitacora_pk") @default(autoincrement())
+  id_despliegue        Int
+  estado_anterior      String     @db.VarChar(20)
+  estado_actual        String     @db.VarChar(20)
+  fecha_creacion       DateTime   @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
+  usuario_creacion     Int        @map("_usuario_creacion")
+  fecha_modificacion   DateTime?  @map("_fecha_modificacion") @db.Timestamp(6)
+  usuario_modificacion Int?       @map("_usuario_modificacion")
+  despliegue           Despliegue @relation(fields: [id_despliegue], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_bitacora_despliegue")
+
+  @@map("despliegue_bitacora")
+  @@schema("registro")
+}
+
+enum estado {
+  ACTIVO
+  INACTIVO
+
+  @@map("estado")
+  @@schema("registro")
 }
