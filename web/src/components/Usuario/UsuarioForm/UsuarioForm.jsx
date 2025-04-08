@@ -4,21 +4,18 @@ import {
   FieldError,
   Label,
   TextField,
-  RadioField,
-  NumberField,
-  DatetimeLocalField,
   Submit,
 } from '@redwoodjs/forms'
 
-const formatDatetime = (value) => {
-  if (value) {
-    return value.replace(/:\d{2}\.\d{3}\w/, '')
-  }
-}
-
 const UsuarioForm = (props) => {
   const onSubmit = (data) => {
-    props.onSave(data, props?.usuario?.id)
+    const formData = {
+      ...data,
+      estado: 'ACTIVO',
+      usuario_modificacion: 2,
+      usuario_creacion: 3,
+    }
+    props.onSave(formData, props?.usuario?.id)
   }
 
   return (
@@ -190,94 +187,6 @@ const UsuarioForm = (props) => {
         />
 
         <FieldError name="email" className="rw-field-error" />
-
-        <Label
-          name="estado"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Estado
-        </Label>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="usuario-estado-0"
-            name="estado"
-            defaultValue="ACTIVO"
-            defaultChecked={props.usuario?.estado?.includes('ACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Activo</div>
-        </div>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="usuario-estado-1"
-            name="estado"
-            defaultValue="INACTIVO"
-            defaultChecked={props.usuario?.estado?.includes('INACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Inactivo</div>
-        </div>
-
-        <FieldError name="estado" className="rw-field-error" />
-
-        <Label
-          name="usuario_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario creacion
-        </Label>
-
-        <NumberField
-          name="usuario_creacion"
-          defaultValue={props.usuario?.usuario_creacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="usuario_creacion" className="rw-field-error" />
-
-        <Label
-          name="fecha_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Fecha modificacion
-        </Label>
-
-        <DatetimeLocalField
-          name="fecha_modificacion"
-          defaultValue={formatDatetime(props.usuario?.fecha_modificacion)}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="fecha_modificacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario modificacion
-        </Label>
-
-        <NumberField
-          name="usuario_modificacion"
-          defaultValue={props.usuario?.usuario_modificacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="usuario_modificacion" className="rw-field-error" />
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">

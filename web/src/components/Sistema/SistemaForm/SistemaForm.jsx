@@ -1,25 +1,68 @@
+import { useState } from 'react'
+
+import Select from 'react-select'
+
 import {
   Form,
   FormError,
   FieldError,
   Label,
-  NumberField,
   TextField,
-  RadioField,
-  TextAreaField,
-  DatetimeLocalField,
   Submit,
 } from '@redwoodjs/forms'
+import { useQuery } from '@redwoodjs/web'
 
-const formatDatetime = (value) => {
-  if (value) {
-    return value.replace(/:\d{2}\.\d{3}\w/, '')
+const OBTENER_SISTEMAS = gql`
+  query ObtenerSistemasPadre {
+    sistemas {
+      id
+      nombre
+      estado
+    }
   }
-}
+`
+
+const OBTENER_ENTIDADES = gql`
+  query ObtenerEntidades {
+    entidads {
+      id
+      nombre
+      estado
+    }
+  }
+`
 
 const SistemaForm = (props) => {
+  const { data: sistemasData } = useQuery(OBTENER_SISTEMAS)
+  const { data: entidadesData } = useQuery(OBTENER_ENTIDADES)
+
+  const [selectedPadre, setSelectedPadre] = useState(
+    props.sistema?.id_padre ?? null
+  )
+  const [selectedEntidad, setSelectedEntidad] = useState(
+    props.sistema?.id_entidad ?? null
+  )
+
+  const sistemasOptions =
+    sistemasData?.sistemas
+      ?.filter((s) => s.estado === 'ACTIVO')
+      .map((s) => ({ value: s.id, label: s.nombre })) || []
+
+  const entidadesOptions =
+    entidadesData?.entidads
+      ?.filter((e) => e.estado === 'ACTIVO')
+      .map((e) => ({ value: e.id, label: e.nombre })) || []
+
   const onSubmit = (data) => {
-    props.onSave(data, props?.sistema?.id)
+    const formData = {
+      ...data,
+      id_padre: selectedPadre ?? null,
+      id_entidad: selectedEntidad,
+      usuario_modificacion: 2,
+      usuario_creacion: 3,
+    }
+
+    props.onSave(formData, props?.sistema?.id)
   }
 
   return (
@@ -32,40 +75,30 @@ const SistemaForm = (props) => {
           listClassName="rw-form-error-list"
         />
 
-        <Label
-          name="id_padre"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Id padre
-        </Label>
-
-        <NumberField
-          name="id_padre"
-          defaultValue={props.sistema?.id_padre}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
+        <Label className="input-label">Sistema Padre (Opcional)</Label>
+        <Select
+          value={
+            sistemasOptions.find((opt) => opt.value === selectedPadre) || null
+          }
+          options={sistemasOptions}
+          onChange={(option) => setSelectedPadre(option?.value || null)}
+          className="input-field select-field"
+          isClearable
+          placeholder="Buscar y seleccionar un sistema..."
         />
 
-        <FieldError name="id_padre" className="rw-field-error" />
-
-        <Label
-          name="id_entidad"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Id entidad
-        </Label>
-
-        <NumberField
-          name="id_entidad"
-          defaultValue={props.sistema?.id_entidad}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
+        <Label className="input-label">Entidad</Label>
+        <Select
+          value={
+            entidadesOptions.find((opt) => opt.value === selectedEntidad) ||
+            null
+          }
+          options={entidadesOptions}
+          onChange={(option) => setSelectedEntidad(option?.value || null)}
+          className="input-field select-field"
+          isClearable
+          placeholder="Buscar y seleccionar una entidad..."
         />
-
-        <FieldError name="id_entidad" className="rw-field-error" />
 
         <Label
           name="codigo"
@@ -74,7 +107,6 @@ const SistemaForm = (props) => {
         >
           Codigo
         </Label>
-
         <TextField
           name="codigo"
           defaultValue={props.sistema?.codigo}
@@ -82,7 +114,6 @@ const SistemaForm = (props) => {
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
-
         <FieldError name="codigo" className="rw-field-error" />
 
         <Label
@@ -92,7 +123,6 @@ const SistemaForm = (props) => {
         >
           Sigla
         </Label>
-
         <TextField
           name="sigla"
           defaultValue={props.sistema?.sigla}
@@ -100,7 +130,6 @@ const SistemaForm = (props) => {
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
-
         <FieldError name="sigla" className="rw-field-error" />
 
         <Label
@@ -110,7 +139,6 @@ const SistemaForm = (props) => {
         >
           Nombre
         </Label>
-
         <TextField
           name="nombre"
           defaultValue={props.sistema?.nombre}
@@ -118,7 +146,6 @@ const SistemaForm = (props) => {
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
-
         <FieldError name="nombre" className="rw-field-error" />
 
         <Label
@@ -126,9 +153,8 @@ const SistemaForm = (props) => {
           className="rw-label"
           errorClassName="rw-label rw-label-error"
         >
-          Descripcion
+          Descripción
         </Label>
-
         <TextField
           name="descripcion"
           defaultValue={props.sistema?.descripcion}
@@ -136,118 +162,26 @@ const SistemaForm = (props) => {
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
-
         <FieldError name="descripcion" className="rw-field-error" />
 
         <Label
-          name="estado"
+          name="ra_creacion"
           className="rw-label"
           errorClassName="rw-label rw-label-error"
         >
-          Estado
+          RA Creación
         </Label>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="sistema-estado-0"
-            name="estado"
-            defaultValue="ACTIVO"
-            defaultChecked={props.sistema?.estado?.includes('ACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Activo</div>
-        </div>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="sistema-estado-1"
-            name="estado"
-            defaultValue="INACTIVO"
-            defaultChecked={props.sistema?.estado?.includes('INACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Inactivo</div>
-        </div>
-
-        <FieldError name="estado" className="rw-field-error" />
-
-        <Label
-          name="respaldo_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Respaldo creacion
-        </Label>
-
-        <TextAreaField
-          name="respaldo_creacion"
-          defaultValue={JSON.stringify(props.sistema?.respaldo_creacion)}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ valueAsJSON: true }}
-        />
-
-        <FieldError name="respaldo_creacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario creacion
-        </Label>
-
-        <NumberField
-          name="usuario_creacion"
-          defaultValue={props.sistema?.usuario_creacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="usuario_creacion" className="rw-field-error" />
-
-        <Label
-          name="fecha_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Fecha modificacion
-        </Label>
-
-        <DatetimeLocalField
-          name="fecha_modificacion"
-          defaultValue={formatDatetime(props.sistema?.fecha_modificacion)}
+        <TextField
+          name="ra_creacion"
+          defaultValue={props.sistema?.ra_creacion}
           className="rw-input"
           errorClassName="rw-input rw-input-error"
         />
-
-        <FieldError name="fecha_modificacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario modificacion
-        </Label>
-
-        <NumberField
-          name="usuario_modificacion"
-          defaultValue={props.sistema?.usuario_modificacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="usuario_modificacion" className="rw-field-error" />
+        <FieldError name="ra_creacion" className="rw-field-error" />
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">
-            Save
+            Guardar
           </Submit>
         </div>
       </Form>

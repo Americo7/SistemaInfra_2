@@ -134,11 +134,11 @@ model Sistema {
   id_padre             Int?
   id_entidad           Int
   codigo               String       @db.VarChar(20)
-  sigla                String       @db.VarChar(25)
+  sigla                String?      @db.VarChar(25)
   nombre               String       @db.VarChar(150)
   descripcion          String
   estado               estado       @map("_estado")
-  respaldo_creacion    Json?
+  ra_creacion          String?      @db.VarChar(100)
   fecha_creacion       DateTime     @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
   usuario_creacion     Int          @map("_usuario_creacion")
   fecha_modificacion   DateTime?    @map("_fecha_modificacion") @db.Timestamp(6)

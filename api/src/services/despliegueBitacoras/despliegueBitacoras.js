@@ -17,7 +17,7 @@ export const createDespliegueBitacora = ({ input }) => {
       estado_anterior: input.estado_anterior,
       estado_actual: input.estado_actual,
       fecha_creacion: new Date(),
-      usuario_creacion: 1,
+      usuario_creacion: input.usuario_creacion,
     },
   })
 }
@@ -29,7 +29,7 @@ export const updateDespliegueBitacora = ({ id, input }) => {
       estado_anterior: input.estado_anterior,
       estado_actual: input.estado_actual,
       fecha_modificacion: new Date(),
-      usuario_modificacion: 1,
+      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })

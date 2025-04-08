@@ -3,22 +3,37 @@ import {
   FormError,
   FieldError,
   Label,
+  SelectField,
   TextField,
-  RadioField,
-  NumberField,
-  DatetimeLocalField,
   Submit,
 } from '@redwoodjs/forms'
-
-const formatDatetime = (value) => {
-  if (value) {
-    return value.replace(/:\d{2}\.\d{3}\w/, '')
+import { useQuery } from '@redwoodjs/web'
+const GET_PARAMETROS = gql`
+  query GetParametrosCluster {
+    parametros {
+      id
+      codigo
+      nombre
+      grupo
+    }
   }
-}
+`
 
 const ClusterForm = (props) => {
+  const { data: parametrosData } = useQuery(GET_PARAMETROS)
+
+  const parametrosDeCluster = parametrosData?.parametros.filter((param) => {
+    return param.grupo === 'TIPO_CLUSTER'
+  })
   const onSubmit = (data) => {
-    props.onSave(data, props?.cluster?.id)
+    const formData = {
+      ...data,
+      cod_tipo_cluster: data.cod_tipo_cluster,
+      estado: 'ACTIVO',
+      usuario_modificacion: 2,
+      usuario_creacion: 3,
+    }
+    props.onSave(formData, props?.cluster?.id)
   }
 
   return (
@@ -49,24 +64,19 @@ const ClusterForm = (props) => {
 
         <FieldError name="nombre" className="rw-field-error" />
 
-        <Label
-          name="cod_tipo_cluster"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
+        <Label className="input-label">Entorno</Label>
+        <SelectField
+          name="cod_entorno"
+          defaultValue={props.cluster?.cod_entorno || ''}
+          className="input-field select-field"
         >
-          Cod tipo cluster
-        </Label>
-
-        <TextField
-          name="cod_tipo_cluster"
-          defaultValue={props.cluster?.cod_tipo_cluster}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="cod_tipo_cluster" className="rw-field-error" />
-
+          <option value="">Seleccionar Cluster...</option>
+          {parametrosDeCluster?.map((cluster) => (
+            <option key={cluster.id} value={cluster.codigo}>
+              {cluster.nombre}
+            </option>
+          ))}
+        </SelectField>
         <Label
           name="descripcion"
           className="rw-label"
@@ -84,94 +94,6 @@ const ClusterForm = (props) => {
         />
 
         <FieldError name="descripcion" className="rw-field-error" />
-
-        <Label
-          name="estado"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Estado
-        </Label>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="cluster-estado-0"
-            name="estado"
-            defaultValue="ACTIVO"
-            defaultChecked={props.cluster?.estado?.includes('ACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Activo</div>
-        </div>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="cluster-estado-1"
-            name="estado"
-            defaultValue="INACTIVO"
-            defaultChecked={props.cluster?.estado?.includes('INACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Inactivo</div>
-        </div>
-
-        <FieldError name="estado" className="rw-field-error" />
-
-        <Label
-          name="usuario_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario creacion
-        </Label>
-
-        <NumberField
-          name="usuario_creacion"
-          defaultValue={props.cluster?.usuario_creacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="usuario_creacion" className="rw-field-error" />
-
-        <Label
-          name="fecha_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Fecha modificacion
-        </Label>
-
-        <DatetimeLocalField
-          name="fecha_modificacion"
-          defaultValue={formatDatetime(props.cluster?.fecha_modificacion)}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="fecha_modificacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario modificacion
-        </Label>
-
-        <NumberField
-          name="usuario_modificacion"
-          defaultValue={props.cluster?.usuario_modificacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="usuario_modificacion" className="rw-field-error" />
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">

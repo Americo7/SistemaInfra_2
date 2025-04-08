@@ -1,24 +1,69 @@
+import { useState } from 'react'
+
+import Select from 'react-select'
+
 import {
   Form,
   FormError,
   FieldError,
   Label,
   NumberField,
-  TextField,
-  RadioField,
-  DatetimeLocalField,
   Submit,
+  TextField,
+  SelectField,
 } from '@redwoodjs/forms'
+import { useQuery } from '@redwoodjs/web'
 
-const formatDatetime = (value) => {
-  if (value) {
-    return value.replace(/:\d{2}\.\d{3}\w/, '')
+const GET_HARDWARE = gql`
+  query GetHardwareServidor {
+    hardwares {
+      id
+      serie
+      marca
+      modelo
+      estado
+    }
   }
-}
+`
+const GET_PARAMETROS = gql`
+  query GetParametrosServidor {
+    parametros {
+      id
+      codigo
+      nombre
+      grupo
+    }
+  }
+`
 
 const ServidorForm = (props) => {
+  const { data: hardwareData } = useQuery(GET_HARDWARE)
+  const { data: parametrosData } = useQuery(GET_PARAMETROS)
+  const [selectedHardware, setSelectedHardware] = useState(
+    props.servidor?.id_hardware || null
+  )
+
+  const parametrosDeEstadoOperativo = parametrosData?.parametros.filter(
+    (param) => param.grupo === 'ESTADO_OPERATIVO'
+  )
+  const hardwareOptions =
+    hardwareData?.hardwares
+      ?.filter((hardware) => hardware.estado === 'ACTIVO')
+      .map((hardware) => ({
+        value: hardware.id,
+        label:
+          hardware.serie + ' - ' + hardware.marca + ' - ' + hardware.modelo,
+      })) || []
   const onSubmit = (data) => {
-    props.onSave(data, props?.servidor?.id)
+    const formData = {
+      ...data,
+      id_hardware: selectedHardware,
+      estado_operativo: data.estado_operativo,
+      estado: 'ACTIVO',
+      usuario_modificacion: 2,
+      usuario_creacion: 3,
+    }
+    props.onSave(formData, props?.servidor?.id)
   }
 
   return (
@@ -31,23 +76,22 @@ const ServidorForm = (props) => {
           listClassName="rw-form-error-list"
         />
 
-        <Label
+        <Label className="input-label">Hardware</Label>
+        <Select
           name="id_hardware"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Id hardware
-        </Label>
-
-        <NumberField
-          name="id_hardware"
-          defaultValue={props.servidor?.id_hardware}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
+          value={
+            hardwareOptions.find(
+              (option) => option.value === selectedHardware
+            ) || ''
+          }
+          options={hardwareOptions}
+          onChange={(selectedOption) =>
+            setSelectedHardware(selectedOption?.value || null)
+          }
+          className="input-field select-field"
+          isClearable
+          placeholder="Buscar y seleccionar un hardware..."
         />
-
-        <FieldError name="id_hardware" className="rw-field-error" />
 
         <Label
           name="serie_servidor"
@@ -67,14 +111,7 @@ const ServidorForm = (props) => {
 
         <FieldError name="serie_servidor" className="rw-field-error" />
 
-        <Label
-          name="cod_inventario_agetic"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Cod inventario agetic
-        </Label>
-
+        <Label className="input-label">Codigo Inventario Agetic</Label>
         <TextField
           name="cod_inventario_agetic"
           defaultValue={props.servidor?.cod_inventario_agetic}
@@ -82,8 +119,6 @@ const ServidorForm = (props) => {
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
-
-        <FieldError name="cod_inventario_agetic" className="rw-field-error" />
 
         <Label
           name="chasis"
@@ -155,112 +190,19 @@ const ServidorForm = (props) => {
 
         <FieldError name="almacenamiento" className="rw-field-error" />
 
-        <Label
+        <Label className="input-label">Estado Operativo</Label>
+        <SelectField
           name="estado_operativo"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
+          defaultValue={props.servidor?.estado_operativo || ''}
+          className="input-field select-field"
         >
-          Estado operativo
-        </Label>
-
-        <TextField
-          name="estado_operativo"
-          defaultValue={props.servidor?.estado_operativo}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="estado_operativo" className="rw-field-error" />
-
-        <Label
-          name="estado"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Estado
-        </Label>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="servidor-estado-0"
-            name="estado"
-            defaultValue="ACTIVO"
-            defaultChecked={props.servidor?.estado?.includes('ACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Activo</div>
-        </div>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="servidor-estado-1"
-            name="estado"
-            defaultValue="INACTIVO"
-            defaultChecked={props.servidor?.estado?.includes('INACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Inactivo</div>
-        </div>
-
-        <FieldError name="estado" className="rw-field-error" />
-
-        <Label
-          name="usuario_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario creacion
-        </Label>
-
-        <NumberField
-          name="usuario_creacion"
-          defaultValue={props.servidor?.usuario_creacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="usuario_creacion" className="rw-field-error" />
-
-        <Label
-          name="fecha_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Fecha modificacion
-        </Label>
-
-        <DatetimeLocalField
-          name="fecha_modificacion"
-          defaultValue={formatDatetime(props.servidor?.fecha_modificacion)}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="fecha_modificacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario modificacion
-        </Label>
-
-        <NumberField
-          name="usuario_modificacion"
-          defaultValue={props.servidor?.usuario_modificacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="usuario_modificacion" className="rw-field-error" />
-
+          <option value="">Seleccionar...</option>
+          {parametrosDeEstadoOperativo?.map((estadoOperativo) => (
+            <option key={estadoOperativo.id} value={estadoOperativo.codigo}>
+              {estadoOperativo.nombre}
+            </option>
+          ))}
+        </SelectField>
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">
             Save

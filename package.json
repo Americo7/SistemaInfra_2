@@ -29,9 +29,12 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.0.1",
     "@mui/material": "^7.0.1",
+    "@mui/x-date-pickers": "^7.28.3",
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^5.0.2",
     "material-react-table": "^3.2.1",
-    "xlsx": "^0.18.5"
+    "react-select": "^5.10.1",
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   }
 }

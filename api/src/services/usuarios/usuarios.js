@@ -24,7 +24,7 @@ export const createUsuario = ({ input }) => {
       email: input.email,
       estado: input.estado,
       fecha_creacion: new Date(),
-      usuario_creacion: 1,
+      usuario_creacion: input.usuario_creacion,
     },
   })
 }
@@ -43,7 +43,7 @@ export const updateUsuario = ({ id, input }) => {
       email: input.email,
       estado: input.estado,
       fecha_modificacion: new Date(),
-      usuario_modificacion: 1,
+      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })

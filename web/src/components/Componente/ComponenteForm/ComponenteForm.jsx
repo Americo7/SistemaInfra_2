@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import Select from 'react-select'
+
 import {
   Form,
   FormError,
@@ -7,7 +9,6 @@ import {
   Label,
   SelectField,
   TextField,
-  RadioField,
   Submit,
 } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
@@ -16,9 +17,11 @@ const OBTENER_SISTEMAS = gql`
     sistemas {
       id
       nombre
+      estado
     }
   }
 `
+
 const GET_PARAMETROS = gql`
   query GetParametros {
     parametros {
@@ -29,12 +32,10 @@ const GET_PARAMETROS = gql`
     }
   }
 `
+
 const RespaldoField = ({ defaultValue, onRespaldoChange }) => {
   const [respaldoData, setRespaldoData] = useState(
-    defaultValue || {
-      tecnologia: '',
-      version: '',
-    }
+    defaultValue || { tecnology: '', version: '' }
   )
 
   const handleChange = (event) => {
@@ -46,29 +47,19 @@ const RespaldoField = ({ defaultValue, onRespaldoChange }) => {
 
   return (
     <div className="respaldo-section">
-      <div className="form-grid">
-        <div className="form-group">
-          <Label className="input-label">Tecnología</Label>
+      {['tecnology', 'version'].map((field) => (
+        <div key={field} className="form-group">
+          <Label className="input-label">
+            {field.charAt(0).toUpperCase() + field.slice(1)}
+          </Label>
           <TextField
-            value={respaldoData.tecnologia}
+            value={respaldoData[field]}
             onChange={handleChange}
-            name="tecnologia"
+            name={field}
             className="input-field"
-            placeholder=""
           />
         </div>
-
-        <div className="form-group">
-          <Label className="input-label">Version</Label>
-          <TextField
-            value={respaldoData.version}
-            onChange={handleChange}
-            name="version"
-            className="input-field"
-            placeholder=""
-          />
-        </div>
-      </div>
+      ))}
     </div>
   )
 }
@@ -76,45 +67,41 @@ const RespaldoField = ({ defaultValue, onRespaldoChange }) => {
 const ComponenteForm = (props) => {
   const { data: sistemasData } = useQuery(OBTENER_SISTEMAS)
   const { data: parametrosData } = useQuery(GET_PARAMETROS)
-
+  const [selectedSistema, setSelectedSistema] = useState(
+    props.evento?.id_padre || null
+  )
   const parametrosDeEntorno = parametrosData?.parametros.filter((param) => {
     return param.grupo === 'ENTORNO'
   })
-
   const parametrosDeCategoria = parametrosData?.parametros.filter(
     (param) => param.grupo === 'CATEGORIA'
   )
 
   const [respaldoData, setRespaldoData] = useState({
-    tecnologia: '',
+    tecnology: '',
     version: '',
   })
-  const [setFormData] = useState({
-    nombre: '',
-    dominio: '',
-    descripcion: '',
-  })
-  // Función para validar que el campo no contenga números
-  const validateNoNumbers = (value) => {
-    const regex = /\d/ // Expresión regular que busca números
-    return !regex.test(value)
-  }
-
-  // Manejador de cambio para los campos de texto con validación
-  const handleTextChange = (event) => {
-    const { name, value } = event.target
-    if (validateNoNumbers(value)) {
-      setFormData((prevState) => ({
-        ...prevState,
-        [name]: value,
-      }))
-    } else {
-      alert('No se pueden ingresar números en este campo')
-    }
-  }
+  // Opciones de React Select
+  const sistemasOptions =
+    sistemasData?.sistemas
+      ?.filter((sistema) => sistema.estado === 'ACTIVO')
+      .map((sistema) => ({
+        value: sistema.id,
+        label: sistema.nombre,
+      })) || []
   // Enviar datos
   const onSubmit = (data) => {
-    props.onSave(data, props?.componente?.id)
+    const formData = {
+      ...data,
+      id_sistema: selectedSistema,
+      cod_entorno: data.cod_entorno,
+      cod_categoria: data.cod_categoria,
+      estado: 'ACTIVO',
+      tecnologia: respaldoData,
+      usuario_modificacion: 2,
+      usuario_creacion: 3,
+    }
+    props.onSave(formData, props?.componente?.id)
   }
 
   return (
@@ -128,18 +115,21 @@ const ComponenteForm = (props) => {
         />
 
         <Label className="input-label">Sistema</Label>
-        <SelectField
+        <Select
           name="id_sistema"
-          defaultValue={props.componente?.id_sistema || ''}
+          value={
+            sistemasOptions.find(
+              (option) => option.value === selectedSistema
+            ) || ''
+          }
+          options={sistemasOptions}
+          onChange={(selectedOption) =>
+            setSelectedSistema(selectedOption?.value || null)
+          }
           className="input-field select-field"
-        >
-          <option value="">Seleccionar sistema...</option>
-          {sistemasData?.sistemas.map((sistema) => (
-            <option key={sistema.id} value={sistema.id}>
-              {sistema.nombre}
-            </option>
-          ))}
-        </SelectField>
+          isClearable
+          placeholder="Buscar y seleccionar un sistema..."
+        />
 
         <Label
           name="nombre"
@@ -152,7 +142,6 @@ const ComponenteForm = (props) => {
         <TextField
           name="nombre"
           defaultValue={props.componente?.nombre}
-          onChange={handleTextChange}
           className="rw-input"
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
@@ -204,13 +193,13 @@ const ComponenteForm = (props) => {
         >
           <option value="">Seleccionar Entorno...</option>
           {parametrosDeEntorno?.map((entorno) => (
-            <option key={entorno.id} value={entorno.id}>
-              {entorno.codigo}
+            <option key={entorno.id} value={entorno.codigo}>
+              {entorno.nombre}
             </option>
           ))}
         </SelectField>
 
-        <Label className="input-label">Entorno</Label>
+        <Label className="input-label">Categoria</Label>
         <SelectField
           name="cod_categoria"
           defaultValue={props.componente?.cod_categoria || ''}
@@ -218,8 +207,8 @@ const ComponenteForm = (props) => {
         >
           <option value="">Seleccionar Categoria...</option>
           {parametrosDeCategoria?.map((categoria) => (
-            <option key={categoria.id} value={categoria.id}>
-              {categoria.codigo}
+            <option key={categoria.id} value={categoria.codigo}>
+              {categoria.nombre}
             </option>
           ))}
         </SelectField>
@@ -229,7 +218,7 @@ const ComponenteForm = (props) => {
           className="rw-label"
           errorClassName="rw-label rw-label-error"
         >
-          Gitlab repo
+          Gitlab repoositorio
         </Label>
 
         <TextField
@@ -262,31 +251,6 @@ const ComponenteForm = (props) => {
           defaultValue={respaldoData}
           onRespaldoChange={setRespaldoData}
         />
-
-        <Label
-          name="estado"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Estado
-        </Label>
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="componente-estado-0"
-            name="estado"
-            defaultValue="ACTIVO"
-            defaultChecked={
-              props.componente?.estado
-                ? props.componente.estado.includes('ACTIVO')
-                : true
-            }
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-          <div>Activo</div>
-        </div>
-        <FieldError name="estado" className="rw-field-error" />
-
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">
             Save
@@ -296,5 +260,4 @@ const ComponenteForm = (props) => {
     </div>
   )
 }
-
 export default ComponenteForm

@@ -12,10 +12,8 @@ export const evento = ({ id }) => {
 
 export const createEvento = ({ input }) => {
   const respaldoData = {
-    tipo_respaldo: input.tipo_respaldo,
-    detalle_respaldo: input.detalle_respaldo,
-    fecha_solicitud: input.fecha_solicitud,
-    responsable_admin: input.responsable_admin,
+    servicios_afectados: input.servicios_afectados,
+    comentarios: input.comentarios,
   }
   return db.evento.create({
     data: {
@@ -27,17 +25,15 @@ export const createEvento = ({ input }) => {
       respaldo: respaldoData,
       estado: input.estado,
       fecha_creacion: new Date(),
-      usuario_creacion: 1,
+      usuario_creacion: input.usuario_creacion,
     },
   })
 }
 
 export const updateEvento = ({ id, input }) => {
   const respaldoData = {
-    tipo_respaldo: input.tipo_respaldo,
-    detalle_respaldo: input.detalle_respaldo,
-    fecha_solicitud: input.fecha_solicitud,
-    responsable_admin: input.responsable_admin,
+    servicios_afectados: input.servicios_afectados,
+    comentarios: input.comentarios,
   }
   return db.evento.update({
     data: {
@@ -48,10 +44,8 @@ export const updateEvento = ({ id, input }) => {
       estado_evento: input.estado_evento,
       respaldo: respaldoData,
       estado: input.estado,
-      fecha_creacion: new Date(),
-      usuario_creacion: 1,
       fecha_modificacion: new Date(),
-      usuario_modificacion: 1,
+      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })

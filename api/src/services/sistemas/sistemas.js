@@ -11,12 +11,6 @@ export const sistema = ({ id }) => {
 }
 
 export const createSistema = ({ input }) => {
-  const respaldoData = {
-    tipo_respaldo: input.tipo_respaldo,
-    detalle_respaldo: input.detalle_respaldo,
-    fecha_solicitud: input.fecha_solicitud,
-    responsable_admin: input.responsable_admin,
-  }
   return db.sistema.create({
     data: {
       id_padre: input.id_padre,
@@ -26,20 +20,14 @@ export const createSistema = ({ input }) => {
       nombre: input.nombre,
       descripcion: input.descripcion,
       estado: input.estado,
-      respaldo_creacion: respaldoData,
+      ra_creacion: input.ra_creacion,
       fecha_creacion: new Date(),
-      usuario_creacion: 1,
+      usuario_creacion: input.usuario_creacion,
     },
   })
 }
 
 export const updateSistema = ({ id, input }) => {
-  const respaldoData = {
-    tipo_respaldo: input.tipo_respaldo,
-    detalle_respaldo: input.detalle_respaldo,
-    fecha_solicitud: input.fecha_solicitud,
-    responsable_admin: input.responsable_admin,
-  }
   return db.sistema.update({
     data: {
       id_padre: input.id_padre,
@@ -49,9 +37,9 @@ export const updateSistema = ({ id, input }) => {
       nombre: input.nombre,
       descripcion: input.descripcion,
       estado: input.estado,
-      respaldo_creacion: respaldoData,
+      ra_creacion: input.ra_creacion,
       fecha_modificacion: new Date(),
-      usuario_modificacion: 1,
+      usuario_modificacion: input.usuario_creacion,
     },
     where: { id },
   })

@@ -6,20 +6,36 @@ import {
   NumberField,
   TextField,
   TextAreaField,
-  RadioField,
-  DatetimeLocalField,
+  SelectField,
   Submit,
 } from '@redwoodjs/forms'
-
-const formatDatetime = (value) => {
-  if (value) {
-    return value.replace(/:\d{2}\.\d{3}\w/, '')
+import { useQuery } from '@redwoodjs/web'
+const GET_PARAMETROS = gql`
+  query GetParametrosMaquinas {
+    parametros {
+      id
+      codigo
+      nombre
+      grupo
+    }
   }
-}
-
+`
 const MaquinaForm = (props) => {
+  const { data: parametrosData } = useQuery(GET_PARAMETROS)
+
+  const parametrosDeTipoMaquina = parametrosData?.parametros.filter(
+    (param) => param.grupo === 'TIPO_MAQUINA'
+  )
+
   const onSubmit = (data) => {
-    props.onSave(data, props?.maquina?.id)
+    const formData = {
+      ...data,
+      cod_tipo_maquina: data.cod_tipo_maquina,
+      estado: 'ACTIVO',
+      usuario_modificacion: 2,
+      usuario_creacion: 3,
+    }
+    props.onSave(formData, props?.maquina?.id)
   }
 
   return (
@@ -49,24 +65,19 @@ const MaquinaForm = (props) => {
 
         <FieldError name="codigo" className="rw-field-error" />
 
-        <Label
+        <Label className="input-label">Tipo de Maquina</Label>
+        <SelectField
           name="cod_tipo_maquina"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
+          defaultValue={props.maquina?.cod_tipo_maquina || ''}
+          className="input-field select-field"
         >
-          Cod tipo maquina
-        </Label>
-
-        <TextField
-          name="cod_tipo_maquina"
-          defaultValue={props.maquina?.cod_tipo_maquina}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="cod_tipo_maquina" className="rw-field-error" />
-
+          <option value="">Seleccionar...</option>
+          {parametrosDeTipoMaquina?.map((tipoMaquina) => (
+            <option key={tipoMaquina.id} value={tipoMaquina.codigo}>
+              {tipoMaquina.nombre}
+            </option>
+          ))}
+        </SelectField>
         <Label
           name="nombre"
           className="rw-label"
@@ -90,16 +101,23 @@ const MaquinaForm = (props) => {
           className="rw-label"
           errorClassName="rw-label rw-label-error"
         >
-          Ip
+          IP
         </Label>
 
-        <TextField
+        <input
+          list="ip-subnets"
           name="ip"
           defaultValue={props.maquina?.ip}
           className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
+          required
         />
+
+        <datalist id="ip-subnets">
+          <option value="192.168.0." />
+          <option value="192.168.1." />
+          <option value="10.0.0." />
+          <option value="172.16.0." />
+        </datalist>
 
         <FieldError name="ip" className="rw-field-error" />
 
@@ -174,94 +192,6 @@ const MaquinaForm = (props) => {
         />
 
         <FieldError name="cpu" className="rw-field-error" />
-
-        <Label
-          name="estado"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Estado
-        </Label>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="maquina-estado-0"
-            name="estado"
-            defaultValue="ACTIVO"
-            defaultChecked={props.maquina?.estado?.includes('ACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Activo</div>
-        </div>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="maquina-estado-1"
-            name="estado"
-            defaultValue="INACTIVO"
-            defaultChecked={props.maquina?.estado?.includes('INACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Inactivo</div>
-        </div>
-
-        <FieldError name="estado" className="rw-field-error" />
-
-        <Label
-          name="usuario_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario creacion
-        </Label>
-
-        <NumberField
-          name="usuario_creacion"
-          defaultValue={props.maquina?.usuario_creacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="usuario_creacion" className="rw-field-error" />
-
-        <Label
-          name="fecha_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Fecha modificacion
-        </Label>
-
-        <DatetimeLocalField
-          name="fecha_modificacion"
-          defaultValue={formatDatetime(props.maquina?.fecha_modificacion)}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="fecha_modificacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario modificacion
-        </Label>
-
-        <NumberField
-          name="usuario_modificacion"
-          defaultValue={props.maquina?.usuario_modificacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="usuario_modificacion" className="rw-field-error" />
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">

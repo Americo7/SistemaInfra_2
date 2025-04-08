@@ -1,5 +1,4 @@
 import { navigate, routes } from '@redwoodjs/router'
-
 import { useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
@@ -22,7 +21,7 @@ export const QUERY = gql`
 `
 
 const UPDATE_ENTIDAD_MUTATION = gql`
-  mutation UpdateEntidadMutation($id: Int!, $input: UpdateEntidadInput!) {
+  mutation UpdateEntidadFromEditCell($id: Int!, $input: UpdateEntidadInput!) {
     updateEntidad(id: $id, input: $input) {
       id
       codigo

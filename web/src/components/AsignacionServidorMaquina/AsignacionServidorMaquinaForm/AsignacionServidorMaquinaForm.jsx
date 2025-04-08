@@ -1,23 +1,84 @@
-import {
-  Form,
-  FormError,
-  FieldError,
-  Label,
-  NumberField,
-  RadioField,
-  DatetimeLocalField,
-  Submit,
-} from '@redwoodjs/forms'
+import { useState } from 'react'
 
-const formatDatetime = (value) => {
-  if (value) {
-    return value.replace(/:\d{2}\.\d{3}\w/, '')
+import Select from 'react-select'
+
+import { Form, FormError, Label, Submit } from '@redwoodjs/forms'
+import { useQuery } from '@redwoodjs/web'
+
+const OBTENER_SERVIDORES = gql`
+  query ObtenerServidores {
+    servidors {
+      id
+      serie_servidor
+      estado
+    }
   }
-}
+`
+const OBTENER_CLUSTERS = gql`
+  query ObtenerClustersAsignacion {
+    clusters {
+      id
+      nombre
+      estado
+    }
+  }
+`
 
+const GET_MAQUINA = gql`
+  query GetMaquinasAsignacion {
+    maquinas {
+      id
+      nombre
+      estado
+    }
+  }
+`
 const AsignacionServidorMaquinaForm = (props) => {
+  const { data: servidoresData } = useQuery(OBTENER_SERVIDORES)
+  const { data: clustersData } = useQuery(OBTENER_CLUSTERS)
+  const { data: maquinasData } = useQuery(GET_MAQUINA)
+  const [selectedCluster, setSelectedCluster] = useState(
+    props.asignacionServidorMaquina?.id_cluster || null
+  )
+  const [selectedServidor, setSelectedServidor] = useState(
+    props.asignacionServidorMaquina?.id_servidor || null
+  )
+  const [selectedMaquina, setSelectedMaquina] = useState(
+    props.asignacionServidorMaquina?.id_maquina || null
+  )
+
+  const clustersOptions =
+    clustersData?.clusters
+      ?.filter((cluster) => cluster.estado === 'ACTIVO')
+      .map((cluster) => ({
+        value: cluster.id,
+        label: cluster.nombre,
+      })) || []
+  const servidoresOptions =
+    servidoresData?.servidors
+      ?.filter((servidor) => servidor.estado === 'ACTIVO')
+      .map((servidor) => ({
+        value: servidor.id,
+        label: servidor.serie_servidor,
+      })) || []
+  const maquinasOptions =
+    maquinasData?.maquinas
+      ?.filter((maquina) => maquina.estado === 'ACTIVO')
+      .map((maquina) => ({
+        value: maquina.id,
+        label: maquina.nombre,
+      })) || []
   const onSubmit = (data) => {
-    props.onSave(data, props?.asignacionServidorMaquina?.id)
+    const formData = {
+      ...data,
+      id_servidor: selectedServidor,
+      id_cluster: selectedCluster,
+      id_maquina: selectedMaquina,
+      estado: 'ACTIVO',
+      usuario_modificacion: 2,
+      usuario_creacion: 3,
+    }
+    props.onSave(formData, props?.asignacionServidorMaquina?.id)
   }
 
   return (
@@ -29,153 +90,56 @@ const AsignacionServidorMaquinaForm = (props) => {
           titleClassName="rw-form-error-title"
           listClassName="rw-form-error-list"
         />
-
-        <Label
+        <Label className="input-label">Servidor</Label>
+        <Select
           name="id_servidor"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Id servidor
-        </Label>
-
-        <NumberField
-          name="id_servidor"
-          defaultValue={props.asignacionServidorMaquina?.id_servidor}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
+          value={
+            servidoresOptions.find(
+              (option) => option.value === selectedServidor
+            ) || ''
+          }
+          options={servidoresOptions}
+          onChange={(selectedOption) =>
+            setSelectedServidor(selectedOption?.value || null)
+          }
+          className="input-field select-field"
+          isClearable
+          placeholder="Buscar y seleccionar un servidor..."
         />
 
-        <FieldError name="id_servidor" className="rw-field-error" />
-
-        <Label
+        <Label className="input-label">Maquina</Label>
+        <Select
           name="id_maquina"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Id maquina
-        </Label>
-
-        <NumberField
-          name="id_maquina"
-          defaultValue={props.asignacionServidorMaquina?.id_maquina}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
+          value={
+            maquinasOptions.find(
+              (option) => option.value === selectedMaquina
+            ) || ''
+          }
+          options={maquinasOptions}
+          onChange={(selectedOption) =>
+            setSelectedMaquina(selectedOption?.value || null)
+          }
+          className="input-field select-field"
+          isClearable
+          placeholder="Buscar y seleccionar una maquina..."
         />
 
-        <FieldError name="id_maquina" className="rw-field-error" />
-
-        <Label
+        <Label className="input-label">Cluster</Label>
+        <Select
           name="id_cluster"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Id cluster
-        </Label>
-
-        <NumberField
-          name="id_cluster"
-          defaultValue={props.asignacionServidorMaquina?.id_cluster}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
+          value={
+            clustersOptions.find(
+              (option) => option.value === selectedCluster
+            ) || ''
+          }
+          options={clustersOptions}
+          onChange={(selectedOption) =>
+            setSelectedCluster(selectedOption?.value || null)
+          }
+          className="input-field select-field"
+          isClearable
+          placeholder="Buscar y seleccionar un cluster..."
         />
-
-        <FieldError name="id_cluster" className="rw-field-error" />
-
-        <Label
-          name="estado"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Estado
-        </Label>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="asignacionServidorMaquina-estado-0"
-            name="estado"
-            defaultValue="ACTIVO"
-            defaultChecked={props.asignacionServidorMaquina?.estado?.includes(
-              'ACTIVO'
-            )}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Activo</div>
-        </div>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="asignacionServidorMaquina-estado-1"
-            name="estado"
-            defaultValue="INACTIVO"
-            defaultChecked={props.asignacionServidorMaquina?.estado?.includes(
-              'INACTIVO'
-            )}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Inactivo</div>
-        </div>
-
-        <FieldError name="estado" className="rw-field-error" />
-
-        <Label
-          name="usuario_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario creacion
-        </Label>
-
-        <NumberField
-          name="usuario_creacion"
-          defaultValue={props.asignacionServidorMaquina?.usuario_creacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="usuario_creacion" className="rw-field-error" />
-
-        <Label
-          name="fecha_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Fecha modificacion
-        </Label>
-
-        <DatetimeLocalField
-          name="fecha_modificacion"
-          defaultValue={formatDatetime(
-            props.asignacionServidorMaquina?.fecha_modificacion
-          )}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="fecha_modificacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario modificacion
-        </Label>
-
-        <NumberField
-          name="usuario_modificacion"
-          defaultValue={props.asignacionServidorMaquina?.usuario_modificacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="usuario_modificacion" className="rw-field-error" />
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">

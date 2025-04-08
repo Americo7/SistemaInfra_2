@@ -18,6 +18,7 @@ export const schema = gql`
     sistemas: Sistema!
     despliegue: [Despliegue]!
 
+    tecnology: String
     version: String
   }
 
@@ -47,6 +48,7 @@ export const schema = gql`
     fecha_modificacion: DateTime
     usuario_modificacion: Int
 
+    tecnology: String
     version: String
   }
 
@@ -66,6 +68,7 @@ export const schema = gql`
     fecha_modificacion: DateTime
     usuario_modificacion: Int
 
+    tecnology: String
     version: String
   }
 

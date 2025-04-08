@@ -20,7 +20,7 @@ export const createInfraAfectada = ({ input }) => {
       id_maquina: input.id_maquina,
       estado: input.estado,
       fecha_creacion: new Date(),
-      usuario_creacion: 1,
+      usuario_creacion: input.usuario_creacion,
     },
   })
 }
@@ -35,7 +35,7 @@ export const updateInfraAfectada = ({ id, input }) => {
       id_maquina: input.id_maquina,
       estado: input.estado,
       fecha_modificacion: new Date(),
-      usuario_modificacion: 1,
+      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })

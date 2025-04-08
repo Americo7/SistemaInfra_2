@@ -4,21 +4,37 @@ import {
   FieldError,
   Label,
   TextField,
-  RadioField,
-  NumberField,
-  DatetimeLocalField,
+  SelectField,
   Submit,
 } from '@redwoodjs/forms'
+import { useQuery } from '@redwoodjs/web'
 
-const formatDatetime = (value) => {
-  if (value) {
-    return value.replace(/:\d{2}\.\d{3}\w/, '')
+const GET_PARAMETROS = gql`
+  query GetParametrosRoles {
+    parametros {
+      id
+      codigo
+      nombre
+      grupo
+    }
   }
-}
+`
 
 const RoleForm = (props) => {
+  const { data: parametrosData } = useQuery(GET_PARAMETROS)
+
+  const parametrosDeEntorno = parametrosData?.parametros.filter((param) => {
+    return param.grupo === 'TIPO_ROL'
+  })
+
   const onSubmit = (data) => {
-    props.onSave(data, props?.role?.id)
+    const formData = {
+      ...data,
+      estado: props.role ? data.estado : 'ACTIVO',
+      usuario_modificacion: 1,
+      usuario_creacion: 1,
+    }
+    props.onSave(formData, props?.role?.id)
   }
 
   return (
@@ -38,7 +54,6 @@ const RoleForm = (props) => {
         >
           Nombre
         </Label>
-
         <TextField
           name="nombre"
           defaultValue={props.role?.nombre}
@@ -46,26 +61,21 @@ const RoleForm = (props) => {
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
-
         <FieldError name="nombre" className="rw-field-error" />
 
-        <Label
+        <Label className="input-label">Tipo de Rol</Label>
+        <SelectField
           name="cod_tipo_rol"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
+          defaultValue={props.rol?.cod_tipo_rol || ''}
+          className="input-field select-field"
         >
-          Cod tipo rol
-        </Label>
-
-        <TextField
-          name="cod_tipo_rol"
-          defaultValue={props.role?.cod_tipo_rol}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="cod_tipo_rol" className="rw-field-error" />
+          <option value="">Seleccionar Tipo Rol...</option>
+          {parametrosDeEntorno?.map((tipoRol) => (
+            <option key={tipoRol.id} value={tipoRol.codigo}>
+              {tipoRol.nombre}
+            </option>
+          ))}
+        </SelectField>
 
         <Label
           name="descripcion"
@@ -74,7 +84,6 @@ const RoleForm = (props) => {
         >
           Descripcion
         </Label>
-
         <TextField
           name="descripcion"
           defaultValue={props.role?.descripcion}
@@ -82,96 +91,7 @@ const RoleForm = (props) => {
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
-
         <FieldError name="descripcion" className="rw-field-error" />
-
-        <Label
-          name="estado"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Estado
-        </Label>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="role-estado-0"
-            name="estado"
-            defaultValue="ACTIVO"
-            defaultChecked={props.role?.estado?.includes('ACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Activo</div>
-        </div>
-
-        <div className="rw-check-radio-items">
-          <RadioField
-            id="role-estado-1"
-            name="estado"
-            defaultValue="INACTIVO"
-            defaultChecked={props.role?.estado?.includes('INACTIVO')}
-            className="rw-input"
-            errorClassName="rw-input rw-input-error"
-          />
-
-          <div>Inactivo</div>
-        </div>
-
-        <FieldError name="estado" className="rw-field-error" />
-
-        <Label
-          name="usuario_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario creacion
-        </Label>
-
-        <NumberField
-          name="usuario_creacion"
-          defaultValue={props.role?.usuario_creacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-
-        <FieldError name="usuario_creacion" className="rw-field-error" />
-
-        <Label
-          name="fecha_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Fecha modificacion
-        </Label>
-
-        <DatetimeLocalField
-          name="fecha_modificacion"
-          defaultValue={formatDatetime(props.role?.fecha_modificacion)}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="fecha_modificacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario modificacion
-        </Label>
-
-        <NumberField
-          name="usuario_modificacion"
-          defaultValue={props.role?.usuario_modificacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="usuario_modificacion" className="rw-field-error" />
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">

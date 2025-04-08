@@ -4,11 +4,11 @@ export const schema = gql`
     id_padre: Int
     id_entidad: Int!
     codigo: String!
-    sigla: String!
+    sigla: String
     nombre: String!
     descripcion: String!
     estado: estado!
-    respaldo_creacion: JSON
+    ra_creacion: String
     fecha_creacion: DateTime!
     usuario_creacion: Int!
     fecha_modificacion: DateTime
@@ -34,11 +34,11 @@ export const schema = gql`
     id_padre: Int
     id_entidad: Int!
     codigo: String!
-    sigla: String!
+    sigla: String
     nombre: String!
     descripcion: String!
     estado: estado!
-    respaldo_creacion: JSON
+    ra_creacion: String
     fecha_creacion: DateTime
     usuario_creacion: Int!
     fecha_modificacion: DateTime
@@ -53,7 +53,7 @@ export const schema = gql`
     nombre: String
     descripcion: String
     estado: estado
-    respaldo_creacion: JSON
+    ra_creacion: String
     fecha_creacion: DateTime
     usuario_creacion: Int
     fecha_modificacion: DateTime

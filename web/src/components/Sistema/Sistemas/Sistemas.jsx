@@ -1,108 +1,631 @@
+import React, { useState, useMemo } from 'react'
+
+import {
+  Visibility as VisibilityIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  FileDownload as FileDownloadIcon,
+} from '@mui/icons-material'
+import {
+  Box,
+  Button,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Tooltip,
+  Typography,
+  Menu,
+  MenuItem,
+  Switch,
+  FormControlLabel,
+} from '@mui/material'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
+import * as XLSX from 'xlsx-js-style'
+
 import { Link, routes } from '@redwoodjs/router'
 import { useMutation } from '@redwoodjs/web'
-
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/Sistema/SistemasCell'
-import { formatEnum, jsonTruncate, timeTag, truncate } from 'src/lib/formatters'
 
-const DELETE_SISTEMA_MUTATION = gql`
-  mutation DeleteSistemaMutation($id: Int!) {
-    deleteSistema(id: $id) {
+// Mutación para actualizar el estado del sistema
+const UPDATE_SISTEMA_MUTATION = gql`
+  mutation UpdateSistemaMutation_fromSistema(
+    $id: Int!
+    $input: UpdateSistemaInput!
+  ) {
+    updateSistema(id: $id, input: $input) {
       id
+      estado
     }
   }
 `
 
-const SistemasList = ({ sistemas }) => {
-  const [deleteSistema] = useMutation(DELETE_SISTEMA_MUTATION, {
+const formatDateTime = (dateString) => {
+  if (!dateString) return 'N/A'
+  const date = new Date(dateString)
+  return date.toLocaleString('es-ES', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const truncate = (text, length = 50) => {
+  if (!text) return 'N/A'
+  return text.length > length ? text.substring(0, length) + '...' : text
+}
+
+const jsonTruncate = (obj) => {
+  if (!obj) return 'N/A'
+  try {
+    const str = JSON.stringify(obj)
+    return truncate(str, 100)
+  } catch {
+    return 'N/A'
+  }
+}
+
+const formatEnum = (value) => {
+  if (!value) return 'N/A'
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+}
+
+const SistemasList = ({ sistemas = [] }) => {
+  const [deleteState, setDeleteState] = useState({ open: false, id: null })
+  const [exportMenuAnchor, setExportMenuAnchor] = useState({
+    all: null,
+    page: null,
+    selection: null,
+  })
+  const [showInactive, setShowInactive] = useState(false)
+
+  const [updateSistema] = useMutation(UPDATE_SISTEMA_MUTATION, {
     onCompleted: () => {
-      toast.success('Sistema deleted')
+      toast.success('Sistema desactivado correctamente')
+      setDeleteState({ open: false, id: null })
     },
     onError: (error) => {
       toast.error(error.message)
     },
-    // This refetches the query on the list page. Read more about other ways to
-    // update the cache over here:
-    // https://www.apollographql.com/docs/react/data/mutations/#making-all-other-cache-updates
     refetchQueries: [{ query: QUERY }],
     awaitRefetchQueries: true,
   })
 
-  const onDeleteClick = (id) => {
-    if (confirm('Are you sure you want to delete sistema ' + id + '?')) {
-      deleteSistema({ variables: { id } })
+  // Función para desactivar el sistema
+  const desactivarSistema = (id) => {
+    updateSistema({
+      variables: {
+        id: id,
+        input: {
+          estado: 'INACTIVO',
+          fecha_modificacion: new Date().toISOString(),
+          // Agrega aquí el usuario de modificación si es necesario
+          // usuario_modificacion: currentUser.id
+        },
+      },
+    })
+  }
+
+  // Filtrar sistemas inactivos según el estado del switch
+  const filteredSistemas = useMemo(() => {
+    if (showInactive) {
+      return sistemas
+    }
+    return sistemas.filter((sistema) => sistema.estado === 'ACTIVO')
+  }, [sistemas, showInactive])
+
+  // Función para preparar datos para exportación
+  const getFormattedData = (rows, table) => {
+    const visibleColumns = table
+      .getVisibleLeafColumns()
+      .filter(
+        (column) =>
+          column.id !== 'mrt-row-actions' && column.id !== 'mrt-row-select'
+      )
+
+    const headers = visibleColumns.map((column) => column.columnDef.header)
+
+    return {
+      headers,
+      data: rows.map((row) =>
+        visibleColumns.map((column) => {
+          const cellValue = row.original[column.id] || 'N/A'
+
+          if (column.id.includes('fecha_')) return formatDateTime(cellValue)
+          if (column.id === 're_creacion') return jsonTruncate(cellValue)
+          if (column.id === 'estado') return formatEnum(cellValue)
+          return truncate(cellValue, 100)
+        })
+      ),
     }
   }
 
+  // Exportación PDF
+  const exportToPDF = (rows, table) => {
+    const { headers, data } = getFormattedData(rows, table)
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+    })
+
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(15, 40, 77)
+    doc.text('Reporte de Sistemas', 14, 15)
+
+    doc.setFontSize(10)
+    doc.setTextColor(100)
+    doc.text(`Generado: ${formatDateTime(new Date())}`, 14, 22)
+
+    autoTable(doc, {
+      head: [
+        headers.map((h) => ({
+          content: h,
+          styles: {
+            fillColor: [15, 40, 77],
+            textColor: 255,
+            fontStyle: 'bold',
+          },
+        })),
+      ],
+      body: data.map((row, rowIndex) =>
+        row.map((cell) => ({
+          content: cell,
+          styles: {
+            fillColor: rowIndex % 2 === 0 ? [248, 249, 250] : [255, 255, 255],
+          },
+        }))
+      ),
+      startY: 30,
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+        overflow: 'linebreak',
+        font: 'helvetica',
+      },
+      margin: { left: 10, right: 10 },
+    })
+
+    const pageCount = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.text(
+        `Página ${i} de ${pageCount}`,
+        doc.internal.pageSize.width - 25,
+        doc.internal.pageSize.height - 10
+      )
+    }
+
+    doc.save(`sistemas-${new Date().toISOString()}.pdf`)
+  }
+
+  // Exportación Excel
+  const exportToExcel = (rows, table) => {
+    const { headers, data } = getFormattedData(rows, table)
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([])
+
+    const headerStyle = {
+      font: { sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '0F284D' } },
+      alignment: { horizontal: 'center' },
+      border: {
+        top: { style: 'thin', color: { rgb: '000000' } },
+        bottom: { style: 'thin', color: { rgb: '000000' } },
+        left: { style: 'thin', color: { rgb: '000000' } },
+        right: { style: 'thin', color: { rgb: '000000' } },
+      },
+    }
+
+    XLSX.utils.sheet_add_aoa(ws, [['Reporte de Sistemas']], { origin: 'A1' })
+    XLSX.utils.sheet_add_aoa(
+      ws,
+      [[`Generado: ${formatDateTime(new Date())}`]],
+      { origin: 'A2' }
+    )
+    XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A4' })
+    XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A5' })
+
+    const range = XLSX.utils.decode_range(ws['!ref'])
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
+      ws[headerCell].s = headerStyle
+
+      for (let R = 4; R <= range.e.r; ++R) {
+        const cell = XLSX.utils.encode_cell({ r: R, c: C })
+        if (!ws[cell]) ws[cell] = {}
+        ws[cell].s = {
+          fill: { fgColor: { rgb: R % 2 === 0 ? 'F8F9FA' : 'FFFFFF' } },
+          border: {
+            top: { style: 'thin', color: { rgb: 'DDDDDD' } },
+            bottom: { style: 'thin', color: { rgb: 'DDDDDD' } },
+            left: { style: 'thin', color: { rgb: 'DDDDDD' } },
+            right: { style: 'thin', color: { rgb: 'DDDDDD' } },
+          },
+        }
+      }
+    }
+
+    ws['!cols'] = headers.map((_, col) => ({
+      wch:
+        Math.max(
+          ...data.map((row) => String(row[col]).length),
+          headers[col].length
+        ) + 2,
+    }))
+
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
+    ]
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Sistemas')
+    XLSX.writeFile(wb, `sistemas-${new Date().toISOString()}.xlsx`)
+  }
+
+  // Exportación CSV
+  const exportToCSV = (rows, table) => {
+    const { headers, data } = getFormattedData(rows, table)
+    const csvContent = [
+      'Reporte de Sistemas',
+      `Generado: ${formatDateTime(new Date())}`,
+      '',
+      headers.join(','),
+      ...data.map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      ),
+      '',
+      `*Este archivo fue generado automáticamente el ${formatDateTime(
+        new Date()
+      )}`,
+    ].join('\n')
+
+    const blob = new Blob(['\ufeff', csvContent], {
+      type: 'text/csv;charset=utf-8;',
+    })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `sistemas-${new Date().toISOString()}.csv`
+    link.click()
+  }
+
+  // Columnas de la tabla
+  const columns = useMemo(
+    () => [
+      { accessorKey: 'id', header: 'ID', size: 60 },
+      { accessorKey: 'id_padre', header: 'ID Padre', size: 100 },
+      { accessorKey: 'id_entidad', header: 'ID Entidad', size: 100 },
+      { accessorKey: 'codigo', header: 'Código', size: 100 },
+      { accessorKey: 'sigla', header: 'Sigla', size: 100 },
+      { accessorKey: 'nombre', header: 'Nombre', size: 150 },
+      { accessorKey: 'descripcion', header: 'Descripción', size: 200 },
+      {
+        accessorKey: 'estado',
+        header: 'Estado',
+        size: 100,
+        Cell: ({ row }) => (
+          <Chip
+            label={formatEnum(row.original.estado)}
+            color={row.original.estado === 'ACTIVO' ? 'success' : 'error'}
+            size="small"
+          />
+        ),
+      },
+      {
+        accessorKey: 'ra_creacion',
+        header: 'Ra Creación',
+        size: 150,
+        Cell: ({ cell }) => jsonTruncate(cell.getValue()),
+      },
+      {
+        accessorKey: 'fecha_creacion',
+        header: 'Fecha Creación',
+        size: 150,
+        Cell: ({ cell }) => formatDateTime(cell.getValue()),
+      },
+      {
+        accessorKey: 'usuario_creacion',
+        header: 'Creado por',
+        size: 120,
+        visible: false,
+      },
+      {
+        accessorKey: 'fecha_modificacion',
+        header: 'Última Modificación',
+        size: 150,
+        Cell: ({ cell }) => formatDateTime(cell.getValue()),
+        visible: false,
+      },
+      {
+        accessorKey: 'usuario_modificacion',
+        header: 'Modificado por',
+        size: 120,
+        visible: false,
+      },
+    ],
+    []
+  )
+
+  // Configuración de la tabla
+  const table = useMaterialReactTable({
+    columns,
+    data: filteredSistemas, // Usamos los datos filtrados
+    enableRowActions: true,
+    enableRowSelection: true,
+    enableMultiRowSelection: true,
+    getRowId: (row) => row.id.toString(),
+    muiTableBodyRowProps: ({ row }) => ({
+      onClick: row.getToggleSelectedHandler(),
+      sx: {
+        cursor: 'pointer',
+        backgroundColor: row.getIsSelected()
+          ? 'rgba(0, 0, 255, 0.1)'
+          : undefined,
+      },
+    }),
+    initialState: {
+      showGlobalFilter: true,
+      columnVisibility: {
+        usuario_creacion: false,
+        fecha_modificacion: false,
+        usuario_modificacion: false,
+      },
+      density: 'compact',
+    },
+    renderRowActions: ({ row }) => (
+      <Box sx={{ display: 'flex', gap: '8px' }}>
+        <Tooltip title="Ver detalles">
+          <IconButton
+            component={Link}
+            to={routes.sistema({ id: row.original.id })}
+          >
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Editar">
+          <IconButton
+            component={Link}
+            to={routes.editSistema({ id: row.original.id })}
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        {row.original.estado === 'ACTIVO' && (
+          <Tooltip title="Desactivar">
+            <IconButton
+              onClick={() =>
+                setDeleteState({ open: true, id: row.original.id })
+              }
+            >
+              <DeleteIcon fontSize="small" color="error" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+    ),
+    renderTopToolbarCustomActions: ({ table }) => {
+      const selectedRows = table.getSelectedRowModel().rows
+      const hasSelection = selectedRows.length > 0
+
+      return (
+        <Box
+          sx={{
+            display: 'flex',
+            gap: '16px',
+            p: '8px',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+          }}
+        >
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+                size="small"
+              />
+            }
+            label="Mostrar inactivos"
+          />
+
+          <Button
+            disabled={table.getPrePaginationRowModel().rows.length === 0}
+            onClick={(e) =>
+              setExportMenuAnchor({ ...exportMenuAnchor, all: e.currentTarget })
+            }
+            startIcon={<FileDownloadIcon />}
+            variant="contained"
+            size="small"
+            sx={{
+              backgroundColor: '#0F284D',
+              '&:hover': { backgroundColor: '#1A3D6D' },
+            }}
+          >
+            Exportar Todos
+          </Button>
+          <Menu
+            anchorEl={exportMenuAnchor.all}
+            open={Boolean(exportMenuAnchor.all)}
+            onClose={() =>
+              setExportMenuAnchor({ ...exportMenuAnchor, all: null })
+            }
+          >
+            <MenuItem
+              onClick={() => {
+                exportToPDF(table.getPrePaginationRowModel().rows, table)
+                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
+              }}
+            >
+              PDF
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                exportToExcel(table.getPrePaginationRowModel().rows, table)
+                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
+              }}
+            >
+              Excel
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                exportToCSV(table.getPrePaginationRowModel().rows, table)
+                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
+              }}
+            >
+              CSV
+            </MenuItem>
+          </Menu>
+
+          <Button
+            disabled={table.getRowModel().rows.length === 0}
+            onClick={(e) =>
+              setExportMenuAnchor({
+                ...exportMenuAnchor,
+                page: e.currentTarget,
+              })
+            }
+            startIcon={<FileDownloadIcon />}
+            variant="contained"
+            size="small"
+            sx={{
+              backgroundColor: '#0F284D',
+              '&:hover': { backgroundColor: '#1A3D6D' },
+            }}
+          >
+            Exportar Página
+          </Button>
+          <Menu
+            anchorEl={exportMenuAnchor.page}
+            open={Boolean(exportMenuAnchor.page)}
+            onClose={() =>
+              setExportMenuAnchor({ ...exportMenuAnchor, page: null })
+            }
+          >
+            <MenuItem
+              onClick={() => {
+                exportToPDF(table.getRowModel().rows, table)
+                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
+              }}
+            >
+              PDF
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                exportToExcel(table.getRowModel().rows, table)
+                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
+              }}
+            >
+              Excel
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                exportToCSV(table.getRowModel().rows, table)
+                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
+              }}
+            >
+              CSV
+            </MenuItem>
+          </Menu>
+
+          <Button
+            disabled={!hasSelection}
+            onClick={(e) =>
+              setExportMenuAnchor({
+                ...exportMenuAnchor,
+                selection: e.currentTarget,
+              })
+            }
+            startIcon={<FileDownloadIcon />}
+            variant="contained"
+            size="small"
+            sx={{
+              backgroundColor: '#0F284D',
+              '&:hover': { backgroundColor: '#1A3D6D' },
+            }}
+          >
+            Exportar Selección ({hasSelection ? selectedRows.length : 0})
+          </Button>
+          <Menu
+            anchorEl={exportMenuAnchor.selection}
+            open={Boolean(exportMenuAnchor.selection)}
+            onClose={() =>
+              setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
+            }
+          >
+            <MenuItem
+              onClick={() => {
+                exportToPDF(selectedRows, table)
+                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
+              }}
+            >
+              PDF
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                exportToExcel(selectedRows, table)
+                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
+              }}
+            >
+              Excel
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                exportToCSV(selectedRows, table)
+                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
+              }}
+            >
+              CSV
+            </MenuItem>
+          </Menu>
+        </Box>
+      )
+    },
+  })
+
   return (
-    <div className="rw-segment rw-table-wrapper-responsive">
-      <table className="rw-table">
-        <thead>
-          <tr>
-            <th>Id</th>
-            <th>Id padre</th>
-            <th>Id entidad</th>
-            <th>Codigo</th>
-            <th>Sigla</th>
-            <th>Nombre</th>
-            <th>Descripcion</th>
-            <th>Estado</th>
-            <th>Respaldo creacion</th>
-            <th>Fecha creacion</th>
-            <th>Usuario creacion</th>
-            <th>Fecha modificacion</th>
-            <th>Usuario modificacion</th>
-            <th>&nbsp;</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sistemas.map((sistema) => (
-            <tr key={sistema.id}>
-              <td>{truncate(sistema.id)}</td>
-              <td>{truncate(sistema.id_padre)}</td>
-              <td>{truncate(sistema.id_entidad)}</td>
-              <td>{truncate(sistema.codigo)}</td>
-              <td>{truncate(sistema.sigla)}</td>
-              <td>{truncate(sistema.nombre)}</td>
-              <td>{truncate(sistema.descripcion)}</td>
-              <td>{formatEnum(sistema.estado)}</td>
-              <td>{jsonTruncate(sistema.respaldo_creacion)}</td>
-              <td>{timeTag(sistema.fecha_creacion)}</td>
-              <td>{truncate(sistema.usuario_creacion)}</td>
-              <td>{timeTag(sistema.fecha_modificacion)}</td>
-              <td>{truncate(sistema.usuario_modificacion)}</td>
-              <td>
-                <nav className="rw-table-actions">
-                  <Link
-                    to={routes.sistema({ id: sistema.id })}
-                    title={'Show sistema ' + sistema.id + ' detail'}
-                    className="rw-button rw-button-small"
-                  >
-                    Show
-                  </Link>
-                  <Link
-                    to={routes.editSistema({ id: sistema.id })}
-                    title={'Edit sistema ' + sistema.id}
-                    className="rw-button rw-button-small rw-button-blue"
-                  >
-                    Edit
-                  </Link>
-                  <button
-                    type="button"
-                    title={'Delete sistema ' + sistema.id}
-                    className="rw-button rw-button-small rw-button-red"
-                    onClick={() => onDeleteClick(sistema.id)}
-                  >
-                    Delete
-                  </button>
-                </nav>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Box sx={{ p: 1 }}>
+      <MaterialReactTable table={table} />
+
+      {/* Diálogo de confirmación de desactivación */}
+      <Dialog
+        open={deleteState.open}
+        onClose={() => setDeleteState({ open: false, id: null })}
+      >
+        <DialogTitle>Confirmar Desactivación</DialogTitle>
+        <DialogContent>
+          <Typography>
+            ¿Estás seguro de desactivar el sistema {deleteState.id}? Esta acción
+            no eliminará el sistema de la base de datos, solo cambiará su estado
+            a inactivo.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteState({ open: false, id: null })}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => desactivarSistema(deleteState.id)}
+            color="error"
+            variant="contained"
+            sx={{
+              backgroundColor: '#e57373',
+              '&:hover': { backgroundColor: '#ef5350' },
+            }}
+          >
+            Desactivar
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   )
 }
 

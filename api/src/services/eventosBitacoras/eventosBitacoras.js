@@ -15,7 +15,7 @@ export const createEventosBitacora = ({ input }) => {
     data: {
       id_evento: input.id_evento,
       fecha_creacion: new Date(),
-      usuario_creacion: 1,
+      usuario_creacion: input.usuario_creacion,
       estado_anterior: input.estado_anterior,
       estado_actual: input.estado_actual,
     },
@@ -27,7 +27,7 @@ export const updateEventosBitacora = ({ id, input }) => {
     data: {
       id_evento: input.id_evento,
       fecha_modificacion: new Date(),
-      usuario_modificacion: 1,
+      usuario_modificacion: input.usuario_modificacion,
       estado_anterior: input.estado_anterior,
       estado_actual: input.estado_actual,
     },

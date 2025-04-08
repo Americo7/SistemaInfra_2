@@ -12,10 +12,8 @@ export const componente = ({ id }) => {
 
 export const createComponente = ({ input }) => {
   const tecnologiaData = {
-    tipo_respaldo: input.tipo_respaldo,
-    detalle_respaldo: input.detalle_respaldo,
-    fecha_solicitud: input.fecha_solicitud,
-    responsable_admin: input.responsable_admin,
+    tecnology: input.tecnology,
+    version: input.version,
   }
   return db.componente.create({
     data: {
@@ -30,17 +28,15 @@ export const createComponente = ({ input }) => {
       tecnologia: tecnologiaData,
       estado: input.estado,
       fecha_creacion: new Date(),
-      usuario_creacion: 1,
+      usuario_creacion: input.usuario_creacion,
     },
   })
 }
 
 export const updateComponente = ({ id, input }) => {
   const tecnologiaData = {
-    tipo_respaldo: input.tipo_respaldo,
-    detalle_respaldo: input.detalle_respaldo,
-    fecha_solicitud: input.fecha_solicitud,
-    responsable_admin: input.responsable_admin,
+    tecnology: input.tecnology,
+    version: input.version,
   }
   return db.componente.update({
     data: {
@@ -55,7 +51,7 @@ export const updateComponente = ({ id, input }) => {
       tecnologia: tecnologiaData,
       estado: input.estado,
       fecha_modificacion: new Date(),
-      usuario_modificacion: 1,
+      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })

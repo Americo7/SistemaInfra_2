@@ -22,7 +22,7 @@ export const createHardware = ({ input }) => {
       estado_operativo: input.estado_operativo,
       estado: input.estado,
       fecha_creacion: new Date(),
-      usuario_creacion: 1,
+      usuario_creacion: input.usuario_creacion,
     },
   })
 }
@@ -39,7 +39,7 @@ export const updateHardware = ({ id, input }) => {
       estado_operativo: input.estado_operativo,
       estado: input.estado,
       fecha_modificacion: new Date(),
-      usuario_modificacion: 1,
+      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })
