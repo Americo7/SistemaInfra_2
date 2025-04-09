@@ -3,9 +3,6 @@ import { useEffect, useState } from 'react'
 import {
   Box,
   Grid,
-  Card,
-  CardContent,
-  CardHeader,
   TextField,
   Button,
   Typography,
@@ -123,178 +120,190 @@ const DespliegueForm = (props) => {
   }
 
   return (
-    <Box p={2}>
-      <Grid container spacing={3}>
-        {/* Formulario */}
-        <Grid item xs={12} md={8}>
-          <Card>
-            <CardHeader title="Formulario de Despliegue" />
-            <CardContent>
-              <form onSubmit={handleSubmit}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>Componente</InputLabel>
-                      <Select
-                        name="id_componente"
-                        value={formData.id_componente}
-                        label="Componente"
-                        onChange={handleChange}
-                      >
-                        {componentesActivos.map((comp) => (
-                          <MenuItem key={comp.id} value={comp.id}>
-                            {comp.nombre}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+    <Grid container spacing={3}>
+      {/* Formulario (Mitad del ancho en pantallas grandes) */}
+      <Grid item size={6}>
+        <Box p={3} border={1} borderRadius={2} boxShadow={2}>
+          <Typography variant="h6" gutterBottom>
+            Formulario de Despliegue
+          </Typography>
+          <form onSubmit={handleSubmit}>
+            <Grid container spacing={2} direction="column">
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Componente</InputLabel>
+                  <Select
+                    name="id_componente"
+                    value={formData.id_componente}
+                    label="Componente"
+                    onChange={handleChange}
+                  >
+                    {componentesActivos.map((comp) => (
+                      <MenuItem key={comp.id} value={comp.id}>
+                        {comp.nombre}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
 
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>Máquina</InputLabel>
-                      <Select
-                        name="id_maquina"
-                        value={formData.id_maquina}
-                        label="Máquina"
-                        onChange={handleChange}
-                      >
-                        {maquinasActivas.map((maq) => (
-                          <MenuItem key={maq.id} value={maq.id}>
-                            {maq.nombre}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Máquina</InputLabel>
+                  <Select
+                    name="id_maquina"
+                    value={formData.id_maquina}
+                    label="Máquina"
+                    onChange={handleChange}
+                  >
+                    {maquinasActivas.map((maq) => (
+                      <MenuItem key={maq.id} value={maq.id}>
+                        {maq.nombre}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
 
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      name="fecha_despliegue"
-                      label="Fecha de Despliegue"
-                      type="datetime-local"
-                      InputLabelProps={{ shrink: true }}
-                      value={formData.fecha_despliegue}
-                      onChange={handleChange}
-                    />
-                  </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  name="fecha_despliegue"
+                  label="Fecha de Despliegue"
+                  type="datetime-local"
+                  InputLabelProps={{ shrink: true }}
+                  value={formData.fecha_despliegue}
+                  onChange={handleChange}
+                />
+              </Grid>
 
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      name="fecha_solicitud"
-                      label="Fecha de Solicitud"
-                      type="datetime-local"
-                      InputLabelProps={{ shrink: true }}
-                      value={formData.fecha_solicitud}
-                      onChange={handleChange}
-                    />
-                  </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  name="fecha_solicitud"
+                  label="Fecha de Solicitud"
+                  type="datetime-local"
+                  InputLabelProps={{ shrink: true }}
+                  value={formData.fecha_solicitud}
+                  onChange={handleChange}
+                />
+              </Grid>
 
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      name="unidad_solicitante"
-                      label="Unidad Solicitante"
-                      value={formData.unidad_solicitante}
-                      onChange={handleChange}
-                    />
-                  </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  name="unidad_solicitante"
+                  label="Unidad Solicitante"
+                  value={formData.unidad_solicitante}
+                  onChange={handleChange}
+                />
+              </Grid>
 
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      name="solicitante"
-                      label="Solicitante"
-                      value={formData.solicitante}
-                      onChange={handleChange}
-                    />
-                  </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  name="solicitante"
+                  label="Solicitante"
+                  value={formData.solicitante}
+                  onChange={handleChange}
+                />
+              </Grid>
 
-                  <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth>
-                      <InputLabel>Tipo de Respaldo</InputLabel>
-                      <Select
-                        name="cod_tipo_respaldo"
-                        value={formData.cod_tipo_respaldo}
-                        onChange={handleChange}
-                        label="Tipo de Respaldo"
-                      >
-                        {parametrosDeTipoRespaldo.map((p) => (
-                          <MenuItem key={p.id} value={p.codigo}>
-                            {p.nombre}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Tipo de Respaldo</InputLabel>
+                  <Select
+                    name="cod_tipo_respaldo"
+                    value={formData.cod_tipo_respaldo}
+                    onChange={handleChange}
+                    label="Tipo de Respaldo"
+                  >
+                    {parametrosDeTipoRespaldo.map((p) => (
+                      <MenuItem key={p.id} value={p.codigo}>
+                        {p.nombre}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
 
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      name="referencia_respaldo"
-                      label="Referencia de Respaldo"
-                      value={formData.referencia_respaldo}
-                      onChange={handleChange}
-                    />
-                  </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  name="referencia_respaldo"
+                  label="Referencia de Respaldo"
+                  value={formData.referencia_respaldo}
+                  onChange={handleChange}
+                />
+              </Grid>
 
-                  <Grid item xs={12}>
-                    <FormControl fullWidth>
-                      <InputLabel>Estado Despliegue</InputLabel>
-                      <Select
-                        name="estado_despliegue"
-                        value={formData.estado_despliegue}
-                        onChange={handleChange}
-                        label="Estado Despliegue"
-                      >
-                        {parametrosDeEstadoDespliegue.map((p) => (
-                          <MenuItem key={p.id} value={p.codigo}>
-                            {p.nombre}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Estado Despliegue</InputLabel>
+                  <Select
+                    name="estado_despliegue"
+                    value={formData.estado_despliegue}
+                    onChange={handleChange}
+                    label="Estado Despliegue"
+                  >
+                    {parametrosDeEstadoDespliegue.map((p) => (
+                      <MenuItem key={p.id} value={p.codigo}>
+                        {p.nombre}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
 
-                  <Grid item xs={12}>
-                    <Button
-                      variant="contained"
-                      type="submit"
-                      color="primary"
-                      fullWidth
-                    >
-                      Guardar Despliegue
-                    </Button>
-                  </Grid>
-                </Grid>
-              </form>
-            </CardContent>
-          </Card>
-        </Grid>
+              <Grid item xs={12}>
+                <Button
+                  variant="contained"
+                  type="submit"
+                  color="primary"
+                  fullWidth
+                >
+                  Guardar Despliegue
+                </Button>
+              </Grid>
+            </Grid>
+          </form>
+        </Box>
+      </Grid>
 
-        {/* Lado derecho: info reciente + botones */}
-        <Grid item xs={12} md={4}>
-          <Box display="flex" flexDirection="column" gap={3}>
-            <Card>
-              <CardHeader title="Último Sistema Registrado" />
-              <CardContent>
-                {ultimoSistema ? (
-                  <>
-                    <Typography variant="h6">{ultimoSistema.nombre}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Estado: {ultimoSistema.estado}
-                    </Typography>
-                  </>
-                ) : (
-                  <Typography variant="body2">
-                    No hay sistemas registrados.
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
+      <Grid item size={6}>
+        {/* Contenedor para la sección de recientes */}
+        <Box p={3} border={1} borderRadius={2} boxShadow={2} px={5}>
+          <Typography variant="h5" gutterBottom>
+            Sección de recientes
+          </Typography>
+          <Typography variant="h6" gutterBottom>
+            Sistema
+          </Typography>
+          <Box>
+            {ultimoSistema ? (
+              <>
+                <Typography variant="h8">{ultimoSistema.nombre}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Estado: {ultimoSistema.estado}
+                </Typography>
+              </>
+            ) : (
+              <Typography variant="body2">
+                No hay sistemas registrados.
+              </Typography>
+            )}
+          </Box>
+          <Typography variant="h6" gutterBottom>
+            Componentes
+          </Typography>
+          <Typography variant="h6" gutterBottom>
+            Máquina
+          </Typography>
+        </Box>
 
+        {/* Contenedor para los botones */}
+        <Box display="flex" flexDirection="column" gap={2} mt={2}>
+          <Grid size={6}>
             {!sistemaRegistrado ? (
               <Button
                 variant="contained"
@@ -321,10 +330,10 @@ const DespliegueForm = (props) => {
                 </Button>
               </>
             )}
-          </Box>
-        </Grid>
+          </Grid>
+        </Box>
       </Grid>
-    </Box>
+    </Grid>
   )
 }
 

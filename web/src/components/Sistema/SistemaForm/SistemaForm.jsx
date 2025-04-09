@@ -56,8 +56,8 @@ const SistemaForm = (props) => {
   const onSubmit = (data) => {
     const formData = {
       ...data,
-      id_padre: selectedPadre ?? null,
       id_entidad: selectedEntidad,
+      estado: 'ACTIVO',
       usuario_modificacion: 2,
       usuario_creacion: 3,
     }
@@ -77,6 +77,7 @@ const SistemaForm = (props) => {
 
         <Label className="input-label">Sistema Padre (Opcional)</Label>
         <Select
+          name="id_padre"
           value={
             sistemasOptions.find((opt) => opt.value === selectedPadre) || null
           }
@@ -89,6 +90,7 @@ const SistemaForm = (props) => {
 
         <Label className="input-label">Entidad</Label>
         <Select
+          name="id_entidad"
           value={
             entidadesOptions.find((opt) => opt.value === selectedEntidad) ||
             null
