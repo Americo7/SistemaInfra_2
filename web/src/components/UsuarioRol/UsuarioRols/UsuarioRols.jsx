@@ -134,6 +134,13 @@ const UsuarioRolsList = ({ usuarioRols = [] }) => {
 
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado') return formatEnum(cellValue)
+
+          // Mostrar nombres en lugar de IDs para las relaciones
+          if (column.id === 'id_usuario') return row.original.usuarios?.nombres || cellValue
+          if (column.id === 'id_rol') return row.original.roles?.nombre || cellValue
+          if (column.id === 'id_maquina') return row.original.maquinas?.nombre || cellValue
+          if (column.id === 'id_sistema') return row.original.sistemas?.nombre || cellValue
+
           return truncate(cellValue, 100)
         })
       ),
@@ -292,10 +299,30 @@ const UsuarioRolsList = ({ usuarioRols = [] }) => {
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'id_usuario', header: 'ID Usuario', size: 100 },
-      { accessorKey: 'id_rol', header: 'ID Rol', size: 100 },
-      { accessorKey: 'id_maquina', header: 'ID Máquina', size: 100 },
-      { accessorKey: 'id_sistema', header: 'ID Sistema', size: 100 },
+      {
+        accessorKey: 'id_usuario',
+        header: 'Usuario',
+        size: 150,
+        Cell: ({ row }) => row.original.usuarios?.nombres || row.original.id_usuario
+      },
+      {
+        accessorKey: 'id_rol',
+        header: 'Rol',
+        size: 150,
+        Cell: ({ row }) => row.original.roles?.nombre || row.original.id_rol
+      },
+      {
+        accessorKey: 'id_maquina',
+        header: 'Máquina',
+        size: 150,
+        Cell: ({ row }) => row.original.maquinas?.nombre || row.original.id_maquina
+      },
+      {
+        accessorKey: 'id_sistema',
+        header: 'Sistema',
+        size: 150,
+        Cell: ({ row }) => row.original.sistemas?.nombre || row.original.id_sistema
+      },
       {
         accessorKey: 'estado',
         header: 'Estado',

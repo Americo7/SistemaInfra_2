@@ -66,8 +66,8 @@ const ClusterForm = (props) => {
 
         <Label className="input-label">Entorno</Label>
         <SelectField
-          name="cod_entorno"
-          defaultValue={props.cluster?.cod_entorno || ''}
+          name="cod_tipo_cluster"
+          defaultValue={props.cluster?.cod_tipo_cluster || ''}
           className="input-field select-field"
         >
           <option value="">Seleccionar Cluster...</option>

@@ -11,49 +11,41 @@ export const maquina = ({ id }) => {
 }
 
 export const createMaquina = ({ input }) => {
-  const respaldoData = {
-    tipo_respaldo: input.tipo_respaldo,
-    detalle_respaldo: input.detalle_respaldo,
-    fecha_solicitud: input.fecha_solicitud,
-    responsable_admin: input.responsable_admin,
-  }
+
   return db.maquina.create({
     data: {
       codigo: input.codigo,
-      cod_tipo_maquina: input.cod_tipo_maquina,
+      cod_plataforma: input.cod_plataforma,
       nombre: input.nombre,
       ip: input.ip,
       so: input.so,
       ram: input.ram,
-      almacenamiento: respaldoData,
+      almacenamiento: input.almacenamiento,
       cpu: input.cpu,
       estado: input.estado,
       fecha_creacion: new Date(),
       usuario_creacion: input.usuario_creacion,
+      es_virtual: input.es_virtual === true || input.es_virtual === 'true'
     },
   })
 }
 
 export const updateMaquina = ({ id, input }) => {
-  const respaldoData = {
-    tipo_respaldo: input.tipo_respaldo,
-    detalle_respaldo: input.detalle_respaldo,
-    fecha_solicitud: input.fecha_solicitud,
-    responsable_admin: input.responsable_admin,
-  }
+
   return db.maquina.update({
     data: {
       codigo: input.codigo,
-      cod_tipo_maquina: input.cod_tipo_maquina,
+      cod_plataforma: input.cod_plataforma,
       nombre: input.nombre,
       ip: input.ip,
       so: input.so,
       ram: input.ram,
-      almacenamiento: respaldoData,
+      almacenamiento: input.almacenamiento,
       cpu: input.cpu,
       estado: input.estado,
       fecha_modificacion: new Date(),
       usuario_modificacion: input.usuario_modificacion,
+      es_virtual: input.es_virtual === true || input.es_virtual === 'true'
     },
     where: { id },
   })

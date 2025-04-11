@@ -1,15 +1,15 @@
 import { useState } from 'react'
-
 import Select from 'react-select'
-
 import { Form, FormError, Label, Submit } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
 
 const OBTENER_SERVIDORES = gql`
   query ObtenerServidores {
-    servidors {
+    servidores {
       id
-      serie_servidor
+      serie
+      modelo
+      cod_tipo_servidor
       estado
     }
   }
@@ -33,6 +33,7 @@ const GET_MAQUINA = gql`
     }
   }
 `
+
 const AsignacionServidorMaquinaForm = (props) => {
   const { data: servidoresData } = useQuery(OBTENER_SERVIDORES)
   const { data: clustersData } = useQuery(OBTENER_CLUSTERS)
@@ -54,13 +55,18 @@ const AsignacionServidorMaquinaForm = (props) => {
         value: cluster.id,
         label: cluster.nombre,
       })) || []
+
   const servidoresOptions =
-    servidoresData?.servidors
+    servidoresData?.servidores
       ?.filter((servidor) => servidor.estado === 'ACTIVO')
       .map((servidor) => ({
         value: servidor.id,
-        label: servidor.serie_servidor,
+        label: `${servidor.modelo} - ${servidor.serie} (${servidor.cod_tipo_servidor})`,
+        modelo: servidor.modelo,
+        serie: servidor.serie,
+        tipo: servidor.cod_tipo_servidor,
       })) || []
+
   const maquinasOptions =
     maquinasData?.maquinas
       ?.filter((maquina) => maquina.estado === 'ACTIVO')
@@ -68,6 +74,7 @@ const AsignacionServidorMaquinaForm = (props) => {
         value: maquina.id,
         label: maquina.nombre,
       })) || []
+
   const onSubmit = (data) => {
     const formData = {
       ...data,
@@ -81,6 +88,17 @@ const AsignacionServidorMaquinaForm = (props) => {
     props.onSave(formData, props?.asignacionServidorMaquina?.id)
   }
 
+  const formatOptionLabel = ({ value, label, modelo, serie, tipo }) => (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <span>{label}</span>
+      <div style={{ display: 'flex', fontSize: '0.8em', color: '#666', gap: '10px' }}>
+        <span>Modelo: {modelo}</span>
+        <span>Serie: {serie}</span>
+        <span>Tipo: {tipo}</span>
+      </div>
+    </div>
+  )
+
   return (
     <div className="rw-form-wrapper">
       <Form onSubmit={onSubmit} error={props.error}>
@@ -90,6 +108,7 @@ const AsignacionServidorMaquinaForm = (props) => {
           titleClassName="rw-form-error-title"
           listClassName="rw-form-error-list"
         />
+
         <Label className="input-label">Servidor</Label>
         <Select
           name="id_servidor"
@@ -105,9 +124,10 @@ const AsignacionServidorMaquinaForm = (props) => {
           className="input-field select-field"
           isClearable
           placeholder="Buscar y seleccionar un servidor..."
+          formatOptionLabel={formatOptionLabel}
         />
 
-        <Label className="input-label">Maquina</Label>
+        <Label className="input-label">Máquina</Label>
         <Select
           name="id_maquina"
           value={
@@ -121,7 +141,7 @@ const AsignacionServidorMaquinaForm = (props) => {
           }
           className="input-field select-field"
           isClearable
-          placeholder="Buscar y seleccionar una maquina..."
+          placeholder="Buscar y seleccionar una máquina..."
         />
 
         <Label className="input-label">Cluster</Label>
@@ -143,7 +163,7 @@ const AsignacionServidorMaquinaForm = (props) => {
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">
-            Save
+            Guardar
           </Submit>
         </div>
       </Form>

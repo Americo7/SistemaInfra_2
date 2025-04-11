@@ -98,7 +98,11 @@ const HomeLayout = ({ children }) => {
       icon: <EntitiesIcon />,
       route: routes.eventosBitacoras(),
     },
-    { label: 'Ajustes', icon: <SettingsIcon />, route: '#' },
+    {
+      label: 'Parámetros',
+      icon: <EntitiesIcon />,
+      route: routes.parametros(),
+    },
   ]
 
   return (

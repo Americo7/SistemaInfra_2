@@ -52,10 +52,7 @@ const InfraAfectada = ({ infraAfectada }) => {
               <th>Id data center</th>
               <td>{infraAfectada.id_data_center}</td>
             </tr>
-            <tr>
-              <th>Id hardware</th>
-              <td>{infraAfectada.id_hardware}</td>
-            </tr>
+
             <tr>
               <th>Id servidor</th>
               <td>{infraAfectada.id_servidor}</td>

@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -58,7 +57,7 @@ const formatDateTime = (dateString) => {
   })
 }
 
-const DesplieguesList = ({ despliegues = [] }) => {
+const DesplieguesList = ({ despliegues = [], componentes = [], maquinas = [] }) => {
   const [deleteState, setDeleteState] = useState({ open: false, id: null })
   const [exportMenuAnchor, setExportMenuAnchor] = useState({
     all: null,
@@ -91,6 +90,16 @@ const DesplieguesList = ({ despliegues = [] }) => {
     })
   }
 
+  const getComponenteNombre = (id) => {
+    const componente = componentes.find(c => c.id === id)
+    return componente ? componente.nombre : `ID: ${id}`
+  }
+
+  const getMaquinaNombre = (id) => {
+    const maquina = maquinas.find(m => m.id === id)
+    return maquina ? maquina.nombre : `ID: ${id}`
+  }
+
   const getFormattedData = (rows, table) => {
     const visibleColumns = table
       .getVisibleLeafColumns()
@@ -107,6 +116,8 @@ const DesplieguesList = ({ despliegues = [] }) => {
         visibleColumns.map((column) => {
           const cellValue = row.original[column.id] || 'N/A'
 
+          if (column.id === 'id_componente') return getComponenteNombre(cellValue)
+          if (column.id === 'id_maquina') return getMaquinaNombre(cellValue)
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado' || column.id === 'estado_despliegue')
             return formatEnum(cellValue)
@@ -273,13 +284,68 @@ const DesplieguesList = ({ despliegues = [] }) => {
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'id_componente', header: 'ID Componente', size: 120 },
-      { accessorKey: 'id_maquina', header: 'ID Máquina', size: 120 },
+      {
+        accessorKey: 'id_componente',
+        header: 'Componente',
+        size: 150,
+        Cell: ({ row }) => {
+          const componenteId = row.original.id_componente
+          const componente = componentes.find(c => c.id === componenteId)
+          return componente ? componente.nombre : `ID: ${componenteId}`
+        },
+      },
+      {
+        accessorKey: 'id_maquina',
+        header: 'Máquina',
+        size: 150,
+        Cell: ({ row }) => {
+          const maquinaId = row.original.id_maquina
+          const maquina = maquinas.find(m => m.id === maquinaId)
+          return maquina ? maquina.nombre : `ID: ${maquinaId}`
+        },
+      },
       {
         accessorKey: 'fecha_despliegue',
         header: 'Fecha Despliegue',
         size: 150,
         Cell: ({ cell }) => timeTag(cell.getValue()),
+      },
+      {
+        accessorKey: 'fecha_solicitud',
+        header: 'Fecha Solicitud',
+        size: 150,
+        Cell: ({ cell }) => timeTag(cell.getValue()),
+      },
+      {
+        accessorKey: 'unidad_solicitante',
+        header: 'Unidad Solicitante',
+        size: 150,
+      },
+      {
+        accessorKey: 'solicitante',
+        header: 'Solicitante',
+        size: 120,
+      },
+      {
+        accessorKey: 'descripcion',
+        header: 'Descripción',
+        size: 200,
+      },
+      {
+        accessorKey: 'cod_tipo_respaldo',
+        header: 'Tipo Respaldo',
+        size: 120,
+      },
+      {
+        accessorKey: 'referencia_respaldo',
+        header: 'Referencia Respaldo',
+        size: 150,
+      },
+      {
+        accessorKey: 'estado_despliegue',
+        header: 'Estado Despliegue',
+        size: 120,
+        Cell: ({ cell }) => formatEnum(cell.getValue()),
       },
       {
         accessorKey: 'estado',
@@ -303,55 +369,20 @@ const DesplieguesList = ({ despliegues = [] }) => {
         accessorKey: 'usuario_creacion',
         header: 'Creado por',
         size: 120,
-        visible: false,
       },
       {
         accessorKey: 'fecha_modificacion',
         header: 'Última Modificación',
         size: 150,
         Cell: ({ cell }) => timeTag(cell.getValue()),
-        visible: false,
       },
       {
         accessorKey: 'usuario_modificacion',
         header: 'Modificado por',
         size: 120,
-        visible: false,
-      },
-      {
-        accessorKey: 'fecha_solicitud',
-        header: 'Fecha Solicitud',
-        size: 150,
-        Cell: ({ cell }) => timeTag(cell.getValue()),
-      },
-      {
-        accessorKey: 'unidad_solicitante',
-        header: 'Unidad Solicitante',
-        size: 150,
-      },
-      {
-        accessorKey: 'solicitante',
-        header: 'Solicitante',
-        size: 120,
-      },
-      {
-        accessorKey: 'cod_tipo_respaldo',
-        header: 'Código Tipo Respaldo',
-        size: 120,
-      },
-      {
-        accessorKey: 'referencia_respaldo',
-        header: 'Referencia Respaldo',
-        size: 150,
-      },
-      {
-        accessorKey: 'estado_despliegue',
-        header: 'Estado Despliegue',
-        size: 120,
-        Cell: ({ cell }) => formatEnum(cell.getValue()),
       },
     ],
-    []
+    [componentes, maquinas]
   )
 
   const table = useMaterialReactTable({

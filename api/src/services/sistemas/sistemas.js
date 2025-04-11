@@ -10,23 +10,42 @@ export const sistema = ({ id }) => {
   })
 }
 
-export const createSistema = ({ input }) => {
-  return db.sistema.create({
-    data: {
-      id_padre: input.id_padre,
-      id_entidad: input.id_entidad,
-      codigo: input.codigo,
-      sigla: input.sigla,
-      nombre: input.nombre,
-      descripcion: input.descripcion,
-      estado: input.estado,
-      ra_creacion: input.ra_creacion,
-      fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
-    },
-  })
-}
+export const createSistema = async ({ input }) => {
+  try {
+    // Buscar el sistema con el ID más alto
+    const lastSistema = await db.sistema.findFirst({
+      orderBy: {
+        id: 'desc'
+      }
+    });
 
+    // Calcular un nuevo ID superior al máximo existente
+    const newId = lastSistema ? lastSistema.id + 1 : 1004;
+
+    // Extraemos cualquier id del input
+    const { id, ...dataSinId } = input;
+
+    // Crear con ID explícito y todos los campos originales
+    return await db.sistema.create({
+      data: {
+        id: newId,  // Asignar un ID que sabemos que no existe
+        id_padre: input.id_padre,
+        id_entidad: input.id_entidad,
+        codigo: input.codigo,
+        sigla: input.sigla,
+        nombre: input.nombre,
+        descripcion: input.descripcion,
+        estado: input.estado,
+        ra_creacion: input.ra_creacion,
+        fecha_creacion: new Date(),
+        usuario_creacion: input.usuario_creacion,
+      },
+    });
+  } catch (error) {
+    console.error("Error en la creación:", error);
+    throw error;
+  }
+}
 export const updateSistema = ({ id, input }) => {
   return db.sistema.update({
     data: {

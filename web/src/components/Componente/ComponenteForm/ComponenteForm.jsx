@@ -1,17 +1,24 @@
-import { useState } from 'react'
-
-import Select from 'react-select'
-
+import React, { useState } from 'react'
 import {
-  Form,
-  FormError,
-  FieldError,
-  Label,
-  SelectField,
+  Box,
+  Button,
+  Checkbox,
+  FormControl,
+  FormControlLabel,
+  FormGroup,
+  Grid,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
   TextField,
-  Submit,
-} from '@redwoodjs/forms'
+  Typography,
+} from '@mui/material'
+import { useForm } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+import { LoadingButton } from '@mui/lab'
+import { Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material'
+
 const OBTENER_SISTEMAS = gql`
   query ObtenerSistemas {
     sistemas {
@@ -33,231 +40,250 @@ const GET_PARAMETROS = gql`
   }
 `
 
-const RespaldoField = ({ defaultValue, onRespaldoChange }) => {
-  const [respaldoData, setRespaldoData] = useState(
-    defaultValue || { tecnology: '', version: '' }
-  )
+const TecnologiasSelector = ({ tecnologias, value, onChange }) => {
+  const [selectedTechs, setSelectedTechs] = useState(value ? JSON.parse(value) : [])
 
-  const handleChange = (event) => {
-    const { name, value } = event.target
-    const newData = { ...respaldoData, [name]: value }
-    setRespaldoData(newData)
-    onRespaldoChange(newData)
+  const handleTechChange = (tech, isChecked) => {
+    const newTechs = isChecked
+      ? [...selectedTechs, { codigo: tech.codigo, nombre: tech.nombre, version: '' }]
+      : selectedTechs.filter(t => t.codigo !== tech.codigo)
+
+    setSelectedTechs(newTechs)
+    onChange(JSON.stringify(newTechs))
+  }
+
+  const handleVersionChange = (codigo, version) => {
+    const updatedTechs = selectedTechs.map(t =>
+      t.codigo === codigo ? { ...t, version } : t
+    )
+    setSelectedTechs(updatedTechs)
+    onChange(JSON.stringify(updatedTechs))
   }
 
   return (
-    <div className="respaldo-section">
-      {['tecnology', 'version'].map((field) => (
-        <div key={field} className="form-group">
-          <Label className="input-label">
-            {field.charAt(0).toUpperCase() + field.slice(1)}
-          </Label>
-          <TextField
-            value={respaldoData[field]}
-            onChange={handleChange}
-            name={field}
-            className="input-field"
-          />
-        </div>
-      ))}
-    </div>
+    <Box sx={{ mt: 3, mb: 2 }}>
+      <Typography variant="h6" gutterBottom>
+        Tecnologías asociadas
+      </Typography>
+      <FormGroup>
+        <Grid container spacing={2}>
+          {tecnologias?.map(tech => (
+            <Grid item xs={12} sm={6} key={tech.codigo}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={selectedTechs.some(t => t.codigo === tech.codigo)}
+                      onChange={e => handleTechChange(tech, e.target.checked)}
+                    />
+                  }
+                  label={tech.nombre}
+                />
+                {selectedTechs.some(t => t.codigo === tech.codigo) && (
+                  <TextField
+                    size="small"
+                    placeholder="Versión (ej: 1.0.0)"
+                    value={selectedTechs.find(t => t.codigo === tech.codigo)?.version || ''}
+                    onChange={e => handleVersionChange(tech.codigo, e.target.value)}
+                    sx={{ ml: 2, width: 150 }}
+                  />
+                )}
+              </Box>
+            </Grid>
+          ))}
+        </Grid>
+      </FormGroup>
+    </Box>
   )
 }
 
 const ComponenteForm = (props) => {
+  const { register, formState: { errors }, handleSubmit } = useForm()
   const { data: sistemasData } = useQuery(OBTENER_SISTEMAS)
   const { data: parametrosData } = useQuery(GET_PARAMETROS)
-  const [selectedSistema, setSelectedSistema] = useState(
-    props.evento?.id_padre || null
-  )
-  const parametrosDeEntorno = parametrosData?.parametros.filter((param) => {
-    return param.grupo === 'ENTORNO'
-  })
-  const parametrosDeCategoria = parametrosData?.parametros.filter(
-    (param) => param.grupo === 'CATEGORIA'
-  )
+  const [selectedSistema, setSelectedSistema] = useState(props.componente?.id_sistema || null)
+  const [selectedCategoria, setSelectedCategoria] = useState(props.componente?.cod_categoria || '')
+  const [tecnologiaJson, setTecnologiaJson] = useState(props.componente?.tecnologia || '[]')
 
-  const [respaldoData, setRespaldoData] = useState({
-    tecnology: '',
-    version: '',
-  })
-  // Opciones de React Select
-  const sistemasOptions =
-    sistemasData?.sistemas
-      ?.filter((sistema) => sistema.estado === 'ACTIVO')
-      .map((sistema) => ({
-        value: sistema.id,
-        label: sistema.nombre,
-      })) || []
-  // Enviar datos
+  const sistemasOptions = sistemasData?.sistemas
+    ?.filter(s => s.estado === 'ACTIVO')
+    ?.map(s => ({ value: s.id, label: s.nombre })) || []
+
+  const CATEGORY_PREFIXES = {
+    BACKEND: 'BACKEND_',
+    DATABASE: 'BD_',
+    FRONTEND: 'FRONTEND_',
+    NFS: 'NFS_',
+    BLOCKCHAIN: 'BLOCKCHAIN_',
+    OTHER: 'OTHER_'
+  }
+
+  const categorias = parametrosData?.parametros?.filter(p => p.grupo === 'CATEGORIA') || []
+  const entornos = parametrosData?.parametros?.filter(p => p.grupo === 'ENTORNO') || []
+  const tecnologias = parametrosData?.parametros?.filter(p =>
+    p.grupo === 'COMP_TECH' &&
+    p.codigo.startsWith(CATEGORY_PREFIXES[selectedCategoria] || '')
+  ) || []
+
+  const handleCategoriaChange = (e) => {
+    setSelectedCategoria(e.target.value)
+    setTecnologiaJson('[]')
+  }
+
   const onSubmit = (data) => {
     const formData = {
       ...data,
       id_sistema: selectedSistema,
-      cod_entorno: data.cod_entorno,
-      cod_categoria: data.cod_categoria,
+      cod_categoria: selectedCategoria,
+      tecnologia: tecnologiaJson,
       estado: 'ACTIVO',
-      tecnologia: respaldoData,
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_creacion: 1,
+      usuario_modificacion: 1
     }
     props.onSave(formData, props?.componente?.id)
   }
 
   return (
-    <div className="rw-form-wrapper">
-      <Form onSubmit={onSubmit} error={props.error}>
-        <FormError
-          error={props.error}
-          wrapperClassName="rw-form-error-wrapper"
-          titleClassName="rw-form-error-title"
-          listClassName="rw-form-error-list"
-        />
+    <Paper elevation={3} sx={{ p: 4, maxWidth: 1200, margin: 'auto' }}>
+      <Typography variant="h5" gutterBottom sx={{ mb: 4, color: '#0F284D' }}>
+        {props.componente?.id ? 'Editar Componente' : 'Nuevo Componente'}
+      </Typography>
 
-        <Label className="input-label">Sistema</Label>
-        <Select
-          name="id_sistema"
-          value={
-            sistemasOptions.find(
-              (option) => option.value === selectedSistema
-            ) || ''
-          }
-          options={sistemasOptions}
-          onChange={(selectedOption) =>
-            setSelectedSistema(selectedOption?.value || null)
-          }
-          className="input-field select-field"
-          isClearable
-          placeholder="Buscar y seleccionar un sistema..."
-        />
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <InputLabel id="sistema-label">Sistema</InputLabel>
+              <Select
+                labelId="sistema-label"
+                value={selectedSistema || ''}
+                label="Sistema"
+                onChange={(e) => setSelectedSistema(e.target.value)}
+                error={!selectedSistema && errors.id_sistema}
+              >
+                {sistemasOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-        <Label
-          name="nombre"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Nombre
-        </Label>
+            <TextField
+              fullWidth
+              label="Nombre"
+              defaultValue={props.componente?.nombre}
+              {...register('nombre', { required: true })}
+              error={Boolean(errors.nombre)}
+              helperText={errors.nombre && 'Nombre es requerido'}
+              sx={{ mb: 3 }}
+            />
 
-        <TextField
-          name="nombre"
-          defaultValue={props.componente?.nombre}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
+            <TextField
+              fullWidth
+              label="Dominio"
+              defaultValue={props.componente?.dominio}
+              {...register('dominio', { required: true })}
+              error={Boolean(errors.dominio)}
+              helperText={errors.dominio && 'Dominio es requerido'}
+              sx={{ mb: 3 }}
+            />
 
-        <FieldError name="nombre" className="rw-field-error" />
+            <TextField
+              fullWidth
+              label="Descripción"
+              multiline
+              rows={3}
+              defaultValue={props.componente?.descripcion}
+              {...register('descripcion')}
+              sx={{ mb: 3 }}
+            />
+          </Grid>
 
-        <Label
-          name="dominio"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Dominio
-        </Label>
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <InputLabel id="entorno-label">Entorno</InputLabel>
+              <Select
+                labelId="entorno-label"
+                defaultValue={props.componente?.cod_entorno || ''}
+                label="Entorno"
+                {...register('cod_entorno')}
+              >
+                {entornos.map(entorno => (
+                  <MenuItem key={entorno.codigo} value={entorno.codigo}>
+                    {entorno.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-        <TextField
-          name="dominio"
-          defaultValue={props.componente?.dominio}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
+            <FormControl fullWidth sx={{ mb: 3 }}>
+              <InputLabel id="categoria-label">Categoría</InputLabel>
+              <Select
+                labelId="categoria-label"
+                value={selectedCategoria}
+                onChange={handleCategoriaChange}
+                label="Categoría"
+                error={!selectedCategoria && errors.cod_categoria}
+              >
+                {categorias.map(cat => (
+                  <MenuItem key={cat.codigo} value={cat.codigo}>
+                    {cat.nombre}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
-        <FieldError name="dominio" className="rw-field-error" />
+            {selectedCategoria && (
+              <TecnologiasSelector
+                tecnologias={tecnologias}
+                value={tecnologiaJson}
+                onChange={setTecnologiaJson}
+              />
+            )}
 
-        <Label
-          name="descripcion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Descripcion
-        </Label>
+            <TextField
+              fullWidth
+              label="Repositorio GitLab"
+              defaultValue={props.componente?.gitlab_repo}
+              {...register('gitlab_repo')}
+              sx={{ mb: 3 }}
+            />
 
-        <TextField
-          name="descripcion"
-          defaultValue={props.componente?.descripcion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
+            <TextField
+              fullWidth
+              label="Rama GitLab"
+              defaultValue={props.componente?.gitlab_rama}
+              {...register('gitlab_rama')}
+              sx={{ mb: 3 }}
+            />
+          </Grid>
+        </Grid>
 
-        <FieldError name="descripcion" className="rw-field-error" />
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 4 }}>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<CancelIcon />}
+            onClick={props.onCancel}
+          >
+            Cancelar
+          </Button>
 
-        <Label className="input-label">Entorno</Label>
-        <SelectField
-          name="cod_entorno"
-          defaultValue={props.componente?.cod_entorno || ''}
-          className="input-field select-field"
-        >
-          <option value="">Seleccionar Entorno...</option>
-          {parametrosDeEntorno?.map((entorno) => (
-            <option key={entorno.id} value={entorno.codigo}>
-              {entorno.nombre}
-            </option>
-          ))}
-        </SelectField>
-
-        <Label className="input-label">Categoria</Label>
-        <SelectField
-          name="cod_categoria"
-          defaultValue={props.componente?.cod_categoria || ''}
-          className="input-field select-field"
-        >
-          <option value="">Seleccionar Categoria...</option>
-          {parametrosDeCategoria?.map((categoria) => (
-            <option key={categoria.id} value={categoria.codigo}>
-              {categoria.nombre}
-            </option>
-          ))}
-        </SelectField>
-
-        <Label
-          name="gitlab_repo"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Gitlab repoositorio
-        </Label>
-
-        <TextField
-          name="gitlab_repo"
-          defaultValue={props.componente?.gitlab_repo}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="gitlab_repo" className="rw-field-error" />
-
-        <Label
-          name="gitlab_rama"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Gitlab rama
-        </Label>
-
-        <TextField
-          name="gitlab_rama"
-          defaultValue={props.componente?.gitlab_rama}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="gitlab_rama" className="rw-field-error" />
-
-        <RespaldoField
-          defaultValue={respaldoData}
-          onRespaldoChange={setRespaldoData}
-        />
-        <div className="rw-button-group">
-          <Submit disabled={props.loading} className="rw-button rw-button-blue">
-            Save
-          </Submit>
-        </div>
-      </Form>
-    </div>
+          <LoadingButton
+            type="submit"
+            variant="contained"
+            loading={props.loading}
+            loadingPosition="start"
+            startIcon={<SaveIcon />}
+            sx={{ backgroundColor: '#0F284D', '&:hover': { backgroundColor: '#1A3D6D' } }}
+          >
+            {props.componente?.id ? 'Actualizar' : 'Guardar'}
+          </LoadingButton>
+        </Box>
+      </form>
+    </Paper>
   )
 }
+
 export default ComponenteForm

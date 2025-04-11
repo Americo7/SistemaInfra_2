@@ -12,13 +12,29 @@ export const parametro = ({ id }) => {
 
 export const createParametro = ({ input }) => {
   return db.parametro.create({
-    data: input,
+    data: {
+      codigo: input.codigo,
+      nombre: input.nombre,
+      grupo: input.grupo,
+      estado: input.estado,
+      descripcion: input.descripcion,
+      fecha_creacion: new Date(),
+      usuario_creacion: input.usuario_creacion,
+    },
   })
 }
 
 export const updateParametro = ({ id, input }) => {
   return db.parametro.update({
-    data: input,
+    data: {
+      codigo: input.codigo,
+      nombre: input.nombre,
+      grupo: input.grupo,
+      estado: input.estado,
+      descripcion: input.descripcion,
+      fecha_modificacion: new Date(),
+      usuario_modificacion: input.usuario_modificacion,
+    },
     where: { id },
   })
 }
@@ -28,3 +44,4 @@ export const deleteParametro = ({ id }) => {
     where: { id },
   })
 }
+

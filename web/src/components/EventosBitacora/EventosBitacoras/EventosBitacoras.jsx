@@ -12,6 +12,8 @@ import {
   Tooltip,
   Menu,
   MenuItem,
+  FormControlLabel,
+  Switch,
 } from '@mui/material'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -32,6 +34,9 @@ const UPDATE_EVENTOS_BITACORA_MUTATION = gql`
     updateEventosBitacora(id: $id, input: $input) {
       id
       estado_actual
+      evento {
+        descripcion
+      }
     }
   }
 `
@@ -64,13 +69,13 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
     page: null,
     selection: null,
   })
+  const [showInactive, setShowInactive] = useState(true) // Changed to true to show all by default
 
   const [updateEventosBitacora] = useMutation(
     UPDATE_EVENTOS_BITACORA_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Evento de bitácora desactivado correctamente')
-        setDeleteState({ open: false, id: null })
+        toast.success('Estado actualizado correctamente')
       },
       onError: (error) => {
         toast.error(error.message)
@@ -105,6 +110,7 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
         visibleColumns.map((column) => {
           const cellValue = row.original[column.id] || 'N/A'
 
+          if (column.id === 'id_evento') return row.original.evento?.descripcion
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id.includes('estado_')) return formatEstado(cellValue)
           return truncate(cellValue, 100)
@@ -265,7 +271,12 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'id_evento', header: 'ID Evento', size: 100 },
+      {
+        accessorKey: 'id_evento',
+        header: 'Evento',
+        size: 200,
+        Cell: ({ row }) => row.original.evento?.descripcion || 'N/A',
+      },
       {
         accessorKey: 'fecha_creacion',
         header: 'Fecha Creación',
@@ -336,32 +347,17 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
       showGlobalFilter: true,
       density: 'compact',
     },
-    renderRowActions: ({ row }) => (
-      <Box sx={{ display: 'flex', gap: '8px' }}>
-        <Tooltip title="Ver detalles">
-          <IconButton
-            component={Link}
-            to={routes.eventosBitacora({ id: row.original.id })}
-          >
-            <VisibilityIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    ),
-    renderTopToolbarCustomActions: ({ table }) => {
-      const selectedRows = table.getSelectedRowModel().rows
-      const hasSelection = selectedRows.length > 0
+    renderTopToolbar: ({ table }) => (
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          p: '8px',
+        }}
+      >
 
-      return (
-        <Box
-          sx={{
-            display: 'flex',
-            gap: '16px',
-            p: '8px',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
+        <Box sx={{ display: 'flex', gap: '8px' }}>
           <Button
             disabled={table.getPrePaginationRowModel().rows.length === 0}
             onClick={(e) =>
@@ -462,7 +458,7 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
           </Menu>
 
           <Button
-            disabled={!hasSelection}
+            disabled={table.getSelectedRowModel().rows.length === 0}
             onClick={(e) =>
               setExportMenuAnchor({
                 ...exportMenuAnchor,
@@ -477,7 +473,7 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
               '&:hover': { backgroundColor: '#1A3D6D' },
             }}
           >
-            Exportar Selección ({hasSelection ? selectedRows.length : 0})
+            Exportar Selección ({table.getSelectedRowModel().rows.length})
           </Button>
           <Menu
             anchorEl={exportMenuAnchor.selection}
@@ -488,7 +484,7 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
           >
             <MenuItem
               onClick={() => {
-                exportToPDF(selectedRows, table)
+                exportToPDF(table.getSelectedRowModel().rows, table)
                 setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
               }}
             >
@@ -496,7 +492,7 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
             </MenuItem>
             <MenuItem
               onClick={() => {
-                exportToExcel(selectedRows, table)
+                exportToExcel(table.getSelectedRowModel().rows, table)
                 setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
               }}
             >
@@ -504,7 +500,7 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
             </MenuItem>
             <MenuItem
               onClick={() => {
-                exportToCSV(selectedRows, table)
+                exportToCSV(table.getSelectedRowModel().rows, table)
                 setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
               }}
             >
@@ -512,8 +508,20 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
             </MenuItem>
           </Menu>
         </Box>
-      )
-    },
+      </Box>
+    ),
+    renderRowActions: ({ row }) => (
+      <Box sx={{ display: 'flex', gap: '8px' }}>
+        <Tooltip title="Ver detalles">
+          <IconButton
+            component={Link}
+            to={routes.eventosBitacora({ id: row.original.id })}
+          >
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    ),
   })
 
   return (

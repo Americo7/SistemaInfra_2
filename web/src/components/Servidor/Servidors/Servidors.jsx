@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -26,19 +25,13 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
-
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useQuery, useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
-
 import { QUERY } from 'src/components/Servidor/ServidorsCell'
 
-// Cambiamos a mutación de actualización para eliminación lógica
 const UPDATE_SERVIDOR_MUTATION = gql`
-  mutation UpdateServidorMutation_fromServidor(
-    $id: Int!
-    $input: UpdateServidorInput!
-  ) {
+  mutation UpdateServidorMutation_fromServidores($id: Int!, $input: UpdateServidorInput!) {
     updateServidor(id: $id, input: $input) {
       id
       estado
@@ -46,7 +39,15 @@ const UPDATE_SERVIDOR_MUTATION = gql`
   }
 `
 
-// Función mejorada para formato de fecha/hora
+const GET_SERVIDORES_PADRES = gql`
+  query GetServidoresPadres {
+    servidores {
+      id
+      nombre
+    }
+  }
+`
+
 const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -69,16 +70,7 @@ const formatEnum = (value) => {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
 }
 
-const ServidorsList = ({ servidors = [] }) => {
-  if (!Array.isArray(servidors)) {
-    console.error('Error: servidors no es un array', servidors)
-    return (
-      <Box sx={{ p: 4, textAlign: 'center' }}>
-        <Typography color="error">Error: Datos no válidos</Typography>
-      </Box>
-    )
-  }
-
+const ServidorsList = ({ servidores = [] }) => {
   const [deleteState, setDeleteState] = useState({ open: false, id: null })
   const [exportMenuAnchor, setExportMenuAnchor] = useState({
     all: null,
@@ -86,21 +78,24 @@ const ServidorsList = ({ servidors = [] }) => {
     selection: null,
   })
   const [showInactive, setShowInactive] = useState(false)
+  const [servidoresPadres, setServidoresPadres] = useState([])
 
-  // Mutación para cambiar el estado a inactivo
+  const { loading: loadingPadres } = useQuery(GET_SERVIDORES_PADRES, {
+    onCompleted: (data) => {
+      setServidoresPadres(data.servidores)
+    },
+  })
+
   const [updateServidor] = useMutation(UPDATE_SERVIDOR_MUTATION, {
     onCompleted: () => {
-      toast.success('Servidor desactivado correctamente')
+      toast.success('Estado del servidor actualizado')
       setDeleteState({ open: false, id: null })
     },
-    onError: (error) => {
-      toast.error(error.message)
-    },
+    onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY }],
     awaitRefetchQueries: true,
   })
 
-  // Función para desactivar el servidor
   const desactivarServidor = (id) => {
     updateServidor({
       variables: {
@@ -108,20 +103,22 @@ const ServidorsList = ({ servidors = [] }) => {
         input: {
           estado: 'INACTIVO',
           fecha_modificacion: new Date().toISOString(),
-          // Asumiendo que tienes un contexto de usuario puedes añadir:
-          // usuario_modificacion: currentUser.id o currentUser.username
         },
       },
     })
   }
 
-  // Filtrar los servidores inactivos a menos que se solicite mostrarlos
-  const filteredServidors = useMemo(() => {
-    if (showInactive) {
-      return servidors
-    }
-    return servidors.filter((servidor) => servidor.estado === 'ACTIVO')
-  }, [servidors, showInactive])
+  const filteredServidores = useMemo(() => {
+    return showInactive
+      ? servidores
+      : servidores.filter((servidor) => servidor.estado === 'ACTIVO')
+  }, [servidores, showInactive])
+
+  const getNombreServidorPadre = (idPadre) => {
+    if (!idPadre) return 'N/A'
+    const padre = servidoresPadres.find((serv) => serv.id === idPadre)
+    return padre ? padre.nombre : `ID: ${idPadre}`
+  }
 
   const getFormattedData = (rows, table) => {
     const visibleColumns = table
@@ -137,8 +134,9 @@ const ServidorsList = ({ servidors = [] }) => {
       headers,
       data: rows.map((row) =>
         visibleColumns.map((column) => {
-          const cellValue = row.original[column.id] || 'N/A'
+          const cellValue = row.original[column.id] ?? 'N/A'
 
+          if (column.id === 'id_padre') return getNombreServidorPadre(cellValue)
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado' || column.id === 'estado_operativo')
             return formatEnum(cellValue)
@@ -148,7 +146,6 @@ const ServidorsList = ({ servidors = [] }) => {
     }
   }
 
-  // Exportación PDF mejorada
   const exportToPDF = (rows, table) => {
     const { headers, data } = getFormattedData(rows, table)
     const doc = new jsPDF({
@@ -156,7 +153,6 @@ const ServidorsList = ({ servidors = [] }) => {
       unit: 'mm',
     })
 
-    // Título y metadata
     doc.setFontSize(16)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(15, 40, 77)
@@ -166,7 +162,6 @@ const ServidorsList = ({ servidors = [] }) => {
     doc.setTextColor(100)
     doc.text(`Generado: ${formatDateTime(new Date())}`, 14, 22)
 
-    // Tabla con estilos
     autoTable(doc, {
       head: [
         headers.map((h) => ({
@@ -196,7 +191,6 @@ const ServidorsList = ({ servidors = [] }) => {
       margin: { left: 10, right: 10 },
     })
 
-    // Pie de página
     const pageCount = doc.internal.getNumberOfPages()
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i)
@@ -211,13 +205,11 @@ const ServidorsList = ({ servidors = [] }) => {
     doc.save(`servidores-${new Date().toISOString()}.pdf`)
   }
 
-  // Exportación Excel mejorada
   const exportToExcel = (rows, table) => {
     const { headers, data } = getFormattedData(rows, table)
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.aoa_to_sheet([])
 
-    // Estilos profesionales
     const headerStyle = {
       font: { sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
       fill: { fgColor: { rgb: '0F284D' } },
@@ -230,7 +222,6 @@ const ServidorsList = ({ servidors = [] }) => {
       },
     }
 
-    // Título y metadata
     XLSX.utils.sheet_add_aoa(ws, [['Reporte de Servidores']], { origin: 'A1' })
     XLSX.utils.sheet_add_aoa(
       ws,
@@ -238,13 +229,9 @@ const ServidorsList = ({ servidors = [] }) => {
       { origin: 'A2' }
     )
 
-    // Cabeceras
     XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A4' })
-
-    // Datos
     XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A5' })
 
-    // Aplicar estilos
     const range = XLSX.utils.decode_range(ws['!ref'])
     for (let C = range.s.c; C <= range.e.c; ++C) {
       const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
@@ -265,7 +252,6 @@ const ServidorsList = ({ servidors = [] }) => {
       }
     }
 
-    // Autoajuste de columnas
     ws['!cols'] = headers.map((_, col) => ({
       wch:
         Math.max(
@@ -274,7 +260,6 @@ const ServidorsList = ({ servidors = [] }) => {
         ) + 2,
     }))
 
-    // Combinar celdas para título
     ws['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
@@ -284,7 +269,6 @@ const ServidorsList = ({ servidors = [] }) => {
     XLSX.writeFile(wb, `servidores-${new Date().toISOString()}.xlsx`)
   }
 
-  // Exportación CSV mejorada
   const exportToCSV = (rows, table) => {
     const { headers, data } = getFormattedData(rows, table)
     const csvContent = [
@@ -313,17 +297,21 @@ const ServidorsList = ({ servidors = [] }) => {
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'id_hardware', header: 'ID Hardware', size: 100 },
-      { accessorKey: 'serie_servidor', header: 'Serie Servidor', size: 120 },
+      { accessorKey: 'cod_inventario_agetic', header: 'Código AGETIC', size: 120 },
+      { accessorKey: 'serie', header: 'Serie', size: 120 },
+      { accessorKey: 'marca', header: 'Marca', size: 100 },
+      { accessorKey: 'modelo', header: 'Modelo', size: 100 },
+      { accessorKey: 'nombre', header: 'Nombre', size: 100 },
+      { accessorKey: 'ram', header: 'RAM (GB)', size: 100 },
+      { accessorKey: 'almacenamiento', header: 'Almacenamiento (GB)', size: 120 },
+      { accessorKey: 'id_data_center', header: 'Data Center ID', size: 120 },
+      { accessorKey: 'cod_tipo_servidor', header: 'Tipo Servidor', size: 120 },
       {
-        accessorKey: 'cod_inventario_agetic',
-        header: 'Código AGETIC',
-        size: 120,
+        accessorKey: 'id_padre',
+        header: 'Servidor Padre',
+        size: 150,
+        Cell: ({ cell }) => getNombreServidorPadre(cell.getValue()),
       },
-      { accessorKey: 'chasis', header: 'Chasis', size: 100 },
-      { accessorKey: 'cuchilla', header: 'Cuchilla', size: 100 },
-      { accessorKey: 'ram', header: 'RAM', size: 100 },
-      { accessorKey: 'almacenamiento', header: 'Almacenamiento', size: 120 },
       {
         accessorKey: 'estado_operativo',
         header: 'Estado Operativo',
@@ -332,11 +320,7 @@ const ServidorsList = ({ servidors = [] }) => {
           <Chip
             label={formatEnum(row.original.estado_operativo)}
             size="small"
-            sx={{
-              backgroundColor: '#fbc02d', // amarillo
-              color: '#000', // texto negro para mejor contraste
-              fontWeight: 'bold',
-            }}
+            sx={{ backgroundColor: '#fbc02d', color: '#000', fontWeight: 'bold' }}
           />
         ),
       },
@@ -378,12 +362,12 @@ const ServidorsList = ({ servidors = [] }) => {
         visible: false,
       },
     ],
-    []
+    [servidoresPadres]
   )
 
   const table = useMaterialReactTable({
     columns,
-    data: filteredServidors, // Usamos los datos filtrados
+    data: filteredServidores,
     enableRowActions: true,
     enableRowSelection: true,
     enableMultiRowSelection: true,

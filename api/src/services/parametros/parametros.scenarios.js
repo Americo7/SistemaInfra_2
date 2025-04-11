@@ -2,18 +2,18 @@ export const standard = defineScenario({
   parametro: {
     one: {
       data: {
-        codigo: 'String',
+        codigo: 'String5404651',
         nombre: 'String',
         grupo: 'String',
-        usuario_creacion: 9984968,
+        usuario_creacion: 6536456,
       },
     },
     two: {
       data: {
-        codigo: 'String',
+        codigo: 'String7884557',
         nombre: 'String',
         grupo: 'String',
-        usuario_creacion: 5882116,
+        usuario_creacion: 7937777,
       },
     },
   },

@@ -65,8 +65,12 @@ const Evento = ({ evento }) => {
               <td>{evento.estado_evento}</td>
             </tr>
             <tr>
-              <th>Respaldo</th>
-              <td>{jsonDisplay(evento.respaldo)}</td>
+              <th>Cite</th>
+              <td>{jsonDisplay(evento.cite)}</td>
+            </tr>
+            <tr>
+              <th>solicitante</th>
+              <td>{jsonDisplay(evento.solicitante)}</td>
             </tr>
             <tr>
               <th>Estado</th>

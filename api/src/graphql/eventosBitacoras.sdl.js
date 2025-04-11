@@ -2,6 +2,7 @@ export const schema = gql`
   type EventosBitacora {
     id: Int!
     id_evento: Int!
+    descripcion: String!
     fecha_creacion: DateTime!
     usuario_creacion: Int!
     fecha_modificacion: DateTime
@@ -18,6 +19,7 @@ export const schema = gql`
 
   input CreateEventosBitacoraInput {
     id_evento: Int!
+    descripcion: String!
     fecha_creacion: DateTime
     usuario_creacion: Int!
     fecha_modificacion: DateTime
@@ -28,6 +30,7 @@ export const schema = gql`
 
   input UpdateEventosBitacoraInput {
     id_evento: Int
+    descripcion: String
     fecha_creacion: DateTime
     usuario_creacion: Int
     fecha_modificacion: DateTime

@@ -28,7 +28,7 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/InfraAfectada/InfraAfectadasCell'
@@ -41,6 +41,55 @@ const UPDATE_INFRA_AFECTADA_MUTATION = gql`
     updateInfraAfectada(id: $id, input: $input) {
       id
       estado
+    }
+  }
+`
+
+// Consultas para obtener los nombres relacionados
+const GET_DATA_CENTERS = gql`
+  query GetDataCenters {
+    dataCenters {
+      id
+      nombre
+    }
+  }
+`
+
+const GET_SERVIDORES = gql`
+  query GetServidores {
+    servidores {
+      id
+      serie
+      modelo
+      cod_tipo_servidor
+    }
+  }
+`
+
+const GET_MAQUINAS = gql`
+  query GetMaquinas {
+    maquinas {
+      id
+      nombre
+    }
+  }
+`
+
+const GET_PARAMETROS_TIPO_SERVIDOR = gql`
+  query GetParametrosTipoServidor {
+    parametros(filter: { grupo: "TIPO_SERVIDOR" }) {
+      codigo
+      nombre
+    }
+  }
+`
+
+// Nueva consulta para obtener los eventos
+const GET_EVENTOS = gql`
+  query GetEventos {
+    eventos {
+      id
+      descripcion
     }
   }
 `
@@ -76,6 +125,66 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
   })
   const [showInactive, setShowInactive] = useState(false)
 
+  // Consultar datos relacionados
+  const { data: dataCentersData } = useQuery(GET_DATA_CENTERS)
+  const { data: servidoresData } = useQuery(GET_SERVIDORES)
+  const { data: maquinasData } = useQuery(GET_MAQUINAS)
+  const { data: tipoServidorData } = useQuery(GET_PARAMETROS_TIPO_SERVIDOR)
+  const { data: eventosData } = useQuery(GET_EVENTOS) // Nueva consulta para eventos
+
+  // Mapear los datos para búsqueda rápida por ID
+  const dataCentersMap = useMemo(() => {
+    const map = {}
+    if (dataCentersData?.dataCenters) {
+      dataCentersData.dataCenters.forEach((dc) => {
+        map[dc.id] = dc.nombre
+      })
+    }
+    return map
+  }, [dataCentersData])
+
+  const maquinasMap = useMemo(() => {
+    const map = {}
+    if (maquinasData?.maquinas) {
+      maquinasData.maquinas.forEach((maq) => {
+        map[maq.id] = maq.nombre
+      })
+    }
+    return map
+  }, [maquinasData])
+
+  const tipoServidorMap = useMemo(() => {
+    const map = {}
+    if (tipoServidorData?.parametros) {
+      tipoServidorData.parametros.forEach((param) => {
+        map[param.codigo] = param.nombre
+      })
+    }
+    return map
+  }, [tipoServidorData])
+
+  const servidoresMap = useMemo(() => {
+    const map = {}
+    if (servidoresData?.servidores) {
+      servidoresData.servidores.forEach((srv) => {
+        const tipoServidor = tipoServidorMap[srv.cod_tipo_servidor] || srv.cod_tipo_servidor
+        map[srv.id] = `${srv.serie} - ${srv.modelo} (${tipoServidor})`
+      })
+    }
+    return map
+  }, [servidoresData, tipoServidorMap])
+
+  // Mapear eventos por ID
+  const eventosMap = useMemo(() => {
+    const map = {}
+    if (eventosData?.eventos) {
+      eventosData.eventos.forEach((evento) => {
+        map[evento.id] = evento.descripcion
+      })
+    }
+    return map
+  }, [eventosData])
+
   const [updateInfraAfectada] = useMutation(UPDATE_INFRA_AFECTADA_MUTATION, {
     onCompleted: () => {
       toast.success('Infraestructura afectada desactivada correctamente')
@@ -107,6 +216,17 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
     }
     return infraAfectadas.filter((infra) => infra.estado === 'ACTIVO')
   }, [infraAfectadas, showInactive])
+
+  // Enriquecer los datos con los nombres relacionados
+  const enrichedInfraAfectadas = useMemo(() => {
+    return filteredInfraAfectadas.map((infra) => ({
+      ...infra,
+      data_center_nombre: infra.id_data_center ? dataCentersMap[infra.id_data_center] || 'N/A' : 'N/A',
+      servidor_nombre: infra.id_servidor ? servidoresMap[infra.id_servidor] || 'N/A' : 'N/A',
+      maquina_nombre: infra.id_maquina ? maquinasMap[infra.id_maquina] || 'N/A' : 'N/A',
+      evento_descripcion: infra.id_evento ? eventosMap[infra.id_evento] || 'N/A' : 'N/A',
+    }))
+  }, [filteredInfraAfectadas, dataCentersMap, servidoresMap, maquinasMap, eventosMap])
 
   const getFormattedData = (rows, table) => {
     const visibleColumns = table
@@ -287,11 +407,30 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'id_evento', header: 'ID Evento', size: 100 },
-      { accessorKey: 'id_data_center', header: 'ID Data Center', size: 120 },
-      { accessorKey: 'id_hardware', header: 'ID Hardware', size: 120 },
-      { accessorKey: 'id_servidor', header: 'ID Servidor', size: 120 },
-      { accessorKey: 'id_maquina', header: 'ID Máquina', size: 120 },
+      {
+        accessorKey: 'evento_descripcion',
+        header: 'Evento',
+        size: 200,
+        Cell: ({ row }) => truncate(row.original.evento_descripcion, 70),
+      },
+      {
+        accessorKey: 'data_center_nombre',
+        header: 'Data Center',
+        size: 150,
+        Cell: ({ row }) => truncate(row.original.data_center_nombre),
+      },
+      {
+        accessorKey: 'servidor_nombre',
+        header: 'Servidor',
+        size: 200,
+        Cell: ({ row }) => truncate(row.original.servidor_nombre, 70),
+      },
+      {
+        accessorKey: 'maquina_nombre',
+        header: 'Máquina',
+        size: 150,
+        Cell: ({ row }) => truncate(row.original.maquina_nombre),
+      },
       {
         accessorKey: 'estado',
         header: 'Estado',
@@ -335,7 +474,7 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
 
   const table = useMaterialReactTable({
     columns,
-    data: filteredInfraAfectadas,
+    data: enrichedInfraAfectadas,
     enableRowActions: true,
     enableRowSelection: true,
     enableMultiRowSelection: true,

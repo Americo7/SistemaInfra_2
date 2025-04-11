@@ -14,7 +14,8 @@ export const QUERY = gql`
       fecha_evento
       responsables
       estado_evento
-      respaldo
+      cite
+      solicitante
       estado
       fecha_creacion
       usuario_creacion
@@ -33,7 +34,8 @@ const UPDATE_EVENTO_MUTATION = gql`
       fecha_evento
       responsables
       estado_evento
-      respaldo
+      cite
+      solicitante
       estado
       fecha_creacion
       usuario_creacion

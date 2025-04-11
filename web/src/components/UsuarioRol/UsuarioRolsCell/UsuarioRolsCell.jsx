@@ -15,6 +15,23 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      # Usando los nombres que sugiere el error
+      usuarios {
+        id
+        nombres
+      }
+      roles {
+        id
+        nombre
+      }
+      maquinas {
+        id
+        nombre
+      }
+      sistemas {
+        id
+        nombre
+      }
     }
   }
 `

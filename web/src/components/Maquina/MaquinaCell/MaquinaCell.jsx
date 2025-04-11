@@ -5,7 +5,8 @@ export const QUERY = gql`
     maquina: maquina(id: $id) {
       id
       codigo
-      cod_tipo_maquina
+      es_virtual
+      cod_plataforma
       nombre
       ip
       so

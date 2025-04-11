@@ -8,7 +8,6 @@ export const QUERY = gql`
       id
       id_evento
       id_data_center
-      id_hardware
       id_servidor
       id_maquina
       estado

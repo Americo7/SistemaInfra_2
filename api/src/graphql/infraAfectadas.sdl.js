@@ -3,7 +3,7 @@ export const schema = gql`
     id: Int!
     id_evento: Int!
     id_data_center: Int
-    id_hardware: Int
+
     id_servidor: Int
     id_maquina: Int
     estado: estado!
@@ -13,7 +13,6 @@ export const schema = gql`
     usuario_modificacion: Int
     data_centers: DataCenter
     eventos: Evento!
-    hardware: Hardware
     maquinas: Maquina
     servidores: Servidor
   }
@@ -31,7 +30,7 @@ export const schema = gql`
   input CreateInfraAfectadaInput {
     id_evento: Int!
     id_data_center: Int
-    id_hardware: Int
+
     id_servidor: Int
     id_maquina: Int
     estado: estado!

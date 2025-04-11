@@ -3,6 +3,7 @@ export const schema = gql`
     id: Int!
     id_componente: Int!
     id_maquina: Int!
+    descripcion: String!
     fecha_despliegue: DateTime!
     estado: estado!
     fecha_creacion: DateTime!
@@ -33,6 +34,7 @@ export const schema = gql`
   input CreateDespliegueInput {
     id_componente: Int!
     id_maquina: Int!
+    descripcion: String!
     fecha_despliegue: DateTime
     estado: estado!
     fecha_creacion: DateTime
@@ -49,6 +51,7 @@ export const schema = gql`
 
   input UpdateDespliegueInput {
     id_componente: Int
+    descripcion: String
     id_maquina: Int
     fecha_despliegue: DateTime
     estado: estado

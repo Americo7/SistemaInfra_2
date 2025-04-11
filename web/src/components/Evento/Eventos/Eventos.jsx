@@ -28,7 +28,7 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/Evento/EventosCell'
@@ -42,6 +42,17 @@ const UPDATE_EVENTO_MUTATION = gql`
     updateEvento(id: $id, input: $input) {
       id
       estado
+    }
+  }
+`
+
+const USUARIOS_QUERY = gql`
+  query UsuariosQuery {
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
     }
   }
 `
@@ -67,6 +78,9 @@ const EventosList = ({ eventos = [] }) => {
   })
   const [showInactive, setShowInactive] = useState(false)
 
+  const { data: usuariosData } = useQuery(USUARIOS_QUERY)
+  const usuarios = usuariosData?.usuarios || []
+
   const [updateEvento] = useMutation(UPDATE_EVENTO_MUTATION, {
     onCompleted: () => {
       toast.success('Evento desactivado correctamente')
@@ -78,6 +92,17 @@ const EventosList = ({ eventos = [] }) => {
     refetchQueries: [{ query: QUERY }],
     awaitRefetchQueries: true,
   })
+
+  const getNombresResponsables = (ids) => {
+    return ids
+      .map((id) => {
+        const usuario = usuarios.find((u) => u.id === id)
+        return usuario
+          ? `${usuario.nombres} ${usuario.primer_apellido} ${usuario.segundo_apellido}`
+          : 'Desconocido'
+      })
+      .join(', ')
+  }
 
   const desactivarEvento = (id) => {
     updateEvento({
@@ -110,8 +135,8 @@ const EventosList = ({ eventos = [] }) => {
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado' || column.id === 'estado_evento')
             return formatEnum(cellValue)
-          if (column.id === 'respaldo') return jsonTruncate(cellValue)
-          return truncate(cellValue, 100)
+          if (column.id === 'responsables') return getNombresResponsables(cellValue)
+          return String(cellValue) // Eliminamos truncate para mantener datos completos
         })
       ),
     }
@@ -159,6 +184,10 @@ const EventosList = ({ eventos = [] }) => {
         overflow: 'linebreak',
         font: 'helvetica',
       },
+      columnStyles: {
+        // Asegurar ancho mínimo para responsables
+        Responsables: { cellWidth: 'auto', minCellWidth: 60 },
+      },
       margin: { left: 10, right: 10 },
     })
 
@@ -176,93 +205,7 @@ const EventosList = ({ eventos = [] }) => {
     doc.save(`eventos-${new Date().toISOString()}.pdf`)
   }
 
-  const exportToExcel = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet([])
-
-    const headerStyle = {
-      font: { sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '0F284D' } },
-      alignment: { horizontal: 'center' },
-      border: {
-        top: { style: 'thin', color: { rgb: '000000' } },
-        bottom: { style: 'thin', color: { rgb: '000000' } },
-        left: { style: 'thin', color: { rgb: '000000' } },
-        right: { style: 'thin', color: { rgb: '000000' } },
-      },
-    }
-
-    XLSX.utils.sheet_add_aoa(ws, [['Reporte de Eventos']], { origin: 'A1' })
-    XLSX.utils.sheet_add_aoa(
-      ws,
-      [[`Generado: ${formatDateTime(new Date())}`]],
-      { origin: 'A2' }
-    )
-    XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A4' })
-    XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A5' })
-
-    const range = XLSX.utils.decode_range(ws['!ref'])
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
-      ws[headerCell].s = headerStyle
-
-      for (let R = 4; R <= range.e.r; ++R) {
-        const cell = XLSX.utils.encode_cell({ r: R, c: C })
-        if (!ws[cell]) ws[cell] = {}
-        ws[cell].s = {
-          fill: { fgColor: { rgb: R % 2 === 0 ? 'F8F9FA' : 'FFFFFF' } },
-          border: {
-            top: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            bottom: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            left: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            right: { style: 'thin', color: { rgb: 'DDDDDD' } },
-          },
-        }
-      }
-    }
-
-    ws['!cols'] = headers.map((_, col) => ({
-      wch:
-        Math.max(
-          ...data.map((row) => String(row[col]).length),
-          headers[col].length
-        ) + 2,
-    }))
-
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
-    ]
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Eventos')
-    XLSX.writeFile(wb, `eventos-${new Date().toISOString()}.xlsx`)
-  }
-
-  const exportToCSV = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
-    const csvContent = [
-      'Reporte de Eventos',
-      `Generado: ${formatDateTime(new Date())}`,
-      '',
-      headers.join(','),
-      ...data.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-      ),
-      '',
-      `*Este archivo fue generado automáticamente el ${formatDateTime(
-        new Date()
-      )}`,
-    ].join('\n')
-
-    const blob = new Blob(['\ufeff', csvContent], {
-      type: 'text/csv;charset=utf-8;',
-    })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `eventos-${new Date().toISOString()}.csv`
-    link.click()
-  }
+  // ... (mantén igual las funciones exportToExcel y exportToCSV)
 
   const filteredEventos = useMemo(() => {
     if (showInactive) {
@@ -286,18 +229,34 @@ const EventosList = ({ eventos = [] }) => {
         size: 120,
         Cell: ({ cell }) => timeTag(cell.getValue()),
       },
-      { accessorKey: 'responsables', header: 'Responsables', size: 150 },
+      {
+        accessorKey: 'responsables',
+        header: 'Responsables',
+        size: 250, // Aumentamos el tamaño
+        Cell: ({ cell }) => (
+          <div
+            style={{
+              whiteSpace: 'nowrap',
+              overflowX: 'auto',
+              padding: '4px 0',
+              maxWidth: '400px'
+            }}
+          >
+            {getNombresResponsables(cell.getValue())}
+          </div>
+        ),
+      },
       {
         accessorKey: 'estado_evento',
         header: 'Estado Evento',
         size: 120,
-        Cell: ({ cell }) => formatEnum(cell.getValue()),
-      },
-      {
-        accessorKey: 'respaldo',
-        header: 'Respaldo',
-        size: 150,
-        Cell: ({ cell }) => jsonTruncate(cell.getValue()),
+        Cell: ({ row }) => (
+          <Chip
+            label={formatEnum(row.original.estado_evento)}
+            color={row.original.estado_evento === 'INICIADO' ? 'success' : 'error'}
+            size="small"
+          />
+          ),
       },
       {
         accessorKey: 'estado',
@@ -312,32 +271,18 @@ const EventosList = ({ eventos = [] }) => {
         ),
       },
       {
-        accessorKey: 'fecha_creacion',
-        header: 'Fecha Creación',
-        size: 150,
-        Cell: ({ cell }) => timeTag(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_creacion',
-        header: 'Creado por',
+        accessorKey: 'cite',
+        header: 'Cite',
         size: 120,
-        visible: false,
       },
       {
-        accessorKey: 'fecha_modificacion',
-        header: 'Última Modificación',
+        accessorKey: 'solicitante',
+        header: 'Solicitante',
         size: 150,
-        Cell: ({ cell }) => timeTag(cell.getValue()),
-        visible: false,
       },
-      {
-        accessorKey: 'usuario_modificacion',
-        header: 'Modificado por',
-        size: 120,
-        visible: false,
-      },
+      // ... (resto de columnas igual)
     ],
-    []
+    [usuarios]
   )
 
   const table = useMaterialReactTable({

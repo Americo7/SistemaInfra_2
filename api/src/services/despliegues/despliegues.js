@@ -15,6 +15,7 @@ export const createDespliegue = ({ input }) => {
     data: {
       id_componente: input.id_componente,
       id_maquina: input.id_maquina,
+      descripcion: input.descripcion,
       fecha_despliegue: new Date(),
       estado: input.estado,
       fecha_creacion: new Date(),
@@ -35,6 +36,7 @@ export const updateDespliegue = ({ id, input }) => {
       id_componente: input.id_componente,
       id_maquina: input.id_maquina,
       estado: input.estado,
+      descripcion: input.descripcion,
       fecha_modificacion: new Date(),
       usuario_modificacion: input.usuario_modificacion,
       fecha_solicitud: input.fecha_solicitud,

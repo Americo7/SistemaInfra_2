@@ -8,11 +8,8 @@ export const QUERY = gql`
   query EditServidorById($id: Int!) {
     servidor: servidor(id: $id) {
       id
-      id_hardware
-      serie_servidor
       cod_inventario_agetic
-      chasis
-      cuchilla
+      nombre
       ram
       almacenamiento
       estado_operativo
@@ -21,6 +18,12 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      id_data_center
+      serie
+      id_padre
+      cod_tipo_servidor
+      marca
+      modelo
     }
   }
 `
@@ -29,19 +32,20 @@ const UPDATE_SERVIDOR_MUTATION = gql`
   mutation UpdateServidorMutation($id: Int!, $input: UpdateServidorInput!) {
     updateServidor(id: $id, input: $input) {
       id
-      id_hardware
-      serie_servidor
       cod_inventario_agetic
-      chasis
-      cuchilla
+      nombre
       ram
       almacenamiento
       estado_operativo
       estado
-      fecha_creacion
-      usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      id_data_center
+      serie
+      id_padre
+      cod_tipo_servidor
+      marca
+      modelo
     }
   }
 `

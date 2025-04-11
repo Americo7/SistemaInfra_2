@@ -21,20 +21,24 @@ const GET_PARAMETROS = gql`
 `
 
 const RoleForm = (props) => {
-  const { data: parametrosData } = useQuery(GET_PARAMETROS)
+  const { data: parametrosData, loading: parametrosLoading } = useQuery(GET_PARAMETROS)
 
-  const parametrosDeEntorno = parametrosData?.parametros.filter((param) => {
+  const parametrosDeEntorno = parametrosData?.parametros?.filter((param) => {
     return param.grupo === 'TIPO_ROL'
-  })
+  }) || []
 
   const onSubmit = (data) => {
     const formData = {
       ...data,
-      estado: props.role ? data.estado : 'ACTIVO',
+      estado: props.role?.id ? data.estado : 'ACTIVO',
       usuario_modificacion: 1,
       usuario_creacion: 1,
     }
     props.onSave(formData, props?.role?.id)
+  }
+
+  if (parametrosLoading) {
+    return <div>Cargando...</div>
   }
 
   return (
@@ -56,37 +60,46 @@ const RoleForm = (props) => {
         </Label>
         <TextField
           name="nombre"
-          defaultValue={props.role?.nombre}
+          defaultValue={props.role?.nombre || ''}
           className="rw-input"
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
         <FieldError name="nombre" className="rw-field-error" />
 
-        <Label className="input-label">Tipo de Rol</Label>
+        <Label
+          name="cod_tipo_rol"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Tipo de Rol
+        </Label>
         <SelectField
           name="cod_tipo_rol"
-          defaultValue={props.rol?.cod_tipo_rol || ''}
-          className="input-field select-field"
+          defaultValue={props.role?.cod_tipo_rol || ''}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+          validation={{ required: true }}
         >
           <option value="">Seleccionar Tipo Rol...</option>
-          {parametrosDeEntorno?.map((tipoRol) => (
+          {parametrosDeEntorno.map((tipoRol) => (
             <option key={tipoRol.id} value={tipoRol.codigo}>
               {tipoRol.nombre}
             </option>
           ))}
         </SelectField>
+        <FieldError name="cod_tipo_rol" className="rw-field-error" />
 
         <Label
           name="descripcion"
           className="rw-label"
           errorClassName="rw-label rw-label-error"
         >
-          Descripcion
+          Descripción
         </Label>
         <TextField
           name="descripcion"
-          defaultValue={props.role?.descripcion}
+          defaultValue={props.role?.descripcion || ''}
           className="rw-input"
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
@@ -95,7 +108,7 @@ const RoleForm = (props) => {
 
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">
-            Save
+            Guardar
           </Submit>
         </div>
       </Form>

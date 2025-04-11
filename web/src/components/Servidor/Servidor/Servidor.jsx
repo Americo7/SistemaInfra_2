@@ -40,62 +40,25 @@ const Servidor = ({ servidor }) => {
         </header>
         <table className="rw-table">
           <tbody>
-            <tr>
-              <th>Id</th>
-              <td>{servidor.id}</td>
-            </tr>
-            <tr>
-              <th>Id hardware</th>
-              <td>{servidor.id_hardware}</td>
-            </tr>
-            <tr>
-              <th>Serie servidor</th>
-              <td>{servidor.serie_servidor}</td>
-            </tr>
-            <tr>
-              <th>Cod inventario agetic</th>
-              <td>{servidor.cod_inventario_agetic}</td>
-            </tr>
-            <tr>
-              <th>Chasis</th>
-              <td>{servidor.chasis}</td>
-            </tr>
-            <tr>
-              <th>Cuchilla</th>
-              <td>{servidor.cuchilla}</td>
-            </tr>
-            <tr>
-              <th>Ram</th>
-              <td>{servidor.ram}</td>
-            </tr>
-            <tr>
-              <th>Almacenamiento</th>
-              <td>{servidor.almacenamiento}</td>
-            </tr>
-            <tr>
-              <th>Estado operativo</th>
-              <td>{servidor.estado_operativo}</td>
-            </tr>
-            <tr>
-              <th>Estado</th>
-              <td>{formatEnum(servidor.estado)}</td>
-            </tr>
-            <tr>
-              <th>Fecha creacion</th>
-              <td>{timeTag(servidor.fecha_creacion)}</td>
-            </tr>
-            <tr>
-              <th>Usuario creacion</th>
-              <td>{servidor.usuario_creacion}</td>
-            </tr>
-            <tr>
-              <th>Fecha modificacion</th>
-              <td>{timeTag(servidor.fecha_modificacion)}</td>
-            </tr>
-            <tr>
-              <th>Usuario modificacion</th>
-              <td>{servidor.usuario_modificacion}</td>
-            </tr>
+            <tr><th>ID</th><td>{servidor.id}</td></tr>
+            <tr><th>Código Inventario AGETIC</th><td>{servidor.cod_inventario_agetic}</td></tr>
+            <tr><th>Nombre</th><td>{servidor.nombre}</td></tr>
+            <tr><th>RAM (GB)</th><td>{servidor.ram}</td></tr>
+            <tr><th>Almacenamiento (GB)</th><td>{servidor.almacenamiento}</td></tr>
+            <tr><th>Estado Operativo</th><td>{servidor.estado_operativo}</td></tr>
+            <tr><th>Estado</th><td>{formatEnum(servidor.estado)}</td></tr>
+            <tr><th>Data Center</th><td>{servidor.data_centers?.nombre || servidor.id_data_center}</td></tr>
+            <tr><th>Servidor Padre</th><td>{servidor.servidores?.serie || servidor.id_padre}</td></tr>
+            <tr><th>Serie</th><td>{servidor.serie}</td></tr>
+            <tr><th>Tipo de Servidor</th><td>{servidor.cod_tipo_servidor}</td></tr>
+            <tr><th>Marca</th><td>{servidor.marca}</td></tr>
+            <tr><th>Modelo</th><td>{servidor.modelo}</td></tr>
+
+            {/* 🔽 Datos de auditoría al final */}
+            <tr><th>Fecha de Creación</th><td>{timeTag(servidor.fecha_creacion)}</td></tr>
+            <tr><th>Usuario de Creación</th><td>{servidor.usuario_creacion}</td></tr>
+            <tr><th>Fecha de Modificación</th><td>{timeTag(servidor.fecha_modificacion)}</td></tr>
+            <tr><th>Usuario de Modificación</th><td>{servidor.usuario_modificacion}</td></tr>
           </tbody>
         </table>
       </div>

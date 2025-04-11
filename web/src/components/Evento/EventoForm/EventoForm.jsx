@@ -1,7 +1,5 @@
-import { useState } from 'react'
-
+import { useState, useEffect } from 'react'
 import Select from 'react-select'
-
 import {
   Form,
   FormError,
@@ -13,6 +11,7 @@ import {
   Submit,
 } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+
 const GET_PARAMETROS = gql`
   query GetParametrosTipoEvento {
     parametros {
@@ -23,6 +22,7 @@ const GET_PARAMETROS = gql`
     }
   }
 `
+
 const GET_USUARIOS = gql`
   query GetUsuariosEvento {
     usuarios {
@@ -33,37 +33,6 @@ const GET_USUARIOS = gql`
     }
   }
 `
-
-const RespaldoField = ({ defaultValue, onRespaldoChange }) => {
-  const [respaldoData, setRespaldoData] = useState(
-    defaultValue || { tecnology: '', version: '' }
-  )
-
-  const handleChange = (event) => {
-    const { name, value } = event.target
-    const newData = { ...respaldoData, [name]: value }
-    setRespaldoData(newData)
-    onRespaldoChange(newData)
-  }
-
-  return (
-    <div className="respaldo-section">
-      {['servicios_afectados', 'comentarios'].map((field) => (
-        <div key={field} className="form-group">
-          <Label className="input-label">
-            {field.charAt(0).toUpperCase() + field.slice(1)}
-          </Label>
-          <TextField
-            value={respaldoData[field]}
-            onChange={handleChange}
-            name={field}
-            className="input-field"
-          />
-        </div>
-      ))}
-    </div>
-  )
-}
 
 const formatDatetime = (value) => {
   if (value) {
@@ -77,7 +46,7 @@ const ResponsablesSelect = ({ usuarios, value, onChange }) => {
     label: `${u.nombres} ${u.primer_apellido} ${u.segundo_apellido}`,
   }))
 
-  const selected = options.filter((opt) => value.includes(opt.value))
+  const selected = options.filter((opt) => value?.includes(opt.value))
 
   return (
     <div className="mb-4">
@@ -98,34 +67,42 @@ const ResponsablesSelect = ({ usuarios, value, onChange }) => {
 }
 
 const EventoForm = (props) => {
-  const { data: usuariosData } = useQuery(GET_USUARIOS)
-  const { data: parametrosData } = useQuery(GET_PARAMETROS)
+  const { data: usuariosData, loading: loadingUsuarios } = useQuery(GET_USUARIOS)
+  const { data: parametrosData, loading: loadingParametros } = useQuery(GET_PARAMETROS)
   const [responsablesSeleccionados, setResponsablesSeleccionados] = useState(
     props.evento?.responsables || []
   )
+  const [isInitialized, setIsInitialized] = useState(false)
 
-  const parametrosDeTipoEvento = parametrosData?.parametros.filter((param) => {
+  useEffect(() => {
+    if (!loadingUsuarios && !loadingParametros && props.evento && !isInitialized) {
+      setResponsablesSeleccionados(props.evento.responsables || [])
+      setIsInitialized(true)
+    }
+  }, [loadingUsuarios, loadingParametros, props.evento, isInitialized])
+
+  const parametrosDeTipoEvento = parametrosData?.parametros?.filter((param) => {
     return param.grupo === 'TIPO_EVENTO'
-  })
+  }) || []
 
-  const parametrosDeEstadoEvento = parametrosData?.parametros.filter(
+  const parametrosDeEstadoEvento = parametrosData?.parametros?.filter(
     (param) => param.grupo === 'E_EVENTO_DESPLIEGUE'
-  )
-  const [respaldoData, setRespaldoData] = useState({
-    servicios_afectados: '',
-    comentarios: '',
-  })
+  ) || []
+
   const onSubmit = (data) => {
     const formData = {
       ...data,
       cod_tipo_evento: data.cod_tipo_evento,
       responsables: responsablesSeleccionados,
       estado: 'ACTIVO',
-      respaldo: respaldoData,
       usuario_modificacion: 2,
       usuario_creacion: 3,
     }
     props.onSave(formData, props?.evento?.id)
+  }
+
+  if (loadingUsuarios || loadingParametros) {
+    return <div>Cargando datos...</div>
   }
 
   return (
@@ -141,25 +118,30 @@ const EventoForm = (props) => {
         <Label className="input-label">Tipo de Evento</Label>
         <SelectField
           name="cod_tipo_evento"
-          defaultValue={props.componente?.cod_tipo_evento || ''}
+          defaultValue={props.evento?.cod_tipo_evento}
           className="input-field select-field"
+          validation={{ required: true }}
         >
           <option value="">Seleccionar Tipo Evento...</option>
-          {parametrosDeTipoEvento?.map((tipoEvento) => (
-            <option key={tipoEvento.id} value={tipoEvento.codigo}>
+          {parametrosDeTipoEvento.map((tipoEvento) => (
+            <option
+              key={tipoEvento.id}
+              value={tipoEvento.codigo}
+              selected={props.evento?.cod_tipo_evento === tipoEvento.codigo}
+            >
               {tipoEvento.nombre}
             </option>
           ))}
         </SelectField>
+        <FieldError name="cod_tipo_evento" className="rw-field-error" />
 
         <Label
           name="descripcion"
           className="rw-label"
           errorClassName="rw-label rw-label-error"
         >
-          Descripcion
+          Descripción
         </Label>
-
         <TextField
           name="descripcion"
           defaultValue={props.evento?.descripcion}
@@ -167,7 +149,6 @@ const EventoForm = (props) => {
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
-
         <FieldError name="descripcion" className="rw-field-error" />
 
         <Label
@@ -177,7 +158,6 @@ const EventoForm = (props) => {
         >
           Fecha evento
         </Label>
-
         <DatetimeLocalField
           name="fecha_evento"
           defaultValue={formatDatetime(props.evento?.fecha_evento)}
@@ -185,7 +165,6 @@ const EventoForm = (props) => {
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
-
         <FieldError name="fecha_evento" className="rw-field-error" />
 
         <ResponsablesSelect
@@ -197,23 +176,56 @@ const EventoForm = (props) => {
         <Label className="input-label">Estado de Evento</Label>
         <SelectField
           name="estado_evento"
-          defaultValue={props.componente?.estado_evento || ''}
+          defaultValue={props.evento?.estado_evento}
           className="input-field select-field"
+          validation={{ required: true }}
         >
           <option value="">Seleccionar Estado de Evento...</option>
-          {parametrosDeEstadoEvento?.map((estadoEvento) => (
-            <option key={estadoEvento.id} value={estadoEvento.codigo}>
+          {parametrosDeEstadoEvento.map((estadoEvento) => (
+            <option
+              key={estadoEvento.id}
+              value={estadoEvento.codigo}
+              selected={props.evento?.estado_evento === estadoEvento.codigo}
+            >
               {estadoEvento.nombre}
             </option>
           ))}
         </SelectField>
-        <RespaldoField
-          defaultValue={respaldoData}
-          onRespaldoChange={setRespaldoData}
+        <FieldError name="estado_evento" className="rw-field-error" />
+
+        <Label
+          name="cite"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Cite
+        </Label>
+        <TextField
+          name="cite"
+          defaultValue={props.evento?.cite}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
         />
+        <FieldError name="cite" className="rw-field-error" />
+
+        <Label
+          name="solicitante"
+          className="rw-label"
+          errorClassName="rw-label rw-label-error"
+        >
+          Solicitante
+        </Label>
+        <TextField
+          name="solicitante"
+          defaultValue={props.evento?.solicitante}
+          className="rw-input"
+          errorClassName="rw-input rw-input-error"
+        />
+        <FieldError name="solicitante" className="rw-field-error" />
+
         <div className="rw-button-group">
           <Submit disabled={props.loading} className="rw-button rw-button-blue">
-            Save
+            Guardar
           </Submit>
         </div>
       </Form>

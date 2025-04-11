@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   FileDownload as FileDownloadIcon,
+  InfoOutlined as InfoOutlinedIcon,
 } from '@mui/icons-material'
 import {
   Box,
@@ -21,6 +21,7 @@ import {
   MenuItem,
   Switch,
   FormControlLabel,
+  Stack,
 } from '@mui/material'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -62,11 +63,29 @@ const truncate = (text, length = 50) => {
   return text.length > length ? text.substring(0, length) + '...' : text
 }
 
+const parseTecnologia = (value) => {
+  try {
+    if (!value) return []
+    if (typeof value === 'string') {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : [parsed]
+    }
+    return Array.isArray(value) ? value : [value]
+  } catch (e) {
+    console.error('Error parsing tecnologia:', e)
+    return []
+  }
+}
+
 const jsonTruncate = (obj) => {
   if (!obj) return 'N/A'
   try {
-    const str = JSON.stringify(obj)
-    return truncate(str, 100)
+    const tecnologias = parseTecnologia(obj)
+    if (tecnologias.length === 0) return 'Sin tecnologías'
+
+    return tecnologias.map(tech =>
+      `${tech.nombre}${tech.version ? ` v${tech.version}` : ''}`
+    ).join(', ')
   } catch {
     return 'N/A'
   }
@@ -75,6 +94,15 @@ const jsonTruncate = (obj) => {
 const formatEnum = (value) => {
   if (!value) return 'N/A'
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+}
+
+const getTechColor = (codigo) => {
+  if (!codigo) return 'default'
+  if (codigo.includes('FRONTEND')) return 'primary'
+  if (codigo.includes('BACKEND')) return 'secondary'
+  if (codigo.includes('DATABASE')) return 'success'
+  if (codigo.includes('CLOUD')) return 'info'
+  return 'warning'
 }
 
 const ComponentesList = ({ componentes = [] }) => {
@@ -312,8 +340,36 @@ const ComponentesList = ({ componentes = [] }) => {
       {
         accessorKey: 'tecnologia',
         header: 'Tecnología',
-        size: 200,
-        Cell: ({ cell }) => jsonTruncate(cell.getValue()),
+        size: 300,
+        Cell: ({ cell }) => {
+          const tecnologias = parseTecnologia(cell.getValue())
+
+          if (tecnologias.length === 0) {
+            return (
+              <Chip
+                label="Sin tecnologías"
+                size="small"
+                variant="outlined"
+                color="default"
+                icon={<InfoOutlinedIcon fontSize="small" />}
+              />
+            )
+          }
+
+          return (
+            <Stack direction="row" spacing={1} flexWrap="wrap" gap={0.5}>
+              {tecnologias.map((tech, index) => (
+                <Chip
+                  key={index}
+                  label={`${tech.nombre}${tech.version ? ` v${tech.version}` : ''}`}
+                  size="small"
+                  color={getTechColor(tech.codigo)}
+                  variant="outlined"
+                />
+              ))}
+            </Stack>
+          )
+        },
       },
       {
         accessorKey: 'estado',

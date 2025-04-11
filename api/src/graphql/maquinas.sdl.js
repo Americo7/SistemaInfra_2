@@ -2,7 +2,7 @@ export const schema = gql`
   type Maquina {
     id: Int!
     codigo: Int
-    cod_tipo_maquina: String!
+    cod_plataforma: String!
     nombre: String!
     ip: String!
     so: String!
@@ -18,6 +18,7 @@ export const schema = gql`
     despliegue: [Despliegue]!
     infra_afectada: [InfraAfectada]!
     usuario_roles: [UsuarioRol]!
+    es_virtual: Boolean!
   }
 
   enum estado {
@@ -32,7 +33,7 @@ export const schema = gql`
 
   input CreateMaquinaInput {
     codigo: Int
-    cod_tipo_maquina: String!
+    cod_plataforma: String!
     nombre: String!
     ip: String!
     so: String!
@@ -44,11 +45,12 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    es_virtual: Boolean!
   }
 
   input UpdateMaquinaInput {
     codigo: Int
-    cod_tipo_maquina: String
+    cod_plataforma: String!
     nombre: String
     ip: String
     so: String
@@ -60,6 +62,7 @@ export const schema = gql`
     usuario_creacion: Int
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    es_virtual: Boolean
   }
 
   type Mutation {

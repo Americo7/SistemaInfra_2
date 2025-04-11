@@ -11,10 +11,7 @@ export const evento = ({ id }) => {
 }
 
 export const createEvento = ({ input }) => {
-  const respaldoData = {
-    servicios_afectados: input.servicios_afectados,
-    comentarios: input.comentarios,
-  }
+
   return db.evento.create({
     data: {
       cod_tipo_evento: input.cod_tipo_evento,
@@ -22,7 +19,8 @@ export const createEvento = ({ input }) => {
       fecha_evento: input.fecha_evento,
       responsables: input.responsables,
       estado_evento: input.estado_evento,
-      respaldo: respaldoData,
+      cite: input.cite,
+      solicitante: input.solicitante,
       estado: input.estado,
       fecha_creacion: new Date(),
       usuario_creacion: input.usuario_creacion,
@@ -31,10 +29,7 @@ export const createEvento = ({ input }) => {
 }
 
 export const updateEvento = ({ id, input }) => {
-  const respaldoData = {
-    servicios_afectados: input.servicios_afectados,
-    comentarios: input.comentarios,
-  }
+
   return db.evento.update({
     data: {
       cod_tipo_evento: input.cod_tipo_evento,
@@ -42,7 +37,8 @@ export const updateEvento = ({ id, input }) => {
       fecha_evento: input.fecha_evento,
       responsables: input.responsables,
       estado_evento: input.estado_evento,
-      respaldo: respaldoData,
+      cite: input.cite,
+      solicitante: input.solicitante,
       estado: input.estado,
       fecha_modificacion: new Date(),
       usuario_modificacion: input.usuario_modificacion,

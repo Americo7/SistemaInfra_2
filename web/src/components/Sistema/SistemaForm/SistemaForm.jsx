@@ -1,7 +1,5 @@
-import { useState } from 'react'
-
+import { useState, useEffect } from 'react'
 import Select from 'react-select'
-
 import {
   Form,
   FormError,
@@ -36,12 +34,16 @@ const SistemaForm = (props) => {
   const { data: sistemasData } = useQuery(OBTENER_SISTEMAS)
   const { data: entidadesData } = useQuery(OBTENER_ENTIDADES)
 
-  const [selectedPadre, setSelectedPadre] = useState(
-    props.sistema?.id_padre ?? null
-  )
-  const [selectedEntidad, setSelectedEntidad] = useState(
-    props.sistema?.id_entidad ?? null
-  )
+  const [selectedPadre, setSelectedPadre] = useState(null)
+  const [selectedEntidad, setSelectedEntidad] = useState(null)
+
+  // Inicializar valores cuando se carga el componente o cambian las props
+  useEffect(() => {
+    if (props.sistema) {
+      setSelectedPadre(props.sistema.id_padre)
+      setSelectedEntidad(props.sistema.id_entidad)
+    }
+  }, [props.sistema])
 
   const sistemasOptions =
     sistemasData?.sistemas
@@ -54,15 +56,24 @@ const SistemaForm = (props) => {
       .map((e) => ({ value: e.id, label: e.nombre })) || []
 
   const onSubmit = (data) => {
+    // Construir el objeto de datos completo
     const formData = {
       ...data,
+      id_padre: selectedPadre,
       id_entidad: selectedEntidad,
       estado: 'ACTIVO',
       usuario_modificacion: 2,
       usuario_creacion: 3,
     }
 
-    props.onSave(formData, props?.sistema?.id)
+    console.log('Enviando datos:', formData)
+
+    // Si tenemos un ID de sistema, estamos editando; de lo contrario, creamos
+    if (props?.sistema?.id) {
+      props.onSave(formData, props.sistema.id)
+    } else {
+      props.onSave(formData)
+    }
   }
 
   return (
@@ -82,7 +93,10 @@ const SistemaForm = (props) => {
             sistemasOptions.find((opt) => opt.value === selectedPadre) || null
           }
           options={sistemasOptions}
-          onChange={(option) => setSelectedPadre(option?.value || null)}
+          onChange={(option) => {
+            console.log('Sistema Padre seleccionado:', option)
+            setSelectedPadre(option?.value || null)
+          }}
           className="input-field select-field"
           isClearable
           placeholder="Buscar y seleccionar un sistema..."
@@ -96,7 +110,10 @@ const SistemaForm = (props) => {
             null
           }
           options={entidadesOptions}
-          onChange={(option) => setSelectedEntidad(option?.value || null)}
+          onChange={(option) => {
+            console.log('Entidad seleccionada:', option)
+            setSelectedEntidad(option?.value || null)
+          }}
           className="input-field select-field"
           isClearable
           placeholder="Buscar y seleccionar una entidad..."

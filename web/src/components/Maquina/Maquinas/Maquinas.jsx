@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   FileDownload as FileDownloadIcon,
+  Check as CheckIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material'
 import {
   Box,
@@ -21,6 +22,9 @@ import {
   MenuItem,
   Switch,
   FormControlLabel,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -28,19 +32,49 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
-import { QUERY } from 'src/components/Maquina/MaquinasCell'
-
 const UPDATE_MAQUINA_MUTATION = gql`
-  mutation DeleteMaquinaMutation_fromMaquina(
-    $id: Int!
-    $input: UpdateMaquinaInput!
-  ) {
+  mutation UpdateMaquinaMutation_fromMaquina($id: Int!, $input: UpdateMaquinaInput!) {
     updateMaquina(id: $id, input: $input) {
       id
       estado
+      es_virtual
+      cod_plataforma
+    }
+  }
+`
+
+const QUERY_MAQUINAS = gql`
+  query FindMaquinas {
+    maquinas {
+      id
+      codigo
+      cod_plataforma
+      nombre
+      ip
+      so
+      ram
+      almacenamiento
+      cpu
+      es_virtual
+      estado
+      fecha_creacion
+      usuario_creacion
+      fecha_modificacion
+      usuario_modificacion
+    }
+  }
+`
+
+const QUERY_PARAMETRICAS = gql`
+  query FindParametricas {
+    parametros {
+      id
+      codigo
+      nombre
+      grupo
     }
   }
 `
@@ -62,48 +96,71 @@ const truncate = (text, length = 50) => {
   return text.length > length ? text.substring(0, length) + '...' : text
 }
 
-const jsonTruncate = (obj) => {
-  if (!obj) return 'N/A'
-  try {
-    const str = JSON.stringify(obj)
-    return truncate(str, 100)
-  } catch {
-    return 'N/A'
-  }
-}
-
 const formatEnum = (value) => {
   if (!value) return 'N/A'
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
 }
 
-const MaquinasList = ({ maquinas = [] }) => {
-  const [deleteState, setDeleteState] = useState({ open: false, id: null })
+const formatBoolean = (value) => {
+  return value ? (
+    <CheckIcon color="success" fontSize="small" />
+  ) : (
+    <CloseIcon color="error" fontSize="small" />
+  )
+}
+
+const parseAlmacenamiento = (value) => {
+  try {
+    if (!value) return []
+    if (typeof value === 'string') {
+      return JSON.parse(value)
+    }
+    if (Array.isArray(value)) {
+      return value
+    }
+    return []
+  } catch (e) {
+    console.error('Error parsing almacenamiento:', e)
+    return []
+  }
+}
+
+const MaquinasList = () => {
+  const { data: maquinasData } = useQuery(QUERY_MAQUINAS)
+  const { data: parametricasData } = useQuery(QUERY_PARAMETRICAS)
+  const [deleteState, setDeleteState] = useState({ open: false, id: null, estado: 'ACTIVO' })
   const [exportMenuAnchor, setExportMenuAnchor] = useState({
     all: null,
     page: null,
     selection: null,
   })
   const [showInactive, setShowInactive] = useState(false)
+  const [virtualFilter, setVirtualFilter] = useState('all') // 'all', 'virtual', 'physical'
 
   const [updateMaquina] = useMutation(UPDATE_MAQUINA_MUTATION, {
     onCompleted: () => {
-      toast.success('Máquina desactivada correctamente')
-      setDeleteState({ open: false, id: null })
+      toast.success('Máquina actualizada correctamente')
+      setDeleteState({ open: false, id: null, estado: 'ACTIVO' })
     },
     onError: (error) => {
       toast.error(error.message)
     },
-    refetchQueries: [{ query: QUERY }],
+    refetchQueries: [{ query: QUERY_MAQUINAS }],
     awaitRefetchQueries: true,
   })
 
-  const desactivarMaquina = (id) => {
+  const getNombrePlataforma = (codigo) => {
+    if (!parametricasData?.parametros) return codigo
+    const param = parametricasData.parametros.find(p => p.codigo === codigo)
+    return param ? param.nombre : codigo
+  }
+
+  const toggleEstado = (id, currentEstado) => {
     updateMaquina({
       variables: {
         id: id,
         input: {
-          estado: 'INACTIVO',
+          estado: currentEstado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO',
           fecha_modificacion: new Date().toISOString(),
         },
       },
@@ -126,9 +183,14 @@ const MaquinasList = ({ maquinas = [] }) => {
         visibleColumns.map((column) => {
           const cellValue = row.original[column.id] || 'N/A'
 
+          if (column.id === 'es_virtual') return cellValue ? 'Sí' : 'No'
+          if (column.id === 'almacenamiento') {
+            const discos = parseAlmacenamiento(cellValue)
+            return discos.map(d => `Disco ${d.Disco}: ${d.Valor} GB`).join(', ') || 'N/A'
+          }
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
-          if (column.id === 'almacenamiento') return jsonTruncate(cellValue)
           if (column.id === 'estado') return formatEnum(cellValue)
+          if (column.id === 'cod_plataforma') return getNombrePlataforma(cellValue)
           return truncate(cellValue, 100)
         })
       ),
@@ -283,28 +345,82 @@ const MaquinasList = ({ maquinas = [] }) => {
   }
 
   const filteredMaquinas = useMemo(() => {
-    if (showInactive) {
-      return maquinas
+    if (!maquinasData?.maquinas) return []
+
+    let filtered = maquinasData.maquinas
+
+    // Filtro por estado (activo/inactivo)
+    if (!showInactive) {
+      filtered = filtered.filter((maquina) => maquina.estado === 'ACTIVO')
     }
-    return maquinas.filter((maquina) => maquina.estado === 'ACTIVO')
-  }, [maquinas, showInactive])
+
+    // Filtro por tipo de máquina (virtual/física)
+    if (virtualFilter === 'virtual') {
+      filtered = filtered.filter((maquina) => maquina.es_virtual === true)
+    } else if (virtualFilter === 'physical') {
+      filtered = filtered.filter((maquina) => maquina.es_virtual === false)
+    }
+
+    return filtered
+  }, [maquinasData, showInactive, virtualFilter])
 
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
       { accessorKey: 'codigo', header: 'Código', size: 100 },
-      { accessorKey: 'cod_tipo_maquina', header: 'Cód. Tipo', size: 100 },
+      {
+        accessorKey: 'cod_plataforma',
+        header: 'Plataforma',
+        size: 120,
+        Cell: ({ cell }) => getNombrePlataforma(cell.getValue())
+      },
       { accessorKey: 'nombre', header: 'Nombre', size: 150 },
       { accessorKey: 'ip', header: 'IP', size: 120 },
       { accessorKey: 'so', header: 'Sistema Operativo', size: 150 },
-      { accessorKey: 'ram', header: 'RAM', size: 100 },
+      {
+        accessorKey: 'es_virtual',
+        header: 'Es Virtual',
+        size: 100,
+        Cell: ({ cell }) => formatBoolean(cell.getValue())
+      },
+      {
+        accessorKey: 'ram',
+        header: 'RAM',
+        size: 100,
+        Cell: ({ cell }) => `${cell.getValue()} GB`
+      },
       {
         accessorKey: 'almacenamiento',
         header: 'Almacenamiento',
-        size: 150,
-        Cell: ({ cell }) => jsonTruncate(cell.getValue()),
+        size: 200,
+        Cell: ({ cell }) => {
+          const discos = parseAlmacenamiento(cell.getValue())
+
+          if (!discos.length) {
+            return <Chip label="Sin discos" size="small" variant="outlined" />
+          }
+
+          return (
+            <Stack spacing={0.5}>
+              {discos.map((disco, index) => (
+                <div key={index}>
+                  <Chip
+                    label={`Disco ${disco.Disco}: ${disco.Valor} GB`}
+                    size="small"
+                    variant="outlined"
+                  />
+                </div>
+              ))}
+            </Stack>
+          )
+        },
       },
-      { accessorKey: 'cpu', header: 'CPU', size: 120 },
+      {
+        accessorKey: 'cpu',
+        header: 'CPUs',
+        size: 100,
+        Cell: ({ cell }) => `${cell.getValue()} Núcleos`
+      },
       {
         accessorKey: 'estado',
         header: 'Estado',
@@ -343,7 +459,7 @@ const MaquinasList = ({ maquinas = [] }) => {
         visible: false,
       },
     ],
-    []
+    [parametricasData]
   )
 
   const table = useMaterialReactTable({
@@ -389,17 +505,23 @@ const MaquinasList = ({ maquinas = [] }) => {
             <EditIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        {row.original.estado === 'ACTIVO' && (
-          <Tooltip title="Desactivar">
-            <IconButton
-              onClick={() =>
-                setDeleteState({ open: true, id: row.original.id })
-              }
-            >
+        <Tooltip title={row.original.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}>
+          <IconButton
+            onClick={() =>
+              setDeleteState({
+                open: true,
+                id: row.original.id,
+                estado: row.original.estado
+              })
+            }
+          >
+            {row.original.estado === 'ACTIVO' ? (
               <DeleteIcon fontSize="small" color="error" />
-            </IconButton>
-          </Tooltip>
-        )}
+            ) : (
+              <CheckIcon fontSize="small" color="success" />
+            )}
+          </IconButton>
+        </Tooltip>
       </Box>
     ),
     renderTopToolbarCustomActions: ({ table }) => {
@@ -426,6 +548,28 @@ const MaquinasList = ({ maquinas = [] }) => {
             }
             label="Mostrar inactivos"
           />
+
+          <ToggleButtonGroup
+            value={virtualFilter}
+            exclusive
+            onChange={(e, newValue) => {
+              if (newValue !== null) {
+                setVirtualFilter(newValue)
+              }
+            }}
+            size="small"
+            sx={{
+              '& .MuiToggleButton-root': {
+                px: 2,
+                py: 0.5,
+                fontSize: '0.75rem',
+              },
+            }}
+          >
+            <ToggleButton value="all">Todas</ToggleButton>
+            <ToggleButton value="virtual">Virtuales</ToggleButton>
+            <ToggleButton value="physical">Físicas</ToggleButton>
+          </ToggleButtonGroup>
 
           <Button
             disabled={table.getPrePaginationRowModel().rows.length === 0}
@@ -587,30 +731,32 @@ const MaquinasList = ({ maquinas = [] }) => {
 
       <Dialog
         open={deleteState.open}
-        onClose={() => setDeleteState({ open: false, id: null })}
+        onClose={() => setDeleteState({ open: false, id: null, estado: 'ACTIVO' })}
       >
-        <DialogTitle>Confirmar Desactivación</DialogTitle>
+        <DialogTitle>
+          {deleteState.estado === 'ACTIVO' ? 'Desactivar Máquina' : 'Activar Máquina'}
+        </DialogTitle>
         <DialogContent>
           <Typography>
-            ¿Estás seguro de desactivar la máquina {deleteState.id}? Esta acción
-            no eliminará la máquina de la base de datos, solo cambiará su estado
-            a inactivo.
+            ¿Estás seguro de {deleteState.estado === 'ACTIVO' ? 'desactivar' : 'activar'} la máquina {deleteState.id}?
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteState({ open: false, id: null })}>
+          <Button onClick={() => setDeleteState({ open: false, id: null, estado: 'ACTIVO' })}>
             Cancelar
           </Button>
           <Button
-            onClick={() => desactivarMaquina(deleteState.id)}
-            color="error"
+            onClick={() => toggleEstado(deleteState.id, deleteState.estado)}
+            color={deleteState.estado === 'ACTIVO' ? 'error' : 'success'}
             variant="contained"
             sx={{
-              backgroundColor: '#e57373',
-              '&:hover': { backgroundColor: '#ef5350' },
+              backgroundColor: deleteState.estado === 'ACTIVO' ? '#e57373' : '#81c784',
+              '&:hover': {
+                backgroundColor: deleteState.estado === 'ACTIVO' ? '#ef5350' : '#66bb6a'
+              },
             }}
           >
-            Desactivar
+            {deleteState.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}
           </Button>
         </DialogActions>
       </Dialog>

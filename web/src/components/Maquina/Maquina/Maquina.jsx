@@ -49,8 +49,12 @@ const Maquina = ({ maquina }) => {
               <td>{maquina.codigo}</td>
             </tr>
             <tr>
-              <th>Cod tipo maquina</th>
-              <td>{maquina.cod_tipo_maquina}</td>
+              <th>Es Virtual</th>
+              <td>{maquina.es_virtual ? 'Sí' : 'No'}</td>
+            </tr>
+            <tr>
+              <th>Cod Plataforma</th>
+              <td>{maquina.cod_plataforma}</td>
             </tr>
             <tr>
               <th>Nombre</th>

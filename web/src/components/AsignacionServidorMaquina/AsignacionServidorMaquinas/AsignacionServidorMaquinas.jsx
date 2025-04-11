@@ -28,10 +28,31 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/AsignacionServidorMaquina/AsignacionServidorMaquinasCell'
+
+// Query to get detailed information for servers, machines, and clusters
+const GET_DETAILS_QUERY = gql`
+  query GetDetailsForAsignaciones {
+    servidores: servidores {
+      id
+      marca
+      modelo
+      serie
+      cod_tipo_servidor
+    }
+    maquinas: maquinas {
+      id
+      nombre
+    }
+    clusters: clusters {
+      id
+      nombre
+    }
+  }
+`
 
 const UPDATE_ASIGNACION_MUTATION = gql`
   mutation UpdateAsignacionServidorMaquinaMutation_FromAsignacion(
@@ -90,6 +111,36 @@ const AsignacionServidorMaquinasList = ({
   })
   const [showInactive, setShowInactive] = useState(false)
 
+  // Fetch details for servers, machines, and clusters
+  const { data: detailsData } = useQuery(GET_DETAILS_QUERY, {
+    fetchPolicy: 'cache-and-network',
+  })
+
+  // Create lookup maps for servers, machines, and clusters
+  const servidoresMap = useMemo(() => {
+    if (!detailsData?.servidores) return {}
+    return detailsData.servidores.reduce((acc, servidor) => {
+      acc[servidor.id] = servidor
+      return acc
+    }, {})
+  }, [detailsData?.servidores])
+
+  const maquinasMap = useMemo(() => {
+    if (!detailsData?.maquinas) return {}
+    return detailsData.maquinas.reduce((acc, maquina) => {
+      acc[maquina.id] = maquina
+      return acc
+    }, {})
+  }, [detailsData?.maquinas])
+
+  const clustersMap = useMemo(() => {
+    if (!detailsData?.clusters) return {}
+    return detailsData.clusters.reduce((acc, cluster) => {
+      acc[cluster.id] = cluster
+      return acc
+    }, {})
+  }, [detailsData?.clusters])
+
   const [updateAsignacion] = useMutation(UPDATE_ASIGNACION_MUTATION, {
     onCompleted: () => {
       toast.success('Asignación desactivada correctamente')
@@ -122,6 +173,23 @@ const AsignacionServidorMaquinasList = ({
       (asignacion) => asignacion.estado === 'ACTIVO'
     )
   }, [asignacionServidorMaquinas, showInactive])
+
+  // Enhance asignaciones with detailed information
+  const enhancedAsignaciones = useMemo(() => {
+    return filteredAsignaciones.map(asignacion => {
+      const servidor = servidoresMap[asignacion.id_servidor] || { marca: 'N/A', modelo: 'N/A', serie: 'N/A', cod_tipo_servidor: 'N/A' }
+      const maquina = maquinasMap[asignacion.id_maquina] || { nombre: 'N/A' }
+      const cluster = asignacion.id_cluster ? (clustersMap[asignacion.id_cluster] || { nombre: 'N/A' }) : null
+
+      return {
+        ...asignacion,
+        servidor_info: `${servidor.marca} ${servidor.modelo} (${servidor.serie})`,
+        servidor_tipo: servidor.cod_tipo_servidor,
+        maquina_nombre: maquina.nombre,
+        cluster_nombre: cluster ? cluster.nombre : 'N/A',
+      }
+    })
+  }, [filteredAsignaciones, servidoresMap, maquinasMap, clustersMap])
 
   const getFormattedData = (rows, table) => {
     const visibleColumns = table
@@ -299,9 +367,43 @@ const AsignacionServidorMaquinasList = ({
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'id_servidor', header: 'ID Servidor', size: 100 },
-      { accessorKey: 'id_maquina', header: 'ID Máquina', size: 100 },
-      { accessorKey: 'id_cluster', header: 'ID Cluster', size: 100 },
+      {
+        accessorKey: 'servidor_info',
+        header: 'Información Servidor',
+        size: 200,
+        Cell: ({ row }) => (
+          <Tooltip title={`ID: ${row.original.id_servidor}`}>
+            <span>{row.original.servidor_info}</span>
+          </Tooltip>
+        )
+      },
+      {
+        accessorKey: 'servidor_tipo',
+        header: 'Tipo Servidor',
+        size: 120
+      },
+      {
+        accessorKey: 'maquina_nombre',
+        header: 'Máquina',
+        size: 150,
+        Cell: ({ row }) => (
+          <Tooltip title={`ID: ${row.original.id_maquina}`}>
+            <span>{row.original.maquina_nombre}</span>
+          </Tooltip>
+        )
+      },
+      {
+        accessorKey: 'cluster_nombre',
+        header: 'Cluster',
+        size: 150,
+        Cell: ({ row }) => (
+          row.original.id_cluster ?
+          <Tooltip title={`ID: ${row.original.id_cluster}`}>
+            <span>{row.original.cluster_nombre}</span>
+          </Tooltip>
+          : <span>N/A</span>
+        )
+      },
       {
         accessorKey: 'estado',
         header: 'Estado',
@@ -345,7 +447,7 @@ const AsignacionServidorMaquinasList = ({
 
   const table = useMaterialReactTable({
     columns,
-    data: filteredAsignaciones,
+    data: enhancedAsignaciones,
     enableRowActions: true,
     enableRowSelection: true,
     enableMultiRowSelection: true,

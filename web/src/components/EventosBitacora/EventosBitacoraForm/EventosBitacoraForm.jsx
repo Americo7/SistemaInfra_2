@@ -17,7 +17,13 @@ const formatDatetime = (value) => {
 
 const EventosBitacoraForm = (props) => {
   const onSubmit = (data) => {
-    props.onSave(data, props?.eventosBitacora?.id)
+    const formData = {
+      ...data,
+
+      usuario_modificacion: 2,
+      usuario_creacion: 3,
+    }
+    props.onSave(formData, props?.evento?.id)
   }
 
   return (
@@ -49,58 +55,22 @@ const EventosBitacoraForm = (props) => {
         <FieldError name="id_evento" className="rw-field-error" />
 
         <Label
-          name="usuario_creacion"
+          name="descripcion"
           className="rw-label"
           errorClassName="rw-label rw-label-error"
         >
-          Usuario creacion
+          Descripcion
         </Label>
 
-        <NumberField
-          name="usuario_creacion"
-          defaultValue={props.eventosBitacora?.usuario_creacion}
+        <TextField
+          name="descripcion"
+          defaultValue={props.eventosBitacora?.descripcion}
           className="rw-input"
           errorClassName="rw-input rw-input-error"
           validation={{ required: true }}
         />
 
-        <FieldError name="usuario_creacion" className="rw-field-error" />
-
-        <Label
-          name="fecha_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Fecha modificacion
-        </Label>
-
-        <DatetimeLocalField
-          name="fecha_modificacion"
-          defaultValue={formatDatetime(
-            props.eventosBitacora?.fecha_modificacion
-          )}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="fecha_modificacion" className="rw-field-error" />
-
-        <Label
-          name="usuario_modificacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Usuario modificacion
-        </Label>
-
-        <NumberField
-          name="usuario_modificacion"
-          defaultValue={props.eventosBitacora?.usuario_modificacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-
-        <FieldError name="usuario_modificacion" className="rw-field-error" />
+        <FieldError name="descripcion" className="rw-field-error" />
 
         <Label
           name="estado_anterior"

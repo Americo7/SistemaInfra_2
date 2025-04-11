@@ -86,6 +86,7 @@ model Despliegue {
   cod_tipo_respaldo    String               @db.VarChar(20)
   referencia_respaldo  String               @db.VarChar(100)
   estado_despliegue    String               @db.VarChar(20)
+  descripcion          String
   componentes          Componente           @relation(fields: [id_componente], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_componente_id")
   maquinas             Maquina              @relation(fields: [id_maquina], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_desppliegue_maquina")
   despliegue_bitacora  DespliegueBitacora[]
@@ -138,11 +139,11 @@ model Sistema {
   nombre               String       @db.VarChar(150)
   descripcion          String
   estado               estado       @map("_estado")
-  ra_creacion          String?      @db.VarChar(100)
   fecha_creacion       DateTime     @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
   usuario_creacion     Int          @map("_usuario_creacion")
   fecha_modificacion   DateTime?    @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?         @map("_usuario_modificacion")
+  ra_creacion          String?      @db.VarChar(100)
   componentes          Componente[]
   entidades            Entidad      @relation(fields: [id_entidad], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_entidad_id")
   sistemas             Sistema?     @relation("sistemasTosistemas", fields: [id_padre], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sistema_padre_id")
@@ -199,7 +200,7 @@ model Usuario {
 
 model Parametro {
   id                   Int       @id(map: "parametros_pk") @default(autoincrement())
-  codigo               String    @db.VarChar(20)
+  codigo               String    @unique(map: "parametro_codigo_uq") @db.VarChar(20)
   nombre               String
   grupo                String    @db.VarChar(20)
   estado               estado    @default(ACTIVO) @map("_estado")
@@ -207,6 +208,7 @@ model Parametro {
   usuario_creacion     Int       @map("_usuario_creacion")
   fecha_modificacion   DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?      @map("_usuario_modificacion")
+  descripcion          String?
 
   @@map("parametros")
   @@schema("parametricas")
@@ -221,14 +223,14 @@ model DataCenter {
   usuario_creacion     Int             @map("_usuario_creacion")
   fecha_modificacion   DateTime?       @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?            @map("_usuario_modificacion")
-  hardware             Hardware[]
   infra_afectada       InfraAfectada[]
+  servidores           Servidor[]
 
   @@map("data_centers")
   @@schema("registro")
 }
-
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+
 model Evento {
   id                   Int               @id(map: "evento_pk") @default(autoincrement())
   cod_tipo_evento      String            @db.VarChar(20)
@@ -236,18 +238,20 @@ model Evento {
   fecha_evento         DateTime          @db.Timestamp(6)
   responsables         Int[]
   estado_evento        String            @db.VarChar(20)
-  respaldo             Json?
   estado               estado            @map("_estado")
   fecha_creacion       DateTime          @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
   usuario_creacion     Int               @map("_usuario_creacion")
   fecha_modificacion   DateTime?         @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?              @map("_usuario_modificacion")
+  cite                 String?           @db.VarChar(50)
+  solicitante          String?           @db.VarChar(100)
   eventos_bitacora     EventosBitacora[]
   infra_afectada       InfraAfectada[]
 
   @@map("eventos")
   @@schema("registro")
 }
+
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model EventosBitacora {
@@ -259,32 +263,10 @@ model EventosBitacora {
   usuario_modificacion Int?      @map("_usuario_modificacion")
   estado_anterior      String    @db.VarChar(20)
   estado_actual        String    @db.VarChar(20)
+  descripcion          String
   eventos              Evento    @relation(fields: [id_evento], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_evento_bitacora")
 
   @@map("eventos_bitacora")
-  @@schema("registro")
-}
-
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model Hardware {
-  id                   Int             @id(map: "hardware_pk") @default(autoincrement())
-  id_data_center       Int
-  serie                String          @db.VarChar(20)
-  cod_activo_agetic    String          @db.VarChar(10)
-  cod_tipo_hw          String          @db.VarChar(20)
-  marca                String          @db.VarChar(30)
-  modelo               String          @db.VarChar(30)
-  estado_operativo     String          @db.VarChar(15)
-  estado               estado          @map("_estado")
-  fecha_creacion       DateTime        @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
-  usuario_creacion     Int             @map("_usuario_creacion")
-  fecha_modificacion   DateTime?       @map("_fecha_modificacion") @db.Timestamp(6)
-  usuario_modificacion Int?            @map("_usuario_modificacion")
-  data_centers         DataCenter      @relation(fields: [id_data_center], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "fk_hardware_data_center")
-  infra_afectada       InfraAfectada[]
-  servidores           Servidor[]
-
-  @@map("hardware")
   @@schema("registro")
 }
 
@@ -293,7 +275,6 @@ model InfraAfectada {
   id                   Int         @id(map: "infra_afectada_pk") @default(autoincrement())
   id_evento            Int
   id_data_center       Int?
-  id_hardware          Int?
   id_servidor          Int?
   id_maquina           Int?
   estado               estado      @map("_estado")
@@ -303,7 +284,6 @@ model InfraAfectada {
   usuario_modificacion Int?        @map("_usuario_modificacion")
   data_centers         DataCenter? @relation(fields: [id_data_center], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_dtacenter_evento")
   eventos              Evento      @relation(fields: [id_evento], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_eventos")
-  hardware             Hardware?   @relation(fields: [id_hardware], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_hardware_evento")
   maquinas             Maquina?    @relation(fields: [id_maquina], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_maquina_evento")
   servidores           Servidor?   @relation(fields: [id_servidor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_servidor_evento")
 
@@ -315,7 +295,6 @@ model InfraAfectada {
 model Maquina {
   id                          Int                         @id(map: "maquina_pk") @default(autoincrement())
   codigo                      Int?
-  cod_tipo_maquina            String                      @db.VarChar(20)
   nombre                      String                      @db.VarChar(25)
   ip                          String                      @db.Inet
   so                          String                      @db.VarChar(25)
@@ -327,6 +306,8 @@ model Maquina {
   usuario_creacion            Int                         @map("_usuario_creacion")
   fecha_modificacion          DateTime?                   @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion        Int?                        @map("_usuario_modificacion")
+  cod_plataforma              String                      @db.VarChar(20)
+  es_virtual                  Boolean
   asignacion_servidor_maquina AsignacionServidorMaquina[]
   despliegue                  Despliegue[]
   infra_afectada              InfraAfectada[]
@@ -339,27 +320,31 @@ model Maquina {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model Servidor {
   id                          Int                         @id(map: "servidor_pk") @default(autoincrement())
-  id_hardware                 Int
-  serie_servidor              String                      @db.VarChar(25)
   cod_inventario_agetic       String                      @db.VarChar(10)
-  chasis                      String?                     @db.VarChar(10)
-  cuchilla                    String?                     @db.VarChar(10)
-  ram                         Int                         @db.SmallInt
-  almacenamiento              Int                         @db.SmallInt
+  nombre                      String                      @db.VarChar(10)
+  ram                         Int?                        @db.SmallInt
+  almacenamiento              Int?                        @db.SmallInt
   estado_operativo            String                      @db.VarChar(15)
   estado                      estado                      @map("_estado")
   fecha_creacion              DateTime                    @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
   usuario_creacion            Int                         @map("_usuario_creacion")
   fecha_modificacion          DateTime?                   @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion        Int?                        @map("_usuario_modificacion")
+  id_data_center              Int
+  serie                       String                      @db.VarChar(30)
+  id_padre                    Int?
+  cod_tipo_servidor           String                      @db.VarChar(20)
+  marca                       String                      @db.VarChar(30)
+  modelo                      String                      @db.VarChar(50)
   asignacion_servidor_maquina AsignacionServidorMaquina[]
   infra_afectada              InfraAfectada[]
-  hardware                    Hardware                    @relation(fields: [id_hardware], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_servidor_hardware")
+  data_centers                DataCenter                  @relation(fields: [id_data_center], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_hardware_servidor")
+  servidores                  Servidor?                   @relation("servidoresToservidores", fields: [id_padre], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_id_servidor_harware")
+  other_servidores            Servidor[]                  @relation("servidoresToservidores")
 
   @@map("servidores")
   @@schema("registro")
 }
-
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model AsignacionServidorMaquina {
   id                   Int       @id(map: "asignacion_ms_pk") @default(autoincrement())
@@ -406,6 +391,7 @@ model DespliegueBitacora {
   usuario_creacion     Int        @map("_usuario_creacion")
   fecha_modificacion   DateTime?  @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?       @map("_usuario_modificacion")
+  descripcion          String
   despliegue           Despliegue @relation(fields: [id_despliegue], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_bitacora_despliegue")
 
   @@map("despliegue_bitacora")

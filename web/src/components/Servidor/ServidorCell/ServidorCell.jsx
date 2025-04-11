@@ -4,11 +4,8 @@ export const QUERY = gql`
   query FindServidorById($id: Int!) {
     servidor: servidor(id: $id) {
       id
-      id_hardware
-      serie_servidor
       cod_inventario_agetic
-      chasis
-      cuchilla
+      nombre
       ram
       almacenamiento
       estado_operativo
@@ -17,13 +14,19 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      id_data_center
+      serie
+      id_padre
+      cod_tipo_servidor
+      marca
+      modelo
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando servidor...</div>
 
-export const Empty = () => <div>Servidor not found</div>
+export const Empty = () => <div>Servidor no encontrado</div>
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

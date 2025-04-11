@@ -3,11 +3,12 @@ import { Link, routes } from '@redwoodjs/router'
 import Maquinas from 'src/components/Maquina/Maquinas'
 
 export const QUERY = gql`
-  query FindMaquinas {
+  query FindMaquinas_from_maquinasCell {
     maquinas {
       id
       codigo
-      cod_tipo_maquina
+      es_virtual
+      cod_plataforma
       nombre
       ip
       so

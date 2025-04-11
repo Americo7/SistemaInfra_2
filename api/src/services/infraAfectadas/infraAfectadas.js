@@ -15,7 +15,7 @@ export const createInfraAfectada = ({ input }) => {
     data: {
       id_evento: input.id_evento,
       id_data_center: input.id_data_center,
-      id_hardware: input.id_hardware,
+
       id_servidor: input.id_servidor,
       id_maquina: input.id_maquina,
       estado: input.estado,
@@ -30,7 +30,7 @@ export const updateInfraAfectada = ({ id, input }) => {
     data: {
       id_evento: input.id_evento,
       id_data_center: input.id_data_center,
-      id_hardware: input.id_hardware,
+
       id_servidor: input.id_servidor,
       id_maquina: input.id_maquina,
       estado: input.estado,
@@ -56,9 +56,7 @@ export const InfraAfectada = {
   eventos: (_obj, { root }) => {
     return db.infraAfectada.findUnique({ where: { id: root?.id } }).eventos()
   },
-  hardware: (_obj, { root }) => {
-    return db.infraAfectada.findUnique({ where: { id: root?.id } }).hardware()
-  },
+
   maquinas: (_obj, { root }) => {
     return db.infraAfectada.findUnique({ where: { id: root?.id } }).maquinas()
   },

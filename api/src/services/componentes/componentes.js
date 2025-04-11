@@ -11,10 +11,7 @@ export const componente = ({ id }) => {
 }
 
 export const createComponente = ({ input }) => {
-  const tecnologiaData = {
-    tecnology: input.tecnology,
-    version: input.version,
-  }
+
   return db.componente.create({
     data: {
       id_sistema: input.id_sistema,
@@ -25,7 +22,7 @@ export const createComponente = ({ input }) => {
       cod_categoria: input.cod_categoria,
       gitlab_repo: input.gitlab_repo,
       gitlab_rama: input.gitlab_rama,
-      tecnologia: tecnologiaData,
+      tecnologia: input.tecnologia,
       estado: input.estado,
       fecha_creacion: new Date(),
       usuario_creacion: input.usuario_creacion,
@@ -34,10 +31,7 @@ export const createComponente = ({ input }) => {
 }
 
 export const updateComponente = ({ id, input }) => {
-  const tecnologiaData = {
-    tecnology: input.tecnology,
-    version: input.version,
-  }
+
   return db.componente.update({
     data: {
       id_sistema: input.id_sistema,
@@ -48,7 +42,7 @@ export const updateComponente = ({ id, input }) => {
       cod_categoria: input.cod_categoria,
       gitlab_repo: input.gitlab_repo,
       gitlab_rama: input.gitlab_rama,
-      tecnologia: tecnologiaData,
+      tecnologia: input.tecnologia,
       estado: input.estado,
       fecha_modificacion: new Date(),
       usuario_modificacion: input.usuario_modificacion,

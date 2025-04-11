@@ -6,6 +6,7 @@ export const QUERY = gql`
       id
       id_componente
       id_maquina
+      descripcion
       fecha_despliegue
       estado
       fecha_creacion

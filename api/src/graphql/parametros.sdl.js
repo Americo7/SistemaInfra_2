@@ -9,6 +9,7 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    descripcion: String
   }
 
   enum estado {
@@ -30,6 +31,7 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    descripcion: String
   }
 
   input UpdateParametroInput {
@@ -41,6 +43,7 @@ export const schema = gql`
     usuario_creacion: Int
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    descripcion: String
   }
 
   type Mutation {

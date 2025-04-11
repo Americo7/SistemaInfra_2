@@ -49,6 +49,11 @@ const Despliegue = ({ despliegue }) => {
               <td>{despliegue.id_componente}</td>
             </tr>
             <tr>
+              <th>Descripción</th>
+              <td>{formatEnum(despliegue.descripcion)}</td>
+            </tr>
+            <tr></tr>
+            <tr>
               <th>Id maquina</th>
               <td>{despliegue.id_maquina}</td>
             </tr>
