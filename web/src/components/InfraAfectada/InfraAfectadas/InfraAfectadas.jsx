@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -26,15 +25,14 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
-
 import { Link, routes } from '@redwoodjs/router'
 import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
-
 import { QUERY } from 'src/components/InfraAfectada/InfraAfectadasCell'
 
+// Consultas GraphQL
 const UPDATE_INFRA_AFECTADA_MUTATION = gql`
-  mutation UpdateInfraAfectadaMutation_fromInfraAfectada(
+  mutation UpdateInfraAfectadaMutation_fromList(
     $id: Int!
     $input: UpdateInfraAfectadaInput!
   ) {
@@ -45,7 +43,6 @@ const UPDATE_INFRA_AFECTADA_MUTATION = gql`
   }
 `
 
-// Consultas para obtener los nombres relacionados
 const GET_DATA_CENTERS = gql`
   query GetDataCenters {
     dataCenters {
@@ -77,14 +74,13 @@ const GET_MAQUINAS = gql`
 
 const GET_PARAMETROS_TIPO_SERVIDOR = gql`
   query GetParametrosTipoServidor {
-    parametros(filter: { grupo: "TIPO_SERVIDOR" }) {
+    parametros {
       codigo
       nombre
     }
   }
 `
 
-// Nueva consulta para obtener los eventos
 const GET_EVENTOS = gql`
   query GetEventos {
     eventos {
@@ -94,6 +90,7 @@ const GET_EVENTOS = gql`
   }
 `
 
+// Funciones de utilidad
 const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -107,17 +104,17 @@ const formatDateTime = (dateString) => {
 }
 
 const truncate = (text, length = 50) => {
-  if (!text) return 'N/A'
-  return text.length > length ? text.substring(0, length) + '...' : text
+  return text?.length > length ? `${text.substring(0, length)}...` : text || 'N/A'
 }
 
 const formatEnum = (value) => {
-  if (!value) return 'N/A'
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+  return value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : 'N/A'
 }
 
+// Componente principal
 const InfraAfectadasList = ({ infraAfectadas = [] }) => {
-  const [deleteState, setDeleteState] = useState({ open: false, id: null })
+  // Estados
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null })
   const [exportMenuAnchor, setExportMenuAnchor] = useState({
     all: null,
     page: null,
@@ -125,403 +122,306 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
   })
   const [showInactive, setShowInactive] = useState(false)
 
-  // Consultar datos relacionados
+  // Consultas de datos relacionados
   const { data: dataCentersData } = useQuery(GET_DATA_CENTERS)
   const { data: servidoresData } = useQuery(GET_SERVIDORES)
   const { data: maquinasData } = useQuery(GET_MAQUINAS)
   const { data: tipoServidorData } = useQuery(GET_PARAMETROS_TIPO_SERVIDOR)
-  const { data: eventosData } = useQuery(GET_EVENTOS) // Nueva consulta para eventos
+  const { data: eventosData } = useQuery(GET_EVENTOS)
 
-  // Mapear los datos para búsqueda rápida por ID
-  const dataCentersMap = useMemo(() => {
-    const map = {}
-    if (dataCentersData?.dataCenters) {
-      dataCentersData.dataCenters.forEach((dc) => {
-        map[dc.id] = dc.nombre
-      })
+  // Mapeo de datos para búsqueda rápida
+  const dataMaps = useMemo(() => {
+    const maps = {
+      dataCenters: {},
+      maquinas: {},
+      tipoServidor: {},
+      servidores: {},
+      eventos: {}
     }
-    return map
-  }, [dataCentersData])
 
-  const maquinasMap = useMemo(() => {
-    const map = {}
-    if (maquinasData?.maquinas) {
-      maquinasData.maquinas.forEach((maq) => {
-        map[maq.id] = maq.nombre
-      })
-    }
-    return map
-  }, [maquinasData])
+    // Mapear Data Centers
+    dataCentersData?.dataCenters?.forEach(dc => {
+      maps.dataCenters[dc.id] = dc.nombre
+    })
 
-  const tipoServidorMap = useMemo(() => {
-    const map = {}
-    if (tipoServidorData?.parametros) {
-      tipoServidorData.parametros.forEach((param) => {
-        map[param.codigo] = param.nombre
-      })
-    }
-    return map
-  }, [tipoServidorData])
+    // Mapear Máquinas
+    maquinasData?.maquinas?.forEach(maq => {
+      maps.maquinas[maq.id] = maq.nombre
+    })
 
-  const servidoresMap = useMemo(() => {
-    const map = {}
-    if (servidoresData?.servidores) {
-      servidoresData.servidores.forEach((srv) => {
-        const tipoServidor = tipoServidorMap[srv.cod_tipo_servidor] || srv.cod_tipo_servidor
-        map[srv.id] = `${srv.serie} - ${srv.modelo} (${tipoServidor})`
-      })
-    }
-    return map
-  }, [servidoresData, tipoServidorMap])
+    // Mapear Tipos de Servidor
+    tipoServidorData?.parametros?.forEach(param => {
+      maps.tipoServidor[param.codigo] = param.nombre
+    })
 
-  // Mapear eventos por ID
-  const eventosMap = useMemo(() => {
-    const map = {}
-    if (eventosData?.eventos) {
-      eventosData.eventos.forEach((evento) => {
-        map[evento.id] = evento.descripcion
-      })
-    }
-    return map
-  }, [eventosData])
+    // Mapear Servidores
+    servidoresData?.servidores?.forEach(srv => {
+      const tipo = maps.tipoServidor[srv.cod_tipo_servidor] || srv.cod_tipo_servidor
+      maps.servidores[srv.id] = `${srv.serie} - ${srv.modelo} (${tipo})`
+    })
 
+    // Mapear Eventos
+    eventosData?.eventos?.forEach(evento => {
+      maps.eventos[evento.id] = evento.descripcion
+    })
+
+    return maps
+  }, [dataCentersData, maquinasData, tipoServidorData, servidoresData, eventosData])
+
+  // Mutación para actualizar estado
   const [updateInfraAfectada] = useMutation(UPDATE_INFRA_AFECTADA_MUTATION, {
     onCompleted: () => {
-      toast.success('Infraestructura afectada desactivada correctamente')
-      setDeleteState({ open: false, id: null })
+      toast.success('Estado actualizado correctamente')
+      setDeleteDialog({ open: false, id: null })
     },
     onError: (error) => {
-      toast.error(error.message)
+      toast.error(`Error al actualizar: ${error.message}`)
     },
     refetchQueries: [{ query: QUERY }],
     awaitRefetchQueries: true,
   })
 
-  const desactivarInfraAfectada = (id) => {
-    updateInfraAfectada({
-      variables: {
-        id: id,
-        input: {
-          estado: 'INACTIVO',
-          fecha_modificacion: new Date().toISOString(),
-          // usuario_modificacion: currentUser.id o currentUser.username
-        },
-      },
-    })
-  }
+  // Filtrar y enriquecer datos
+  const enrichedData = useMemo(() => {
+    const filtered = showInactive
+      ? infraAfectadas
+      : infraAfectadas.filter(infra => infra.estado === 'ACTIVO')
 
-  const filteredInfraAfectadas = useMemo(() => {
-    if (showInactive) {
-      return infraAfectadas
-    }
-    return infraAfectadas.filter((infra) => infra.estado === 'ACTIVO')
-  }, [infraAfectadas, showInactive])
-
-  // Enriquecer los datos con los nombres relacionados
-  const enrichedInfraAfectadas = useMemo(() => {
-    return filteredInfraAfectadas.map((infra) => ({
+    return filtered.map(infra => ({
       ...infra,
-      data_center_nombre: infra.id_data_center ? dataCentersMap[infra.id_data_center] || 'N/A' : 'N/A',
-      servidor_nombre: infra.id_servidor ? servidoresMap[infra.id_servidor] || 'N/A' : 'N/A',
-      maquina_nombre: infra.id_maquina ? maquinasMap[infra.id_maquina] || 'N/A' : 'N/A',
-      evento_descripcion: infra.id_evento ? eventosMap[infra.id_evento] || 'N/A' : 'N/A',
+      data_center_nombre: infra.id_data_center ? dataMaps.dataCenters[infra.id_data_center] || 'N/A' : 'N/A',
+      servidor_nombre: infra.id_servidor ? dataMaps.servidores[infra.id_servidor] || 'N/A' : 'N/A',
+      maquina_nombre: infra.id_maquina ? dataMaps.maquinas[infra.id_maquina] || 'N/A' : 'N/A',
+      evento_descripcion: infra.id_evento ? dataMaps.eventos[infra.id_evento] || 'N/A' : 'N/A',
     }))
-  }, [filteredInfraAfectadas, dataCentersMap, servidoresMap, maquinasMap, eventosMap])
+  }, [infraAfectadas, showInactive, dataMaps])
 
-  const getFormattedData = (rows, table) => {
-    const visibleColumns = table
-      .getVisibleLeafColumns()
-      .filter(
-        (column) =>
-          column.id !== 'mrt-row-actions' && column.id !== 'mrt-row-select'
-      )
+  // Funciones de exportación
+  const exportFunctions = {
+    pdf: (rows, table) => {
+      const { headers, data } = prepareExportData(rows, table)
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' })
 
-    const headers = visibleColumns.map((column) => column.columnDef.header)
+      // Configuración del documento
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(15, 40, 77)
+      doc.text('Reporte de Infraestructuras Afectadas', 14, 15)
+      doc.setFontSize(10)
+      doc.text(`Generado: ${formatDateTime(new Date())}`, 14, 22)
 
-    return {
-      headers,
-      data: rows.map((row) =>
-        visibleColumns.map((column) => {
-          const cellValue = row.original[column.id] || 'N/A'
-
-          if (column.id.includes('fecha_')) return formatDateTime(cellValue)
-          if (column.id === 'estado') return formatEnum(cellValue)
-          return truncate(cellValue, 100)
-        })
-      ),
-    }
-  }
-
-  const exportToPDF = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-    })
-
-    doc.setFontSize(16)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(15, 40, 77)
-    doc.text('Reporte de Infraestructuras Afectadas', 14, 15)
-
-    doc.setFontSize(10)
-    doc.setTextColor(100)
-    doc.text(`Generado: ${formatDateTime(new Date())}`, 14, 22)
-
-    autoTable(doc, {
-      head: [
-        headers.map((h) => ({
+      // Generar tabla
+      autoTable(doc, {
+        head: [headers.map(h => ({
           content: h,
-          styles: {
-            fillColor: [15, 40, 77],
-            textColor: 255,
-            fontStyle: 'bold',
-          },
-        })),
-      ],
-      body: data.map((row, rowIndex) =>
-        row.map((cell) => ({
-          content: cell,
-          styles: {
-            fillColor: rowIndex % 2 === 0 ? [248, 249, 250] : [255, 255, 255],
-          },
-        }))
-      ),
-      startY: 30,
-      styles: {
-        fontSize: 9,
-        cellPadding: 3,
-        overflow: 'linebreak',
-        font: 'helvetica',
-      },
-      margin: { left: 10, right: 10 },
-    })
+          styles: { fillColor: [15, 40, 77], textColor: 255, fontStyle: 'bold' }
+        }))],
+        body: data.map((row, i) =>
+          row.map(cell => ({
+            content: cell,
+            styles: { fillColor: i % 2 ? [255, 255, 255] : [248, 249, 250] }
+          }))
+        ),
+        startY: 30,
+        styles: { fontSize: 9, cellPadding: 3, font: 'helvetica' },
+        margin: { left: 10, right: 10 }
+      })
 
-    const pageCount = doc.internal.getNumberOfPages()
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-      doc.setFontSize(8)
-      doc.text(
-        `Página ${i} de ${pageCount}`,
-        doc.internal.pageSize.width - 25,
-        doc.internal.pageSize.height - 10
-      )
-    }
+      // Numeración de páginas
+      const pages = doc.internal.getNumberOfPages()
+      for (let i = 1; i <= pages; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.text(
+          `Página ${i} de ${pages}`,
+          doc.internal.pageSize.width - 25,
+          doc.internal.pageSize.height - 10
+        )
+      }
 
-    doc.save(`infraestructuras-afectadas-${new Date().toISOString()}.pdf`)
-  }
+      doc.save(`infraestructuras-afectadas-${new Date().toISOString()}.pdf`)
+    },
 
-  const exportToExcel = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet([])
+    excel: (rows, table) => {
+      const { headers, data } = prepareExportData(rows, table)
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.aoa_to_sheet([
+        ['Reporte de Infraestructuras Afectadas'],
+        [`Generado: ${formatDateTime(new Date())}`],
+        [],
+        headers,
+        ...data
+      ])
 
-    const headerStyle = {
-      font: { sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '0F284D' } },
-      alignment: { horizontal: 'center' },
-      border: {
-        top: { style: 'thin', color: { rgb: '000000' } },
-        bottom: { style: 'thin', color: { rgb: '000000' } },
-        left: { style: 'thin', color: { rgb: '000000' } },
-        right: { style: 'thin', color: { rgb: '000000' } },
-      },
-    }
+      // Estilos
+      const headerStyle = {
+        font: { sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: '0F284D' } },
+        alignment: { horizontal: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: '000000' } },
+          bottom: { style: 'thin', color: { rgb: '000000' } },
+          left: { style: 'thin', color: { rgb: '000000' } },
+          right: { style: 'thin', color: { rgb: '000000' } },
+        },
+      }
 
-    XLSX.utils.sheet_add_aoa(ws, [['Reporte de Infraestructuras Afectadas']], {
-      origin: 'A1',
-    })
-    XLSX.utils.sheet_add_aoa(
-      ws,
-      [[`Generado: ${formatDateTime(new Date())}`]],
-      { origin: 'A2' }
-    )
-    XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A4' })
-    XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A5' })
+      // Aplicar estilos
+      const range = XLSX.utils.decode_range(ws['!ref'])
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
+        ws[headerCell].s = headerStyle
 
-    const range = XLSX.utils.decode_range(ws['!ref'])
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
-      ws[headerCell].s = headerStyle
-
-      for (let R = 4; R <= range.e.r; ++R) {
-        const cell = XLSX.utils.encode_cell({ r: R, c: C })
-        if (!ws[cell]) ws[cell] = {}
-        ws[cell].s = {
-          fill: { fgColor: { rgb: R % 2 === 0 ? 'F8F9FA' : 'FFFFFF' } },
-          border: {
-            top: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            bottom: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            left: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            right: { style: 'thin', color: { rgb: 'DDDDDD' } },
-          },
+        for (let R = 4; R <= range.e.r; ++R) {
+          const cell = XLSX.utils.encode_cell({ r: R, c: C })
+          ws[cell] = ws[cell] || {}
+          ws[cell].s = {
+            fill: { fgColor: { rgb: R % 2 ? 'FFFFFF' : 'F8F9FA' } },
+            border: {
+              top: { style: 'thin', color: { rgb: 'DDDDDD' } },
+              bottom: { style: 'thin', color: { rgb: 'DDDDDD' } },
+              left: { style: 'thin', color: { rgb: 'DDDDDD' } },
+              right: { style: 'thin', color: { rgb: 'DDDDDD' } },
+            },
+          }
         }
       }
+
+      // Configuración adicional
+      ws['!cols'] = headers.map((_, col) => ({
+        wch: Math.max(...data.map(row => String(row[col]).length, headers[col].length)) + 2
+      }))
+
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
+      ]
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Infraestructuras Afectadas')
+      XLSX.writeFile(wb, `infraestructuras-afectadas-${new Date().toISOString()}.xlsx`)
+    },
+
+    csv: (rows, table) => {
+      const { headers, data } = prepareExportData(rows, table)
+      const csvContent = [
+        'Reporte de Infraestructuras Afectadas',
+        `Generado: ${formatDateTime(new Date())}`,
+        '',
+        headers.join(','),
+        ...data.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+        '',
+        `*Generado el ${formatDateTime(new Date())}`
+      ].join('\n')
+
+      const blob = new Blob(['\ufeff', csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `infraestructuras-afectadas-${new Date().toISOString()}.csv`
+      link.click()
     }
+  }
 
-    ws['!cols'] = headers.map((_, col) => ({
-      wch:
-        Math.max(
-          ...data.map((row) => String(row[col]).length),
-          headers[col].length
-        ) + 2,
-    }))
+  const prepareExportData = (rows, table) => {
+    const visibleColumns = table.getVisibleLeafColumns()
+      .filter(col => !['mrt-row-actions', 'mrt-row-select'].includes(col.id))
 
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
-    ]
+    const headers = visibleColumns.map(col => col.columnDef.header)
 
-    XLSX.utils.book_append_sheet(wb, ws, 'Infraestructuras Afectadas')
-    XLSX.writeFile(
-      wb,
-      `infraestructuras-afectadas-${new Date().toISOString()}.xlsx`
+    const data = rows.map(row =>
+      visibleColumns.map(col => {
+        const value = row.original[col.id] || 'N/A'
+        if (col.id.includes('fecha_')) return formatDateTime(value)
+        if (col.id === 'estado') return formatEnum(value)
+        return truncate(value, 100)
+      })
     )
+
+    return { headers, data }
   }
 
-  const exportToCSV = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
-    const csvContent = [
-      'Reporte de Infraestructuras Afectadas',
-      `Generado: ${formatDateTime(new Date())}`,
-      '',
-      headers.join(','),
-      ...data.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+  // Columnas de la tabla
+  const columns = useMemo(() => [
+    { accessorKey: 'id', header: 'ID', size: 60 },
+    {
+      accessorKey: 'evento_descripcion',
+      header: 'Evento',
+      size: 200,
+      Cell: ({ row }) => truncate(row.original.evento_descripcion, 70),
+    },
+    {
+      accessorKey: 'data_center_nombre',
+      header: 'Data Center',
+      size: 150,
+      Cell: ({ row }) => truncate(row.original.data_center_nombre),
+    },
+    {
+      accessorKey: 'servidor_nombre',
+      header: 'Servidor',
+      size: 200,
+      Cell: ({ row }) => truncate(row.original.servidor_nombre, 70),
+    },
+    {
+      accessorKey: 'maquina_nombre',
+      header: 'Máquina',
+      size: 150,
+      Cell: ({ row }) => truncate(row.original.maquina_nombre),
+    },
+    {
+      accessorKey: 'estado',
+      header: 'Estado',
+      size: 100,
+      Cell: ({ row }) => (
+        <Chip
+          label={formatEnum(row.original.estado)}
+          color={row.original.estado === 'ACTIVO' ? 'success' : 'error'}
+          size="small"
+        />
       ),
-      '',
-      `*Este archivo fue generado automáticamente el ${formatDateTime(
-        new Date()
-      )}`,
-    ].join('\n')
+    },
+    {
+      accessorKey: 'fecha_creacion',
+      header: 'Fecha Creación',
+      size: 150,
+      Cell: ({ cell }) => formatDateTime(cell.getValue()),
+    },
+    {
+      accessorKey: 'usuario_creacion',
+      header: 'Creado por',
+      size: 120,
+      visible: false,
+    },
+  ], [])
 
-    const blob = new Blob(['\ufeff', csvContent], {
-      type: 'text/csv;charset=utf-8;',
-    })
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `infraestructuras-afectadas-${new Date().toISOString()}.csv`
-    link.click()
-  }
-
-  const columns = useMemo(
-    () => [
-      { accessorKey: 'id', header: 'ID', size: 60 },
-      {
-        accessorKey: 'evento_descripcion',
-        header: 'Evento',
-        size: 200,
-        Cell: ({ row }) => truncate(row.original.evento_descripcion, 70),
-      },
-      {
-        accessorKey: 'data_center_nombre',
-        header: 'Data Center',
-        size: 150,
-        Cell: ({ row }) => truncate(row.original.data_center_nombre),
-      },
-      {
-        accessorKey: 'servidor_nombre',
-        header: 'Servidor',
-        size: 200,
-        Cell: ({ row }) => truncate(row.original.servidor_nombre, 70),
-      },
-      {
-        accessorKey: 'maquina_nombre',
-        header: 'Máquina',
-        size: 150,
-        Cell: ({ row }) => truncate(row.original.maquina_nombre),
-      },
-      {
-        accessorKey: 'estado',
-        header: 'Estado',
-        size: 100,
-        Cell: ({ row }) => (
-          <Chip
-            label={formatEnum(row.original.estado)}
-            color={row.original.estado === 'ACTIVO' ? 'success' : 'error'}
-            size="small"
-          />
-        ),
-      },
-      {
-        accessorKey: 'fecha_creacion',
-        header: 'Fecha Creación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_creacion',
-        header: 'Creado por',
-        size: 120,
-        visible: false,
-      },
-      {
-        accessorKey: 'fecha_modificacion',
-        header: 'Última Modificación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
-      },
-      {
-        accessorKey: 'usuario_modificacion',
-        header: 'Modificado por',
-        size: 120,
-        visible: false,
-      },
-    ],
-    []
-  )
-
+  // Configuración de la tabla
   const table = useMaterialReactTable({
     columns,
-    data: enrichedInfraAfectadas,
+    data: enrichedData,
     enableRowActions: true,
     enableRowSelection: true,
-    enableMultiRowSelection: true,
-    getRowId: (row) => row.id.toString(),
-    muiTableBodyRowProps: ({ row }) => ({
-      onClick: row.getToggleSelectedHandler(),
-      sx: {
-        cursor: 'pointer',
-        backgroundColor: row.getIsSelected()
-          ? 'rgba(0, 0, 255, 0.1)'
-          : undefined,
-      },
-    }),
     initialState: {
       showGlobalFilter: true,
+      density: 'compact',
       columnVisibility: {
         usuario_creacion: false,
         fecha_modificacion: false,
         usuario_modificacion: false,
       },
-      density: 'compact',
     },
     renderRowActions: ({ row }) => (
       <Box sx={{ display: 'flex', gap: '8px' }}>
         <Tooltip title="Ver detalles">
-          <IconButton
-            component={Link}
-            to={routes.infraAfectada({ id: row.original.id })}
-          >
+          <IconButton component={Link} to={routes.infraAfectada({ id: row.original.id })}>
             <VisibilityIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         <Tooltip title="Editar">
-          <IconButton
-            component={Link}
-            to={routes.editInfraAfectada({ id: row.original.id })}
-          >
+          <IconButton component={Link} to={routes.editInfraAfectada({ id: row.original.id })}>
             <EditIcon fontSize="small" />
           </IconButton>
         </Tooltip>
         {row.original.estado === 'ACTIVO' && (
           <Tooltip title="Desactivar">
-            <IconButton
-              onClick={() =>
-                setDeleteState({ open: true, id: row.original.id })
-              }
-            >
+            <IconButton onClick={() => setDeleteDialog({ open: true, id: row.original.id })}>
               <DeleteIcon fontSize="small" color="error" />
             </IconButton>
           </Tooltip>
@@ -529,19 +429,13 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
       </Box>
     ),
     renderTopToolbarCustomActions: ({ table }) => {
-      const selectedRows = table.getSelectedRowModel().rows
-      const hasSelection = selectedRows.length > 0
+      const selectedCount = table.getSelectedRowModel().rows.length
+      const hasSelection = selectedCount > 0
+      const rowCount = table.getPrePaginationRowModel().rows.length
+      const pageCount = table.getRowModel().rows.length
 
       return (
-        <Box
-          sx={{
-            display: 'flex',
-            gap: '16px',
-            p: '8px',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
+        <Box sx={{ display: 'flex', gap: '16px', p: '8px', flexWrap: 'wrap' }}>
           <FormControlLabel
             control={
               <Switch
@@ -553,188 +447,93 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
             label="Mostrar inactivos"
           />
 
-          <Button
-            disabled={table.getPrePaginationRowModel().rows.length === 0}
-            onClick={(e) =>
-              setExportMenuAnchor({ ...exportMenuAnchor, all: e.currentTarget })
-            }
-            startIcon={<FileDownloadIcon />}
-            variant="contained"
-            size="small"
-            sx={{
-              backgroundColor: '#0F284D',
-              '&:hover': { backgroundColor: '#1A3D6D' },
-            }}
-          >
-            Exportar Todos
-          </Button>
-          <Menu
-            anchorEl={exportMenuAnchor.all}
-            open={Boolean(exportMenuAnchor.all)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-            }
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(table.getPrePaginationRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToExcel(table.getPrePaginationRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToCSV(table.getPrePaginationRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          <Button
-            disabled={table.getRowModel().rows.length === 0}
-            onClick={(e) =>
-              setExportMenuAnchor({
-                ...exportMenuAnchor,
-                page: e.currentTarget,
-              })
-            }
-            startIcon={<FileDownloadIcon />}
-            variant="contained"
-            size="small"
-            sx={{
-              backgroundColor: '#0F284D',
-              '&:hover': { backgroundColor: '#1A3D6D' },
-            }}
-          >
-            Exportar Página
-          </Button>
-          <Menu
-            anchorEl={exportMenuAnchor.page}
-            open={Boolean(exportMenuAnchor.page)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-            }
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(table.getRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToExcel(table.getRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToCSV(table.getRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          <Button
-            disabled={!hasSelection}
-            onClick={(e) =>
-              setExportMenuAnchor({
-                ...exportMenuAnchor,
-                selection: e.currentTarget,
-              })
-            }
-            startIcon={<FileDownloadIcon />}
-            variant="contained"
-            size="small"
-            sx={{
-              backgroundColor: '#0F284D',
-              '&:hover': { backgroundColor: '#1A3D6D' },
-            }}
-          >
-            Exportar Selección ({hasSelection ? selectedRows.length : 0})
-          </Button>
-          <Menu
-            anchorEl={exportMenuAnchor.selection}
-            open={Boolean(exportMenuAnchor.selection)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-            }
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(selectedRows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToExcel(selectedRows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToCSV(selectedRows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
+          {renderExportButton('all', 'Exportar Todos', rowCount === 0)}
+          {renderExportButton('page', 'Exportar Página', pageCount === 0)}
+          {renderExportButton('selection', `Exportar Selección (${selectedCount})`, !hasSelection)}
         </Box>
       )
     },
   })
 
+  const renderExportButton = (type, label, disabled) => {
+    const getRows = {
+      all: table.getPrePaginationRowModel().rows,
+      page: table.getRowModel().rows,
+      selection: table.getSelectedRowModel().rows
+    }[type]
+
+    return (
+      <>
+        <Button
+          disabled={disabled}
+          onClick={(e) => setExportMenuAnchor({ ...exportMenuAnchor, [type]: e.currentTarget })}
+          startIcon={<FileDownloadIcon />}
+          variant="contained"
+          size="small"
+          sx={{
+            backgroundColor: '#0F284D',
+            '&:hover': { backgroundColor: '#1A3D6D' },
+          }}
+        >
+          {label}
+        </Button>
+        <Menu
+          anchorEl={exportMenuAnchor[type]}
+          open={Boolean(exportMenuAnchor[type])}
+          onClose={() => setExportMenuAnchor({ ...exportMenuAnchor, [type]: null })}
+        >
+          <MenuItem onClick={() => {
+            exportFunctions.pdf(getRows, table)
+            setExportMenuAnchor({ ...exportMenuAnchor, [type]: null })
+          }}>
+            PDF
+          </MenuItem>
+          <MenuItem onClick={() => {
+            exportFunctions.excel(getRows, table)
+            setExportMenuAnchor({ ...exportMenuAnchor, [type]: null })
+          }}>
+            Excel
+          </MenuItem>
+          <MenuItem onClick={() => {
+            exportFunctions.csv(getRows, table)
+            setExportMenuAnchor({ ...exportMenuAnchor, [type]: null })
+          }}>
+            CSV
+          </MenuItem>
+        </Menu>
+      </>
+    )
+  }
+
   return (
     <Box sx={{ p: 1 }}>
       <MaterialReactTable table={table} />
 
-      <Dialog
-        open={deleteState.open}
-        onClose={() => setDeleteState({ open: false, id: null })}
-      >
+      {/* Diálogo de confirmación */}
+      <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, id: null })}>
         <DialogTitle>Confirmar Desactivación</DialogTitle>
         <DialogContent>
           <Typography>
-            ¿Estás seguro de desactivar la infraestructura afectada{' '}
-            {deleteState.id}? Esta acción no eliminará el registro de la base de
-            datos, solo cambiará su estado a inactivo.
+            ¿Estás seguro de desactivar la infraestructura afectada {deleteDialog.id}?
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteState({ open: false, id: null })}>
-            Cancelar
-          </Button>
+          <Button onClick={() => setDeleteDialog({ open: false, id: null })}>Cancelar</Button>
           <Button
-            onClick={() => desactivarInfraAfectada(deleteState.id)}
+            onClick={() => {
+              updateInfraAfectada({
+                variables: {
+                  id: deleteDialog.id,
+                  input: {
+                    estado: 'INACTIVO',
+                    fecha_modificacion: new Date().toISOString(),
+                    // usuario_modificacion: currentUser.id
+                  }
+                }
+              })
+            }}
             color="error"
             variant="contained"
-            sx={{
-              backgroundColor: '#e57373',
-              '&:hover': { backgroundColor: '#ef5350' },
-            }}
           >
             Desactivar
           </Button>

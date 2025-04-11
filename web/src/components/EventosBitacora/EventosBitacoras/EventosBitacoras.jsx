@@ -27,16 +27,15 @@ import { toast } from '@redwoodjs/web/toast'
 import { QUERY } from 'src/components/EventosBitacora/EventosBitacorasCell'
 
 const UPDATE_EVENTOS_BITACORA_MUTATION = gql`
-  mutation UpdateEventosBitacoraMutation_fromEventosBitacora(
+  mutation UpdateEventosBitacoraMutation_fromEventosBitacoras1(
     $id: Int!
     $input: UpdateEventosBitacoraInput!
   ) {
     updateEventosBitacora(id: $id, input: $input) {
       id
       estado_actual
-      evento {
-        descripcion
-      }
+     id_evento
+
     }
   }
 `
@@ -275,7 +274,7 @@ const EventosBitacorasList = ({ eventosBitacoras = [] }) => {
         accessorKey: 'id_evento',
         header: 'Evento',
         size: 200,
-        Cell: ({ row }) => row.original.evento?.descripcion || 'N/A',
+        Cell: ({ row }) => row.original.id_evento?.descripcion || 'N/A',
       },
       {
         accessorKey: 'fecha_creacion',

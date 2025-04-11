@@ -9,7 +9,7 @@ export const schema = gql`
     usuario_modificacion: Int
     estado_anterior: String!
     estado_actual: String!
-    eventos: Evento!
+
   }
 
   type Query {
