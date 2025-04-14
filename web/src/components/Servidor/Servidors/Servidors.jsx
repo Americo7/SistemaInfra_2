@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -25,13 +26,18 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
+
 import { Link, routes } from '@redwoodjs/router'
 import { useQuery, useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
+
 import { QUERY } from 'src/components/Servidor/ServidorsCell'
 
 const UPDATE_SERVIDOR_MUTATION = gql`
-  mutation UpdateServidorMutation_fromServidores($id: Int!, $input: UpdateServidorInput!) {
+  mutation UpdateServidorMutation_fromServidores(
+    $id: Int!
+    $input: UpdateServidorInput!
+  ) {
     updateServidor(id: $id, input: $input) {
       id
       estado
@@ -297,13 +303,21 @@ const ServidorsList = ({ servidores = [] }) => {
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'cod_inventario_agetic', header: 'Código AGETIC', size: 120 },
+      {
+        accessorKey: 'cod_inventario_agetic',
+        header: 'Código AGETIC',
+        size: 120,
+      },
       { accessorKey: 'serie', header: 'Serie', size: 120 },
       { accessorKey: 'marca', header: 'Marca', size: 100 },
       { accessorKey: 'modelo', header: 'Modelo', size: 100 },
       { accessorKey: 'nombre', header: 'Nombre', size: 100 },
       { accessorKey: 'ram', header: 'RAM (GB)', size: 100 },
-      { accessorKey: 'almacenamiento', header: 'Almacenamiento (GB)', size: 120 },
+      {
+        accessorKey: 'almacenamiento',
+        header: 'Almacenamiento (GB)',
+        size: 120,
+      },
       { accessorKey: 'id_data_center', header: 'Data Center ID', size: 120 },
       { accessorKey: 'cod_tipo_servidor', header: 'Tipo Servidor', size: 120 },
       {
@@ -320,7 +334,11 @@ const ServidorsList = ({ servidores = [] }) => {
           <Chip
             label={formatEnum(row.original.estado_operativo)}
             size="small"
-            sx={{ backgroundColor: '#fbc02d', color: '#000', fontWeight: 'bold' }}
+            sx={{
+              backgroundColor: '#fbc02d',
+              color: '#000',
+              fontWeight: 'bold',
+            }}
           />
         ),
       },

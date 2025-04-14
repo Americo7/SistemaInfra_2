@@ -11,11 +11,11 @@ import { Set, Router, Route } from '@redwoodjs/router'
 
 import HomeLayout from 'src/layouts/HomeLayout'
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
-
+import DataCenterServidor from 'src/pages/DataCenter/DataCenterServidor/DataCenterServidor'
+import MaquinasFiltradas from 'src/pages/MaquinasFiltradas/MaquinasFiltradas'
 const Routes = () => {
   return (
     <Router>
-
       <Set wrap={HomeLayout}>
         <Route path="/" page={HomePage} name="home" />
         <Set wrap={ScaffoldLayout} title="Componentes" titleTo="componentes" buttonLabel="New Componente" buttonTo="newComponente">
@@ -29,6 +29,8 @@ const Routes = () => {
           <Route path="/data-centers/{id:Int}/edit" page={DataCenterEditDataCenterPage} name="editDataCenter" />
           <Route path="/data-centers/{id:Int}" page={DataCenterDataCenterPage} name="dataCenter" />
           <Route path="/data-centers" page={DataCenterDataCentersPage} name="dataCenters" />
+
+          <Route path="/data-centers/servidores/{id:Int}" page={DataCenterServidor} name="dataCenterServidor" />
         </Set>
         <Set wrap={ScaffoldLayout} title="Despliegues" titleTo="despliegues" buttonLabel="New Despliegue" buttonTo="newDespliegue">
           <Route path="/despliegues/new" page={DespliegueNewDesplieguePage} name="newDespliegue" />
@@ -71,6 +73,8 @@ const Routes = () => {
           <Route path="/maquinas/{id:Int}/edit" page={MaquinaEditMaquinaPage} name="editMaquina" />
           <Route path="/maquinas/{id:Int}" page={MaquinaMaquinaPage} name="maquina" />
           <Route path="/maquinas" page={MaquinaMaquinasPage} name="maquinas" />
+
+          <Route path="/servidores/maquinas/{id:Int}" page={MaquinasFiltradas} name="maquinasFiltradas" />
         </Set>
         <Set wrap={ScaffoldLayout} title="Servidores" titleTo="servidors" buttonLabel="New Servidor" buttonTo="newServidor">
           <Route path="/servidors/new" page={ServidorNewServidorPage} name="newServidor" />
@@ -121,11 +125,11 @@ const Routes = () => {
           <Route path="/despliegue-bitacoras" page={DespliegueBitacoraDespliegueBitacorasPage} name="despliegueBitacoras" />
         </Set>
         <Set wrap={ScaffoldLayout} title="Parametros" titleTo="parametros" buttonLabel="New Parametro" buttonTo="newParametro">
-        <Route path="/parametros/new" page={ParametroNewParametroPage} name="newParametro" />
-        <Route path="/parametros/{id:Int}/edit" page={ParametroEditParametroPage} name="editParametro" />
-        <Route path="/parametros/{id:Int}" page={ParametroParametroPage} name="parametro" />
-        <Route path="/parametros" page={ParametroParametrosPage} name="parametros" />
-      </Set>
+          <Route path="/parametros/new" page={ParametroNewParametroPage} name="newParametro" />
+          <Route path="/parametros/{id:Int}/edit" page={ParametroEditParametroPage} name="editParametro" />
+          <Route path="/parametros/{id:Int}" page={ParametroParametroPage} name="parametro" />
+          <Route path="/parametros" page={ParametroParametrosPage} name="parametros" />
+        </Set>
         <Route notfound page={NotFoundPage} />
       </Set>
     </Router>

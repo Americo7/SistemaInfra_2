@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -36,7 +37,10 @@ import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 const UPDATE_MAQUINA_MUTATION = gql`
-  mutation UpdateMaquinaMutation_fromMaquina($id: Int!, $input: UpdateMaquinaInput!) {
+  mutation UpdateMaquinaMutation_fromMaquina(
+    $id: Int!
+    $input: UpdateMaquinaInput!
+  ) {
     updateMaquina(id: $id, input: $input) {
       id
       estado
@@ -128,7 +132,11 @@ const parseAlmacenamiento = (value) => {
 const MaquinasList = () => {
   const { data: maquinasData } = useQuery(QUERY_MAQUINAS)
   const { data: parametricasData } = useQuery(QUERY_PARAMETRICAS)
-  const [deleteState, setDeleteState] = useState({ open: false, id: null, estado: 'ACTIVO' })
+  const [deleteState, setDeleteState] = useState({
+    open: false,
+    id: null,
+    estado: 'ACTIVO',
+  })
   const [exportMenuAnchor, setExportMenuAnchor] = useState({
     all: null,
     page: null,
@@ -151,7 +159,7 @@ const MaquinasList = () => {
 
   const getNombrePlataforma = (codigo) => {
     if (!parametricasData?.parametros) return codigo
-    const param = parametricasData.parametros.find(p => p.codigo === codigo)
+    const param = parametricasData.parametros.find((p) => p.codigo === codigo)
     return param ? param.nombre : codigo
   }
 
@@ -186,11 +194,15 @@ const MaquinasList = () => {
           if (column.id === 'es_virtual') return cellValue ? 'Sí' : 'No'
           if (column.id === 'almacenamiento') {
             const discos = parseAlmacenamiento(cellValue)
-            return discos.map(d => `Disco ${d.Disco}: ${d.Valor} GB`).join(', ') || 'N/A'
+            return (
+              discos.map((d) => `Disco ${d.Disco}: ${d.Valor} GB`).join(', ') ||
+              'N/A'
+            )
           }
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado') return formatEnum(cellValue)
-          if (column.id === 'cod_plataforma') return getNombrePlataforma(cellValue)
+          if (column.id === 'cod_plataforma')
+            return getNombrePlataforma(cellValue)
           return truncate(cellValue, 100)
         })
       ),
@@ -372,7 +384,7 @@ const MaquinasList = () => {
         accessorKey: 'cod_plataforma',
         header: 'Plataforma',
         size: 120,
-        Cell: ({ cell }) => getNombrePlataforma(cell.getValue())
+        Cell: ({ cell }) => getNombrePlataforma(cell.getValue()),
       },
       { accessorKey: 'nombre', header: 'Nombre', size: 150 },
       { accessorKey: 'ip', header: 'IP', size: 120 },
@@ -381,13 +393,13 @@ const MaquinasList = () => {
         accessorKey: 'es_virtual',
         header: 'Es Virtual',
         size: 100,
-        Cell: ({ cell }) => formatBoolean(cell.getValue())
+        Cell: ({ cell }) => formatBoolean(cell.getValue()),
       },
       {
         accessorKey: 'ram',
         header: 'RAM',
         size: 100,
-        Cell: ({ cell }) => `${cell.getValue()} GB`
+        Cell: ({ cell }) => `${cell.getValue()} GB`,
       },
       {
         accessorKey: 'almacenamiento',
@@ -419,7 +431,7 @@ const MaquinasList = () => {
         accessorKey: 'cpu',
         header: 'CPUs',
         size: 100,
-        Cell: ({ cell }) => `${cell.getValue()} Núcleos`
+        Cell: ({ cell }) => `${cell.getValue()} Núcleos`,
       },
       {
         accessorKey: 'estado',
@@ -505,13 +517,15 @@ const MaquinasList = () => {
             <EditIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title={row.original.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}>
+        <Tooltip
+          title={row.original.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}
+        >
           <IconButton
             onClick={() =>
               setDeleteState({
                 open: true,
                 id: row.original.id,
-                estado: row.original.estado
+                estado: row.original.estado,
               })
             }
           >
@@ -731,18 +745,28 @@ const MaquinasList = () => {
 
       <Dialog
         open={deleteState.open}
-        onClose={() => setDeleteState({ open: false, id: null, estado: 'ACTIVO' })}
+        onClose={() =>
+          setDeleteState({ open: false, id: null, estado: 'ACTIVO' })
+        }
       >
         <DialogTitle>
-          {deleteState.estado === 'ACTIVO' ? 'Desactivar Máquina' : 'Activar Máquina'}
+          {deleteState.estado === 'ACTIVO'
+            ? 'Desactivar Máquina'
+            : 'Activar Máquina'}
         </DialogTitle>
         <DialogContent>
           <Typography>
-            ¿Estás seguro de {deleteState.estado === 'ACTIVO' ? 'desactivar' : 'activar'} la máquina {deleteState.id}?
+            ¿Estás seguro de{' '}
+            {deleteState.estado === 'ACTIVO' ? 'desactivar' : 'activar'} la
+            máquina {deleteState.id}?
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteState({ open: false, id: null, estado: 'ACTIVO' })}>
+          <Button
+            onClick={() =>
+              setDeleteState({ open: false, id: null, estado: 'ACTIVO' })
+            }
+          >
             Cancelar
           </Button>
           <Button
@@ -750,9 +774,11 @@ const MaquinasList = () => {
             color={deleteState.estado === 'ACTIVO' ? 'error' : 'success'}
             variant="contained"
             sx={{
-              backgroundColor: deleteState.estado === 'ACTIVO' ? '#e57373' : '#81c784',
+              backgroundColor:
+                deleteState.estado === 'ACTIVO' ? '#e57373' : '#81c784',
               '&:hover': {
-                backgroundColor: deleteState.estado === 'ACTIVO' ? '#ef5350' : '#66bb6a'
+                backgroundColor:
+                  deleteState.estado === 'ACTIVO' ? '#ef5350' : '#66bb6a',
               },
             }}
           >

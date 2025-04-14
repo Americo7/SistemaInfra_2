@@ -8,7 +8,7 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
-    hardware: [Hardware]!
+    servidores: [Servidor]
     infra_afectada: [InfraAfectada]!
   }
 

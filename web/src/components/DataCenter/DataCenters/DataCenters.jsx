@@ -5,24 +5,30 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   FileDownload as FileDownloadIcon,
+  Hardware as HardwareIcon,
 } from '@mui/icons-material'
 import {
   Box,
   Button,
+  Card,
+  CardActions,
+  CardContent,
+  CardHeader,
   Chip,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  Grid,
   IconButton,
-  Tooltip,
-  Typography,
   Menu,
   MenuItem,
+  Paper,
+  Tooltip,
+  Typography,
 } from '@mui/material'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
@@ -73,11 +79,8 @@ const DataCentersList = ({ dataCenters = [] }) => {
   }
 
   const [deleteState, setDeleteState] = useState({ open: false, id: null })
-  const [exportMenuAnchor, setExportMenuAnchor] = useState({
-    all: null,
-    page: null,
-    selection: null,
-  })
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const [deleteDataCenter] = useMutation(DELETE_DATA_CENTER_MUTATION, {
     onCompleted: () => {
@@ -91,33 +94,36 @@ const DataCentersList = ({ dataCenters = [] }) => {
     awaitRefetchQueries: true,
   })
 
-  const getFormattedData = (rows, table) => {
-    const visibleColumns = table
-      .getVisibleLeafColumns()
-      .filter(
-        (column) =>
-          column.id !== 'mrt-row-actions' && column.id !== 'mrt-row-select'
-      )
-
-    const headers = visibleColumns.map((column) => column.columnDef.header)
+  const getFormattedData = (data) => {
+    const headers = [
+      'ID',
+      'Nombre',
+      'Ubicación',
+      'Estado',
+      'Fecha Creación',
+      'Creado por',
+      'Última Modificación',
+      'Modificado por',
+    ]
 
     return {
       headers,
-      data: rows.map((row) =>
-        visibleColumns.map((column) => {
-          const cellValue = row.original[column.id] || 'N/A'
-
-          if (column.id.includes('fecha_')) return formatDateTime(cellValue)
-          if (column.id === 'estado') return formatEnum(cellValue)
-          return truncate(cellValue, 100)
-        })
-      ),
+      data: data.map((item) => [
+        item.id,
+        item.nombre,
+        item.ubicacion,
+        formatEnum(item.estado),
+        formatDateTime(item.fecha_creacion),
+        item.usuario_creacion || 'N/A',
+        formatDateTime(item.fecha_modificacion),
+        item.usuario_modificacion || 'N/A',
+      ]),
     }
   }
 
   // Exportación PDF mejorada
-  const exportToPDF = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
+  const exportToPDF = (data) => {
+    const { headers, data: formattedData } = getFormattedData(data)
     const doc = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
@@ -145,7 +151,7 @@ const DataCentersList = ({ dataCenters = [] }) => {
           },
         })),
       ],
-      body: data.map((row, rowIndex) =>
+      body: formattedData.map((row, rowIndex) =>
         row.map((cell) => ({
           content: cell,
           styles: {
@@ -179,8 +185,8 @@ const DataCentersList = ({ dataCenters = [] }) => {
   }
 
   // Exportación Excel mejorada
-  const exportToExcel = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
+  const exportToExcel = (data) => {
+    const { headers, data: formattedData } = getFormattedData(data)
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.aoa_to_sheet([])
 
@@ -211,7 +217,7 @@ const DataCentersList = ({ dataCenters = [] }) => {
     XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A4' })
 
     // Datos
-    XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A5' })
+    XLSX.utils.sheet_add_aoa(ws, formattedData, { origin: 'A5' })
 
     // Aplicar estilos
     const range = XLSX.utils.decode_range(ws['!ref'])
@@ -238,7 +244,7 @@ const DataCentersList = ({ dataCenters = [] }) => {
     ws['!cols'] = headers.map((_, col) => ({
       wch:
         Math.max(
-          ...data.map((row) => String(row[col]).length),
+          ...formattedData.map((row) => String(row[col]).length),
           headers[col].length
         ) + 2,
     }))
@@ -254,14 +260,14 @@ const DataCentersList = ({ dataCenters = [] }) => {
   }
 
   // Exportación CSV mejorada
-  const exportToCSV = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
+  const exportToCSV = (data) => {
+    const { headers, data: formattedData } = getFormattedData(data)
     const csvContent = [
       'Reporte de Data Centers',
       `Generado: ${formatDateTime(new Date())}`,
       '',
       headers.join(','),
-      ...data.map((row) =>
+      ...formattedData.map((row) =>
         row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
       ),
       '',
@@ -279,268 +285,213 @@ const DataCentersList = ({ dataCenters = [] }) => {
     link.click()
   }
 
-  const columns = useMemo(
-    () => [
-      { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'nombre', header: 'Nombre', size: 150 },
-      { accessorKey: 'ubicacion', header: 'Ubicación', size: 200 },
-      {
-        accessorKey: 'estado',
-        header: 'Estado',
-        size: 100,
-        Cell: ({ row }) => (
-          <Chip
-            label={formatEnum(row.original.estado)}
-            color={row.original.estado === 'ACTIVO' ? 'success' : 'error'}
-            size="small"
+  // Filtrar datos según término de búsqueda
+  const filteredDataCenters = useMemo(() => {
+    return dataCenters.filter(
+      (dataCenter) =>
+        dataCenter.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dataCenter.ubicacion.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dataCenter.id.toString().includes(searchTerm)
+    )
+  }, [dataCenters, searchTerm])
+
+  return (
+    <Box sx={{ p: 2 }}>
+      {/* Cabecera con búsqueda y exportación */}
+      <Paper
+        elevation={2}
+        sx={{
+          p: 2,
+          mb: 3,
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: 2,
+        }}
+      >
+        <Box sx={{ width: { xs: '100%', sm: '40%' } }}>
+          <input
+            type="text"
+            placeholder="Buscar data centers..."
+            style={{
+              width: '100%',
+              padding: '10px',
+              borderRadius: '4px',
+              border: '1px solid #ccc',
+            }}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
-        ),
-      },
-      {
-        accessorKey: 'fecha_creacion',
-        header: 'Fecha Creación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_creacion',
-        header: 'Creado por',
-        size: 120,
-        visible: false,
-      },
-      {
-        accessorKey: 'fecha_modificacion',
-        header: 'Última Modificación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
-      },
-      {
-        accessorKey: 'usuario_modificacion',
-        header: 'Modificado por',
-        size: 120,
-        visible: false,
-      },
-    ],
-    []
-  )
-
-  const table = useMaterialReactTable({
-    columns,
-    data: dataCenters,
-    enableRowActions: true,
-    enableRowSelection: true,
-    enableMultiRowSelection: true,
-    getRowId: (row) => row.id.toString(),
-    muiTableBodyRowProps: ({ row }) => ({
-      onClick: row.getToggleSelectedHandler(),
-      sx: {
-        cursor: 'pointer',
-        backgroundColor: row.getIsSelected()
-          ? 'rgba(0, 0, 255, 0.1)'
-          : undefined,
-      },
-    }),
-    initialState: {
-      showGlobalFilter: true,
-      columnVisibility: {
-        usuario_creacion: false,
-        fecha_modificacion: false,
-        usuario_modificacion: false,
-      },
-      density: 'compact',
-    },
-    renderRowActions: ({ row }) => (
-      <Box sx={{ display: 'flex', gap: '8px' }}>
-        <Tooltip title="Ver detalles">
-          <IconButton
-            component={Link}
-            to={routes.dataCenter({ id: row.original.id })}
-          >
-            <VisibilityIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Editar">
-          <IconButton
-            component={Link}
-            to={routes.editDataCenter({ id: row.original.id })}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Eliminar">
-          <IconButton
-            onClick={() => setDeleteState({ open: true, id: row.original.id })}
-          >
-            <DeleteIcon fontSize="small" color="error" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    ),
-    renderTopToolbarCustomActions: ({ table }) => {
-      const selectedRows = table.getSelectedRowModel().rows
-      const hasSelection = selectedRows.length > 0
-
-      return (
-        <Box sx={{ display: 'flex', gap: '16px', p: '8px', flexWrap: 'wrap' }}>
+        </Box>
+        <Box>
           <Button
-            disabled={table.getPrePaginationRowModel().rows.length === 0}
-            onClick={(e) =>
-              setExportMenuAnchor({ ...exportMenuAnchor, all: e.currentTarget })
-            }
+            onClick={(e) => setExportMenuAnchor(e.currentTarget)}
             startIcon={<FileDownloadIcon />}
             variant="contained"
-            size="small"
+            size="medium"
             sx={{
               backgroundColor: '#0F284D',
               '&:hover': { backgroundColor: '#1A3D6D' },
             }}
           >
-            Exportar Todos
+            Exportar Reporte
           </Button>
           <Menu
-            anchorEl={exportMenuAnchor.all}
-            open={Boolean(exportMenuAnchor.all)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-            }
+            anchorEl={exportMenuAnchor}
+            open={Boolean(exportMenuAnchor)}
+            onClose={() => setExportMenuAnchor(null)}
           >
             <MenuItem
               onClick={() => {
-                exportToPDF(table.getPrePaginationRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
+                exportToPDF(filteredDataCenters)
+                setExportMenuAnchor(null)
               }}
             >
               PDF (Estilizado)
             </MenuItem>
             <MenuItem
               onClick={() => {
-                exportToExcel(table.getPrePaginationRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
+                exportToExcel(filteredDataCenters)
+                setExportMenuAnchor(null)
               }}
             >
               Excel (Profesional)
             </MenuItem>
             <MenuItem
               onClick={() => {
-                exportToCSV(table.getPrePaginationRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
+                exportToCSV(filteredDataCenters)
+                setExportMenuAnchor(null)
               }}
             >
               CSV (Estándar)
             </MenuItem>
           </Menu>
-
-          <Button
-            disabled={table.getRowModel().rows.length === 0}
-            onClick={(e) =>
-              setExportMenuAnchor({
-                ...exportMenuAnchor,
-                page: e.currentTarget,
-              })
-            }
-            startIcon={<FileDownloadIcon />}
-            variant="contained"
-            size="small"
-            sx={{
-              backgroundColor: '#0F284D',
-              '&:hover': { backgroundColor: '#1A3D6D' },
-            }}
-          >
-            Exportar Página
-          </Button>
-          <Menu
-            anchorEl={exportMenuAnchor.page}
-            open={Boolean(exportMenuAnchor.page)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-            }
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(table.getRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToExcel(table.getRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToCSV(table.getRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          <Button
-            disabled={!hasSelection}
-            onClick={(e) =>
-              setExportMenuAnchor({
-                ...exportMenuAnchor,
-                selection: e.currentTarget,
-              })
-            }
-            startIcon={<FileDownloadIcon />}
-            variant="contained"
-            size="small"
-            sx={{
-              backgroundColor: '#0F284D',
-              '&:hover': { backgroundColor: '#1A3D6D' },
-            }}
-          >
-            Exportar Selección ({hasSelection ? selectedRows.length : 0})
-          </Button>
-          <Menu
-            anchorEl={exportMenuAnchor.selection}
-            open={Boolean(exportMenuAnchor.selection)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-            }
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(selectedRows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToExcel(selectedRows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToCSV(selectedRows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
         </Box>
-      )
-    },
-  })
+      </Paper>
 
-  return (
-    <Box sx={{ p: 1 }}>
-      <MaterialReactTable table={table} />
+      {/* Grid de Cards */}
+      <Grid container spacing={3}>
+        {filteredDataCenters.length > 0 ? (
+          filteredDataCenters.map((dataCenter) => (
+            <Grid item xs={12} sm={6} md={4} key={dataCenter.id}>
+              <Card
+                elevation={3}
+                sx={{
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
+                  },
+                }}
+              >
+                <CardHeader
+                  title={
+                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                      {dataCenter.nombre}
+                    </Typography>
+                  }
+                  subheader={`ID: ${dataCenter.id}`}
+                  action={
+                    <Chip
+                      label={formatEnum(dataCenter.estado)}
+                      color={
+                        dataCenter.estado === 'ACTIVO' ? 'success' : 'error'
+                      }
+                      size="small"
+                      sx={{ mr: 1 }}
+                    />
+                  }
+                  sx={{
+                    backgroundColor: '#f5f7fa',
+                    borderBottom: '1px solid #eee',
+                  }}
+                />
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Typography variant="body1" sx={{ mb: 1, fontWeight: 500 }}>
+                    <strong>Ubicación:</strong> {dataCenter.ubicacion}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mb: 1 }}
+                  >
+                    <strong>Creado:</strong>{' '}
+                    {formatDateTime(dataCenter.fecha_creacion)}
+                    {dataCenter.usuario_creacion &&
+                      ` por ${dataCenter.usuario_creacion}`}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Modificado:</strong>{' '}
+                    {formatDateTime(dataCenter.fecha_modificacion)}
+                    {dataCenter.usuario_modificacion &&
+                      ` por ${dataCenter.usuario_modificacion}`}
+                  </Typography>
+                </CardContent>
+                <CardActions
+                  sx={{ justifyContent: 'space-between', p: 2, pt: 0 }}
+                >
+                  <Box>
+                    <Tooltip title="Ver hardware">
+                      <IconButton
+                        component={Link}
+                        to={routes.dataCenterServidor({ id: dataCenter.id })}
+                        color="primary"
+                      >
+                        <HardwareIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Ver detalles">
+                      <IconButton
+                        component={Link}
+                        to={routes.dataCenter({ id: dataCenter.id })}
+                        color="info"
+                      >
+                        <VisibilityIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                  <Box>
+                    <Tooltip title="Editar">
+                      <IconButton
+                        component={Link}
+                        to={routes.editDataCenter({ id: dataCenter.id })}
+                        color="primary"
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton
+                        onClick={() =>
+                          setDeleteState({ open: true, id: dataCenter.id })
+                        }
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </CardActions>
+              </Card>
+            </Grid>
+          ))
+        ) : (
+          <Grid item xs={12}>
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary">
+                No se encontraron data centers
+                {searchTerm && ` con el término "${searchTerm}"`}
+              </Typography>
+            </Box>
+          </Grid>
+        )}
+      </Grid>
 
+      {/* Dialog de confirmación para eliminar */}
       <Dialog
         open={deleteState.open}
         onClose={() => setDeleteState({ open: false, id: null })}

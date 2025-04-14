@@ -229,6 +229,7 @@ model DataCenter {
   @@map("data_centers")
   @@schema("registro")
 }
+
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 
 model Evento {
@@ -251,7 +252,6 @@ model Evento {
   @@map("eventos")
   @@schema("registro")
 }
-
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model EventosBitacora {
@@ -345,6 +345,7 @@ model Servidor {
   @@map("servidores")
   @@schema("registro")
 }
+
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model AsignacionServidorMaquina {
   id                   Int       @id(map: "asignacion_ms_pk") @default(autoincrement())

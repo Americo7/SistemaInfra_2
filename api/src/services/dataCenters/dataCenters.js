@@ -7,6 +7,9 @@ export const dataCenters = () => {
 export const dataCenter = ({ id }) => {
   return db.dataCenter.findUnique({
     where: { id },
+    include: {
+      servidores: true, // Incluye la relación de servidores
+    },
   })
 }
 

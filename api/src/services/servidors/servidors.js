@@ -7,6 +7,9 @@ export const servidores = () => {
 export const servidor = ({ id }) => {
   return db.servidor.findUnique({
     where: { id },
+    include: {
+      asignacion_servidor_maquina: true, // Incluye la relación de servidores
+    },
   })
 }
 
@@ -24,13 +27,12 @@ export const createServidor = ({ input }) => {
       usuario_creacion: input.usuario_creacion,
       id_data_center: input.id_data_center,
       serie: input.serie,
-      id_padre: input.id_padre || null,  // Puede ser null si no tiene padre
+      id_padre: input.id_padre || null, // Puede ser null si no tiene padre
       cod_tipo_servidor: input.cod_tipo_servidor,
       marca: input.marca,
-      modelo: input.modelo
-    }
+      modelo: input.modelo,
+    },
   })
-
 }
 
 export const updateServidor = ({ id, input }) => {
@@ -50,18 +52,16 @@ export const updateServidor = ({ id, input }) => {
       id_padre: input.id_padre,
       cod_tipo_servidor: input.cod_tipo_servidor,
       marca: input.marca,
-      modelo: input.modelo
-    }
+      modelo: input.modelo,
+    },
   })
 }
-
 
 export const deleteServidor = ({ id }) => {
   return db.servidor.delete({
     where: { id },
   })
 }
-
 
 export const Servidor = {
   asignacion_servidor_maquina: (_obj, { root }) => {
@@ -79,7 +79,8 @@ export const Servidor = {
     return db.servidor.findUnique({ where: { id: root?.id } }).servidores()
   },
   hijos: (_obj, { root }) => {
-    return db.servidor.findUnique({ where: { id: root?.id } }).other_servidores()
-  }
+    return db.servidor
+      .findUnique({ where: { id: root?.id } })
+      .other_servidores()
+  },
 }
-

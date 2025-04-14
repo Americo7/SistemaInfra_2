@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -83,9 +84,9 @@ const jsonTruncate = (obj) => {
     const tecnologias = parseTecnologia(obj)
     if (tecnologias.length === 0) return 'Sin tecnologías'
 
-    return tecnologias.map(tech =>
-      `${tech.nombre}${tech.version ? ` v${tech.version}` : ''}`
-    ).join(', ')
+    return tecnologias
+      .map((tech) => `${tech.nombre}${tech.version ? ` v${tech.version}` : ''}`)
+      .join(', ')
   } catch {
     return 'N/A'
   }
@@ -361,7 +362,9 @@ const ComponentesList = ({ componentes = [] }) => {
               {tecnologias.map((tech, index) => (
                 <Chip
                   key={index}
-                  label={`${tech.nombre}${tech.version ? ` v${tech.version}` : ''}`}
+                  label={`${tech.nombre}${
+                    tech.version ? ` v${tech.version}` : ''
+                  }`}
                   size="small"
                   color={getTechColor(tech.codigo)}
                   variant="outlined"
