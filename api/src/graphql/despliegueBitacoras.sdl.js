@@ -9,6 +9,7 @@ export const schema = gql`
     fecha_modificacion: DateTime
     usuario_modificacion: Int
     despliegue: Despliegue!
+    descripcion: String!
   }
 
   type Query {
@@ -20,6 +21,7 @@ export const schema = gql`
     id_despliegue: Int!
     estado_anterior: String!
     estado_actual: String!
+    descripcion: String
     fecha_creacion: DateTime
     usuario_creacion: Int!
     fecha_modificacion: DateTime
@@ -30,6 +32,7 @@ export const schema = gql`
     id_despliegue: Int
     estado_anterior: String
     estado_actual: String
+    descripcion: String
     fecha_creacion: DateTime
     usuario_creacion: Int
     fecha_modificacion: DateTime

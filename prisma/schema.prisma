@@ -54,8 +54,8 @@ model Componente {
   descripcion          String
   cod_entorno          String       @db.VarChar(20)
   cod_categoria        String       @db.VarChar(20)
-  gitlab_repo          String?
-  gitlab_rama          String?      @db.VarChar(30)
+  gitlab_repo          String?      @db.VarChar(50)
+  gitlab_rama          String?      @db.VarChar(50)
   tecnologia           Json?
   estado               estado       @map("_estado")
   fecha_creacion       DateTime     @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
@@ -115,7 +115,7 @@ model Entidad {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model Role {
   id                   Int          @id(map: "roles_pk") @default(autoincrement())
-  nombre               String       @db.VarChar(15)
+  nombre               String       @db.VarChar(30)
   cod_tipo_rol         String       @db.VarChar(20)
   descripcion          String
   estado               estado       @map("_estado")
@@ -245,6 +245,7 @@ model Evento {
   usuario_modificacion Int?              @map("_usuario_modificacion")
   cite                 String?           @db.VarChar(50)
   solicitante          String?           @db.VarChar(100)
+  cod_evento           String?           @db.VarChar(30)
   eventos_bitacora     EventosBitacora[]
   infra_afectada       InfraAfectada[]
 
@@ -293,8 +294,8 @@ model InfraAfectada {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model Maquina {
   id                          Int                         @id(map: "maquina_pk") @default(autoincrement())
-  codigo                      Int?
-  nombre                      String                      @db.VarChar(25)
+  codigo                      String?                     @db.VarChar(50)
+  nombre                      String                      @db.VarChar(50)
   ip                          String                      @db.Inet
   so                          String                      @db.VarChar(25)
   ram                         Int                         @db.SmallInt
@@ -320,7 +321,7 @@ model Maquina {
 model Servidor {
   id                          Int                         @id(map: "servidor_pk") @default(autoincrement())
   cod_inventario_agetic       String                      @db.VarChar(10)
-  nombre                      String                      @db.VarChar(10)
+  nombre                      String                      @db.VarChar(30)
   ram                         Int?                        @db.SmallInt
   almacenamiento              Int?                        @db.SmallInt
   estado_operativo            String                      @db.VarChar(15)

@@ -8,7 +8,6 @@ export const QUERY = gql`
       id
       id_componente
       id_maquina
-      descripcion
       fecha_despliegue
       estado
       fecha_creacion
@@ -21,7 +20,29 @@ export const QUERY = gql`
       cod_tipo_respaldo
       referencia_respaldo
       estado_despliegue
-
+      descripcion
+    }
+    componentes {
+      id
+      id_sistema
+      nombre
+    }
+    sistemas {
+      id
+      nombre
+    }
+    maquinas {
+      id
+      nombre
+    }
+    servidores {
+      id
+      nombre
+    }
+    usuarios: usuarios {
+      id
+      nombre: nombres
+      apellido: primer_apellido
     }
   }
 `

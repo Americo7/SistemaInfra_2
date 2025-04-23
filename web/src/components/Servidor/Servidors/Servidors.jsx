@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -54,6 +53,16 @@ const GET_SERVIDORES_PADRES = gql`
   }
 `
 
+const GET_USUARIOS_QUERY = gql`
+  query GetUsuariosForServidoresList {
+    usuarios {
+      id
+      nombres
+      primer_apellido
+    }
+  }
+`
+
 const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -64,6 +73,18 @@ const formatDateTime = (dateString) => {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+const getEstadoColor = (estadoOperativo) => {
+  switch (estadoOperativo) {
+    case 'OPERATIVO': return '#4caf50'
+    case 'MANTENIMIENTO': return '#ff9800'
+    case 'DISPONIBLE': return '#2196f3'
+    case 'FALLA': return '#f44336'
+    case 'APAGADO': return '#9e9e9e'
+    case 'FUERA_SERVICIO': return '#d32f2f'
+    default: return '#e0e0e0'
+  }
 }
 
 const truncate = (text, length = 50) => {
@@ -85,10 +106,21 @@ const ServidorsList = ({ servidores = [] }) => {
   })
   const [showInactive, setShowInactive] = useState(false)
   const [servidoresPadres, setServidoresPadres] = useState([])
+  const [usuariosMap, setUsuariosMap] = useState({})
 
   const { loading: loadingPadres } = useQuery(GET_SERVIDORES_PADRES, {
     onCompleted: (data) => {
       setServidoresPadres(data.servidores)
+    },
+  })
+
+  const { loading: loadingUsuarios } = useQuery(GET_USUARIOS_QUERY, {
+    onCompleted: (data) => {
+      const map = data.usuarios.reduce((acc, usuario) => {
+        acc[usuario.id] = `${usuario.nombres} ${usuario.primer_apellido}`
+        return acc
+      }, {})
+      setUsuariosMap(map)
     },
   })
 
@@ -126,6 +158,11 @@ const ServidorsList = ({ servidores = [] }) => {
     return padre ? padre.nombre : `ID: ${idPadre}`
   }
 
+  const getNombreUsuario = (userId) => {
+    if (!userId) return 'N/A'
+    return usuariosMap[userId] || `ID: ${userId}`
+  }
+
   const getFormattedData = (rows, table) => {
     const visibleColumns = table
       .getVisibleLeafColumns()
@@ -143,6 +180,8 @@ const ServidorsList = ({ servidores = [] }) => {
           const cellValue = row.original[column.id] ?? 'N/A'
 
           if (column.id === 'id_padre') return getNombreServidorPadre(cellValue)
+          if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+            return getNombreUsuario(cellValue)
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado' || column.id === 'estado_operativo')
             return formatEnum(cellValue)
@@ -324,7 +363,11 @@ const ServidorsList = ({ servidores = [] }) => {
         accessorKey: 'id_padre',
         header: 'Servidor Padre',
         size: 150,
-        Cell: ({ cell }) => getNombreServidorPadre(cell.getValue()),
+        Cell: ({ cell }) => (
+          <Tooltip title={getNombreServidorPadre(cell.getValue())} arrow>
+            <span>{truncate(getNombreServidorPadre(cell.getValue()), 20)}</span>
+          </Tooltip>
+        ),
       },
       {
         accessorKey: 'estado_operativo',
@@ -335,8 +378,8 @@ const ServidorsList = ({ servidores = [] }) => {
             label={formatEnum(row.original.estado_operativo)}
             size="small"
             sx={{
-              backgroundColor: '#fbc02d',
-              color: '#000',
+              backgroundColor: getEstadoColor(row.original.estado_operativo),
+              color: '#fff',
               fontWeight: 'bold',
             }}
           />
@@ -363,24 +406,31 @@ const ServidorsList = ({ servidores = [] }) => {
       {
         accessorKey: 'usuario_creacion',
         header: 'Creado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ cell }) => (
+          <Tooltip title={getNombreUsuario(cell.getValue())} arrow>
+            <span>{truncate(getNombreUsuario(cell.getValue()), 20)}</span>
+          </Tooltip>
+        ),
       },
       {
         accessorKey: 'fecha_modificacion',
         header: 'Última Modificación',
         size: 150,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
       },
       {
         accessorKey: 'usuario_modificacion',
         header: 'Modificado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ cell }) => (
+          <Tooltip title={getNombreUsuario(cell.getValue())} arrow>
+            <span>{truncate(getNombreUsuario(cell.getValue()), 20)}</span>
+          </Tooltip>
+        ),
       },
     ],
-    [servidoresPadres]
+    [servidoresPadres, usuariosMap]
   )
 
   const table = useMaterialReactTable({
@@ -401,11 +451,6 @@ const ServidorsList = ({ servidores = [] }) => {
     }),
     initialState: {
       showGlobalFilter: true,
-      columnVisibility: {
-        usuario_creacion: false,
-        fecha_modificacion: false,
-        usuario_modificacion: false,
-      },
       density: 'compact',
     },
     renderRowActions: ({ row }) => (

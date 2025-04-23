@@ -4,6 +4,7 @@ export const QUERY = gql`
   query FindEventoById($id: Int!) {
     evento: evento(id: $id) {
       id
+      cod_evento
       cod_tipo_evento
       descripcion
       fecha_evento

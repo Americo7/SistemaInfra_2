@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -57,6 +56,23 @@ const USUARIOS_QUERY = gql`
   }
 `
 
+const INFRA_QUERY = gql`
+  query InfraQuery {
+    dataCenters {
+      id
+      nombre
+    }
+    servidores {
+      id
+      nombre
+    }
+    maquinas {
+      id
+      nombre
+    }
+  }
+`
+
 const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -79,7 +95,11 @@ const EventosList = ({ eventos = [] }) => {
   const [showInactive, setShowInactive] = useState(false)
 
   const { data: usuariosData } = useQuery(USUARIOS_QUERY)
+  const { data: infraData } = useQuery(INFRA_QUERY)
   const usuarios = usuariosData?.usuarios || []
+  const dataCenters = infraData?.dataCenters || []
+  const servidores = infraData?.servidores || []
+  const maquinas = infraData?.maquinas || []
 
   const [updateEvento] = useMutation(UPDATE_EVENTO_MUTATION, {
     onCompleted: () => {
@@ -93,6 +113,13 @@ const EventosList = ({ eventos = [] }) => {
     awaitRefetchQueries: true,
   })
 
+  const getNombreUsuario = (id) => {
+    const usuario = usuarios.find(u => u.id === id)
+    return usuario
+      ? `${usuario.nombres} ${usuario.primer_apellido} ${usuario.segundo_apellido}`
+      : 'Desconocido'
+  }
+
   const getNombresResponsables = (ids) => {
     return ids
       .map((id) => {
@@ -102,6 +129,25 @@ const EventosList = ({ eventos = [] }) => {
           : 'Desconocido'
       })
       .join(', ')
+  }
+
+  const getInfraAfectada = (eventoId) => {
+    const infra = []
+    eventos.find(e => e.id === eventoId)?.infra_afectada?.forEach(item => {
+      if (item.id_data_center) {
+        const dc = dataCenters.find(dc => dc.id === item.id_data_center)
+        if (dc) infra.push(`DC: ${dc.nombre}`)
+      }
+      if (item.id_servidor) {
+        const serv = servidores.find(s => s.id === item.id_servidor)
+        if (serv) infra.push(`Servidor: ${serv.nombre}`)
+      }
+      if (item.id_maquina) {
+        const maq = maquinas.find(m => m.id === item.id_maquina)
+        if (maq) infra.push(`Máquina: ${maq.nombre}`)
+      }
+    })
+    return infra.join(', ') || 'N/A'
   }
 
   const desactivarEvento = (id) => {
@@ -136,7 +182,10 @@ const EventosList = ({ eventos = [] }) => {
           if (column.id === 'estado' || column.id === 'estado_evento')
             return formatEnum(cellValue)
           if (column.id === 'responsables') return getNombresResponsables(cellValue)
-          return String(cellValue) // Eliminamos truncate para mantener datos completos
+          if (column.id === 'infra_afectada') return getInfraAfectada(row.original.id)
+          if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+            return getNombreUsuario(cellValue)
+          return String(cellValue)
         })
       ),
     }
@@ -185,8 +234,8 @@ const EventosList = ({ eventos = [] }) => {
         font: 'helvetica',
       },
       columnStyles: {
-        // Asegurar ancho mínimo para responsables
         Responsables: { cellWidth: 'auto', minCellWidth: 60 },
+        InfraAfectada: { cellWidth: 'auto', minCellWidth: 80 },
       },
       margin: { left: 10, right: 10 },
     })
@@ -205,7 +254,65 @@ const EventosList = ({ eventos = [] }) => {
     doc.save(`eventos-${new Date().toISOString()}.pdf`)
   }
 
-  // ... (mantén igual las funciones exportToExcel y exportToCSV)
+  const exportToExcel = (rows, table) => {
+    const { headers, data } = getFormattedData(rows, table)
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
+
+    // Estilos para el encabezado
+    const headerStyle = {
+      fill: { fgColor: { rgb: "0F284D" } },
+      font: { color: { rgb: "FFFFFF" }, bold: true },
+      alignment: { horizontal: "center" },
+      border: {
+        top: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "000000" } },
+        right: { style: "thin", color: { rgb: "000000" } },
+      },
+    }
+
+    // Aplicar estilos al encabezado
+    for (let i = 0; i < headers.length; i++) {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: i })
+      ws[cellRef].s = headerStyle
+    }
+
+    // Aplicar estilos a las filas
+    for (let r = 1; r <= data.length; r++) {
+      for (let c = 0; c < headers.length; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r, c })
+        ws[cellRef].s = {
+          fill: { fgColor: { rgb: r % 2 === 0 ? "F8F9FA" : "FFFFFF" } },
+          alignment: { wrapText: true },
+        }
+      }
+    }
+
+    // Ajustar ancho de columnas
+    ws['!cols'] = headers.map(() => ({ width: 20 }))
+
+    XLSX.utils.book_append_sheet(wb, ws, "Eventos")
+    XLSX.writeFile(wb, `eventos-${new Date().toISOString()}.xlsx`)
+  }
+
+  const exportToCSV = (rows, table) => {
+    const { headers, data } = getFormattedData(rows, table)
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `eventos-${new Date().toISOString()}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   const filteredEventos = useMemo(() => {
     if (showInactive) {
@@ -217,6 +324,11 @@ const EventosList = ({ eventos = [] }) => {
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
+      {
+        accessorKey: 'cod_evento',
+        header: 'Código Evento',
+        size: 120,
+      },
       {
         accessorKey: 'cod_tipo_evento',
         header: 'Código Tipo Evento',
@@ -232,7 +344,7 @@ const EventosList = ({ eventos = [] }) => {
       {
         accessorKey: 'responsables',
         header: 'Responsables',
-        size: 250, // Aumentamos el tamaño
+        size: 250,
         Cell: ({ cell }) => (
           <div
             style={{
@@ -247,6 +359,23 @@ const EventosList = ({ eventos = [] }) => {
         ),
       },
       {
+        accessorKey: 'infra_afectada',
+        header: 'Infraestructura Afectada',
+        size: 250,
+        Cell: ({ row }) => (
+          <div
+            style={{
+              whiteSpace: 'nowrap',
+              overflowX: 'auto',
+              padding: '4px 0',
+              maxWidth: '400px'
+            }}
+          >
+            {getInfraAfectada(row.original.id)}
+          </div>
+        ),
+      },
+      {
         accessorKey: 'estado_evento',
         header: 'Estado Evento',
         size: 120,
@@ -256,7 +385,7 @@ const EventosList = ({ eventos = [] }) => {
             color={row.original.estado_evento === 'INICIADO' ? 'success' : 'error'}
             size="small"
           />
-          ),
+        ),
       },
       {
         accessorKey: 'estado',
@@ -280,9 +409,32 @@ const EventosList = ({ eventos = [] }) => {
         header: 'Solicitante',
         size: 150,
       },
-      // ... (resto de columnas igual)
+      {
+        accessorKey: 'fecha_creacion',
+        header: 'Fecha Creación',
+        size: 150,
+        Cell: ({ cell }) => formatDateTime(cell.getValue()),
+      },
+      {
+        accessorKey: 'usuario_creacion',
+        header: 'Usuario Creación',
+        size: 180,
+        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
+      },
+      {
+        accessorKey: 'fecha_modificacion',
+        header: 'Fecha Modificación',
+        size: 150,
+        Cell: ({ cell }) => formatDateTime(cell.getValue()),
+      },
+      {
+        accessorKey: 'usuario_modificacion',
+        header: 'Usuario Modificación',
+        size: 180,
+        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
+      },
     ],
-    [usuarios]
+    [usuarios, dataCenters, servidores, maquinas]
   )
 
   const table = useMaterialReactTable({
@@ -304,9 +456,10 @@ const EventosList = ({ eventos = [] }) => {
     initialState: {
       showGlobalFilter: true,
       columnVisibility: {
-        usuario_creacion: false,
-        fecha_modificacion: false,
-        usuario_modificacion: false,
+        // Estos campos ahora son visibles por defecto
+        // usuario_creacion: false,
+        // fecha_modificacion: false,
+        // usuario_modificacion: false,
       },
       density: 'compact',
     },

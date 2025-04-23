@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -28,7 +27,7 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useQuery, useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/Cluster/ClustersCell'
@@ -41,6 +40,16 @@ const UPDATE_CLUSTER_MUTATION = gql`
     updateCluster(id: $id, input: $input) {
       id
       estado
+    }
+  }
+`
+
+const GET_USUARIOS_QUERY = gql`
+  query GetUsuariosForClustersList {
+    usuarios {
+      id
+      nombres
+      primer_apellido
     }
   }
 `
@@ -75,6 +84,18 @@ const ClustersList = ({ clusters = [] }) => {
     selection: null,
   })
   const [showInactive, setShowInactive] = useState(false)
+  const [usuariosMap, setUsuariosMap] = useState({})
+
+  // Consulta para obtener los usuarios (creadores/modificadores)
+  const { loading: loadingUsuarios } = useQuery(GET_USUARIOS_QUERY, {
+    onCompleted: (data) => {
+      const map = data.usuarios.reduce((acc, usuario) => {
+        acc[usuario.id] = `${usuario.nombres} ${usuario.primer_apellido}`
+        return acc
+      }, {})
+      setUsuariosMap(map)
+    },
+  })
 
   const [updateCluster] = useMutation(UPDATE_CLUSTER_MUTATION, {
     onCompleted: () => {
@@ -95,10 +116,14 @@ const ClustersList = ({ clusters = [] }) => {
         input: {
           estado: 'INACTIVO',
           fecha_modificacion: new Date().toISOString(),
-          // usuario_modificacion: currentUser.id o currentUser.username
         },
       },
     })
+  }
+
+  const getNombreUsuario = (userId) => {
+    if (!userId) return 'N/A'
+    return usuariosMap[userId] || `ID: ${userId}`
   }
 
   const filteredClusters = useMemo(() => {
@@ -126,6 +151,8 @@ const ClustersList = ({ clusters = [] }) => {
 
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado') return formatEnum(cellValue)
+          if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+            return getNombreUsuario(cellValue)
           return truncate(cellValue, 100)
         })
       ),
@@ -306,24 +333,31 @@ const ClustersList = ({ clusters = [] }) => {
       {
         accessorKey: 'usuario_creacion',
         header: 'Creado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ cell }) => (
+          <Tooltip title={getNombreUsuario(cell.getValue())} arrow>
+            <span>{truncate(getNombreUsuario(cell.getValue()), 20)}</span>
+          </Tooltip>
+        ),
       },
       {
         accessorKey: 'fecha_modificacion',
         header: 'Última Modificación',
         size: 150,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
       },
       {
         accessorKey: 'usuario_modificacion',
         header: 'Modificado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ cell }) => (
+          <Tooltip title={getNombreUsuario(cell.getValue())} arrow>
+            <span>{truncate(getNombreUsuario(cell.getValue()), 20)}</span>
+          </Tooltip>
+        ),
       },
     ],
-    []
+    [usuariosMap]
   )
 
   const table = useMaterialReactTable({
@@ -344,11 +378,6 @@ const ClustersList = ({ clusters = [] }) => {
     }),
     initialState: {
       showGlobalFilter: true,
-      columnVisibility: {
-        usuario_creacion: false,
-        fecha_modificacion: false,
-        usuario_modificacion: false,
-      },
       density: 'compact',
     },
     renderRowActions: ({ row }) => (

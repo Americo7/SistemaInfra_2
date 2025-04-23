@@ -6,6 +6,7 @@ const { getPaths } = require('@redwoodjs/project-config')
 const config = {
   schema: getPaths().generated.schema,
   documents: './web/src/**/!(*.d).{ts,tsx,js,jsx}',
+  
 }
 
 module.exports = config

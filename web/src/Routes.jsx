@@ -100,7 +100,7 @@ const Routes = () => {
           <Route path="/eventos-bitacoras/{id:Int}" page={EventosBitacoraEventosBitacoraPage} name="eventosBitacora" />
           <Route path="/eventos-bitacoras" page={EventosBitacoraEventosBitacorasPage} name="eventosBitacoras" />
         </Set>
-        <Set wrap={ScaffoldLayout} title="Infra Afectadas" titleTo="infraAfectadas" buttonLabel="New InfraAfectada" buttonTo="newInfraAfectada">
+        <Set wrap={ScaffoldLayout} title="Infraestructura Afectada" titleTo="infraAfectadas" buttonLabel="New InfraAfectada" buttonTo="newInfraAfectada">
           <Route path="/infra-afectadas/new" page={InfraAfectadaNewInfraAfectadaPage} name="newInfraAfectada" />
           <Route path="/infra-afectadas/{id:Int}/edit" page={InfraAfectadaEditInfraAfectadaPage} name="editInfraAfectada" />
           <Route path="/infra-afectadas/{id:Int}" page={InfraAfectadaInfraAfectadaPage} name="infraAfectada" />

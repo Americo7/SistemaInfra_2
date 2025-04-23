@@ -90,6 +90,17 @@ const GET_EVENTOS = gql`
   }
 `
 
+const GET_USUARIOS = gql`
+  query GetUsuarios_fromInfraLista {
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
+    }
+  }
+`
+
 // Funciones de utilidad
 const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A'
@@ -111,6 +122,11 @@ const formatEnum = (value) => {
   return value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : 'N/A'
 }
 
+const formatUserName = (user) => {
+  if (!user) return 'N/A'
+  return `${user.nombres} ${user.primer_apellido} ${user.segundo_apellido || ''}`.trim()
+}
+
 // Componente principal
 const InfraAfectadasList = ({ infraAfectadas = [] }) => {
   // Estados
@@ -128,6 +144,7 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
   const { data: maquinasData } = useQuery(GET_MAQUINAS)
   const { data: tipoServidorData } = useQuery(GET_PARAMETROS_TIPO_SERVIDOR)
   const { data: eventosData } = useQuery(GET_EVENTOS)
+  const { data: usuariosData } = useQuery(GET_USUARIOS)
 
   // Mapeo de datos para búsqueda rápida
   const dataMaps = useMemo(() => {
@@ -136,7 +153,8 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
       maquinas: {},
       tipoServidor: {},
       servidores: {},
-      eventos: {}
+      eventos: {},
+      usuarios: {}
     }
 
     // Mapear Data Centers
@@ -165,8 +183,17 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
       maps.eventos[evento.id] = evento.descripcion
     })
 
+    // Mapear Usuarios
+    usuariosData?.usuarios?.forEach(user => {
+      maps.usuarios[user.id] = {
+        nombres: user.nombres,
+        primer_apellido: user.primer_apellido,
+        segundo_apellido: user.segundo_apellido
+      }
+    })
+
     return maps
-  }, [dataCentersData, maquinasData, tipoServidorData, servidoresData, eventosData])
+  }, [dataCentersData, maquinasData, tipoServidorData, servidoresData, eventosData, usuariosData])
 
   // Mutación para actualizar estado
   const [updateInfraAfectada] = useMutation(UPDATE_INFRA_AFECTADA_MUTATION, {
@@ -193,16 +220,17 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
       servidor_nombre: infra.id_servidor ? dataMaps.servidores[infra.id_servidor] || 'N/A' : 'N/A',
       maquina_nombre: infra.id_maquina ? dataMaps.maquinas[infra.id_maquina] || 'N/A' : 'N/A',
       evento_descripcion: infra.id_evento ? dataMaps.eventos[infra.id_evento] || 'N/A' : 'N/A',
+      usuario_creacion_nombre: infra.usuario_creacion ? formatUserName(dataMaps.usuarios[infra.usuario_creacion]) : 'N/A',
+      usuario_modificacion_nombre: infra.usuario_modificacion ? formatUserName(dataMaps.usuarios[infra.usuario_modificacion]) : 'N/A',
     }))
   }, [infraAfectadas, showInactive, dataMaps])
 
-  // Funciones de exportación
+  // Funciones de exportación (igual que antes)
   const exportFunctions = {
     pdf: (rows, table) => {
       const { headers, data } = prepareExportData(rows, table)
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' })
 
-      // Configuración del documento
       doc.setFontSize(16)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(15, 40, 77)
@@ -210,7 +238,6 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
       doc.setFontSize(10)
       doc.text(`Generado: ${formatDateTime(new Date())}`, 14, 22)
 
-      // Generar tabla
       autoTable(doc, {
         head: [headers.map(h => ({
           content: h,
@@ -227,7 +254,6 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
         margin: { left: 10, right: 10 }
       })
 
-      // Numeración de páginas
       const pages = doc.internal.getNumberOfPages()
       for (let i = 1; i <= pages; i++) {
         doc.setPage(i)
@@ -253,7 +279,6 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
         ...data
       ])
 
-      // Estilos
       const headerStyle = {
         font: { sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
         fill: { fgColor: { rgb: '0F284D' } },
@@ -266,7 +291,6 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
         },
       }
 
-      // Aplicar estilos
       const range = XLSX.utils.decode_range(ws['!ref'])
       for (let C = range.s.c; C <= range.e.c; ++C) {
         const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
@@ -287,7 +311,6 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
         }
       }
 
-      // Configuración adicional
       ws['!cols'] = headers.map((_, col) => ({
         wch: Math.max(...data.map(row => String(row[col]).length, headers[col].length)) + 2
       }))
@@ -385,10 +408,20 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
       Cell: ({ cell }) => formatDateTime(cell.getValue()),
     },
     {
-      accessorKey: 'usuario_creacion',
+      accessorKey: 'usuario_creacion_nombre',
       header: 'Creado por',
-      size: 120,
-      visible: false,
+      size: 150,
+    },
+    {
+      accessorKey: 'fecha_modificacion',
+      header: 'Fecha Modificación',
+      size: 150,
+      Cell: ({ cell }) => formatDateTime(cell.getValue()),
+    },
+    {
+      accessorKey: 'usuario_modificacion_nombre',
+      header: 'Modificado por',
+      size: 150,
     },
   ], [])
 
@@ -402,9 +435,8 @@ const InfraAfectadasList = ({ infraAfectadas = [] }) => {
       showGlobalFilter: true,
       density: 'compact',
       columnVisibility: {
-        usuario_creacion: false,
         fecha_modificacion: false,
-        usuario_modificacion: false,
+        usuario_modificacion_nombre: false,
       },
     },
     renderRowActions: ({ row }) => (

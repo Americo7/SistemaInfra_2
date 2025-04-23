@@ -14,6 +14,7 @@ export const createEvento = ({ input }) => {
 
   return db.evento.create({
     data: {
+      cod_evento: input.cod_evento,
       cod_tipo_evento: input.cod_tipo_evento,
       descripcion: input.descripcion,
       fecha_evento: input.fecha_evento,
@@ -32,6 +33,7 @@ export const updateEvento = ({ id, input }) => {
 
   return db.evento.update({
     data: {
+      cod_evento: input.cod_evento,
       cod_tipo_evento: input.cod_tipo_evento,
       descripcion: input.descripcion,
       fecha_evento: input.fecha_evento,

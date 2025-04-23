@@ -9,6 +9,7 @@ import redwood from '@redwoodjs/vite'
 dns.setDefaultResultOrder('verbatim')
 
 const viteConfig = {
+
   plugins: [redwood()],
 }
 

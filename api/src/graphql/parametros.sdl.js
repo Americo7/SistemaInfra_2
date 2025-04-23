@@ -20,6 +20,7 @@ export const schema = gql`
   type Query {
     parametros: [Parametro!]! @requireAuth
     parametro(id: Int!): Parametro @requireAuth
+
   }
 
   input CreateParametroInput {

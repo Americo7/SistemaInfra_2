@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -28,12 +27,12 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/Sistema/SistemasCell'
+import { formatEnum, truncate } from 'src/lib/formatters'
 
-// Mutación para actualizar el estado del sistema
 const UPDATE_SISTEMA_MUTATION = gql`
   mutation UpdateSistemaMutation_fromSistema(
     $id: Int!
@@ -42,6 +41,26 @@ const UPDATE_SISTEMA_MUTATION = gql`
     updateSistema(id: $id, input: $input) {
       id
       estado
+    }
+  }
+`
+
+const USUARIOS_QUERY = gql`
+  query UsuariosQuery {
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
+    }
+  }
+`
+
+const SISTEMAS_QUERY = gql`
+  query SistemasQuery_fromSistemasList {
+    sistemas {
+      id
+      nombre
     }
   }
 `
@@ -58,26 +77,6 @@ const formatDateTime = (dateString) => {
   })
 }
 
-const truncate = (text, length = 50) => {
-  if (!text) return 'N/A'
-  return text.length > length ? text.substring(0, length) + '...' : text
-}
-
-const jsonTruncate = (obj) => {
-  if (!obj) return 'N/A'
-  try {
-    const str = JSON.stringify(obj)
-    return truncate(str, 100)
-  } catch {
-    return 'N/A'
-  }
-}
-
-const formatEnum = (value) => {
-  if (!value) return 'N/A'
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
-}
-
 const SistemasList = ({ sistemas = [] }) => {
   const [deleteState, setDeleteState] = useState({ open: false, id: null })
   const [exportMenuAnchor, setExportMenuAnchor] = useState({
@@ -86,6 +85,12 @@ const SistemasList = ({ sistemas = [] }) => {
     selection: null,
   })
   const [showInactive, setShowInactive] = useState(false)
+
+  // Fetch usuarios and sistemas data
+  const { data: usuariosData } = useQuery(USUARIOS_QUERY)
+  const { data: sistemasData } = useQuery(SISTEMAS_QUERY)
+  const usuarios = usuariosData?.usuarios || []
+  const allSistemas = sistemasData?.sistemas || []
 
   const [updateSistema] = useMutation(UPDATE_SISTEMA_MUTATION, {
     onCompleted: () => {
@@ -99,7 +104,22 @@ const SistemasList = ({ sistemas = [] }) => {
     awaitRefetchQueries: true,
   })
 
-  // Función para desactivar el sistema
+  // Function to get full user name
+  const getNombreUsuario = (id) => {
+    if (!id) return 'N/A'
+    const usuario = usuarios.find(u => u.id === id)
+    return usuario
+      ? `${usuario.nombres} ${usuario.primer_apellido} ${usuario.segundo_apellido || ''}`.trim()
+      : 'N/A'
+  }
+
+  // Function to get parent system name
+  const getNombreSistemaPadre = (id) => {
+    if (!id) return 'N/A'
+    const sistema = allSistemas.find(s => s.id === id)
+    return sistema ? sistema.nombre : 'N/A'
+  }
+
   const desactivarSistema = (id) => {
     updateSistema({
       variables: {
@@ -107,22 +127,11 @@ const SistemasList = ({ sistemas = [] }) => {
         input: {
           estado: 'INACTIVO',
           fecha_modificacion: new Date().toISOString(),
-          // Agrega aquí el usuario de modificación si es necesario
-          // usuario_modificacion: currentUser.id
         },
       },
     })
   }
 
-  // Filtrar sistemas inactivos según el estado del switch
-  const filteredSistemas = useMemo(() => {
-    if (showInactive) {
-      return sistemas
-    }
-    return sistemas.filter((sistema) => sistema.estado === 'ACTIVO')
-  }, [sistemas, showInactive])
-
-  // Función para preparar datos para exportación
   const getFormattedData = (rows, table) => {
     const visibleColumns = table
       .getVisibleLeafColumns()
@@ -137,18 +146,19 @@ const SistemasList = ({ sistemas = [] }) => {
       headers,
       data: rows.map((row) =>
         visibleColumns.map((column) => {
-          const cellValue = row.original[column.id] || 'N/A'
+          const cellValue = row.original[column.id]
 
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
-          if (column.id === 're_creacion') return jsonTruncate(cellValue)
           if (column.id === 'estado') return formatEnum(cellValue)
-          return truncate(cellValue, 100)
+          if (column.id === 'id_padre') return getNombreSistemaPadre(cellValue)
+          if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+            return getNombreUsuario(cellValue)
+          return cellValue ? String(cellValue) : 'N/A'
         })
       ),
     }
   }
 
-  // Exportación PDF
   const exportToPDF = (rows, table) => {
     const { headers, data } = getFormattedData(rows, table)
     const doc = new jsPDF({
@@ -208,106 +218,107 @@ const SistemasList = ({ sistemas = [] }) => {
     doc.save(`sistemas-${new Date().toISOString()}.pdf`)
   }
 
-  // Exportación Excel
   const exportToExcel = (rows, table) => {
     const { headers, data } = getFormattedData(rows, table)
     const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet([])
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
 
+    // Estilos para el encabezado
     const headerStyle = {
-      font: { sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '0F284D' } },
-      alignment: { horizontal: 'center' },
+      fill: { fgColor: { rgb: "0F284D" } },
+      font: { color: { rgb: "FFFFFF" }, bold: true },
+      alignment: { horizontal: "center" },
       border: {
-        top: { style: 'thin', color: { rgb: '000000' } },
-        bottom: { style: 'thin', color: { rgb: '000000' } },
-        left: { style: 'thin', color: { rgb: '000000' } },
-        right: { style: 'thin', color: { rgb: '000000' } },
+        top: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "000000" } },
+        right: { style: "thin", color: { rgb: "000000" } },
       },
     }
 
-    XLSX.utils.sheet_add_aoa(ws, [['Reporte de Sistemas']], { origin: 'A1' })
-    XLSX.utils.sheet_add_aoa(
-      ws,
-      [[`Generado: ${formatDateTime(new Date())}`]],
-      { origin: 'A2' }
-    )
-    XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A4' })
-    XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A5' })
+    // Aplicar estilos al encabezado
+    for (let i = 0; i < headers.length; i++) {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: i })
+      ws[cellRef].s = headerStyle
+    }
 
-    const range = XLSX.utils.decode_range(ws['!ref'])
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
-      ws[headerCell].s = headerStyle
-
-      for (let R = 4; R <= range.e.r; ++R) {
-        const cell = XLSX.utils.encode_cell({ r: R, c: C })
-        if (!ws[cell]) ws[cell] = {}
-        ws[cell].s = {
-          fill: { fgColor: { rgb: R % 2 === 0 ? 'F8F9FA' : 'FFFFFF' } },
-          border: {
-            top: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            bottom: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            left: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            right: { style: 'thin', color: { rgb: 'DDDDDD' } },
-          },
+    // Aplicar estilos a las filas
+    for (let r = 1; r <= data.length; r++) {
+      for (let c = 0; c < headers.length; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r, c })
+        ws[cellRef].s = {
+          fill: { fgColor: { rgb: r % 2 === 0 ? "F8F9FA" : "FFFFFF" } },
+          alignment: { wrapText: true },
         }
       }
     }
 
-    ws['!cols'] = headers.map((_, col) => ({
-      wch:
-        Math.max(
-          ...data.map((row) => String(row[col]).length),
-          headers[col].length
-        ) + 2,
-    }))
+    // Ajustar ancho de columnas
+    ws['!cols'] = headers.map(() => ({ width: 20 }))
 
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
-    ]
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Sistemas')
+    XLSX.utils.book_append_sheet(wb, ws, "Sistemas")
     XLSX.writeFile(wb, `sistemas-${new Date().toISOString()}.xlsx`)
   }
 
-  // Exportación CSV
   const exportToCSV = (rows, table) => {
     const { headers, data } = getFormattedData(rows, table)
     const csvContent = [
-      'Reporte de Sistemas',
-      `Generado: ${formatDateTime(new Date())}`,
-      '',
       headers.join(','),
-      ...data.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-      ),
-      '',
-      `*Este archivo fue generado automáticamente el ${formatDateTime(
-        new Date()
-      )}`,
+      ...data.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     ].join('\n')
 
-    const blob = new Blob(['\ufeff', csvContent], {
-      type: 'text/csv;charset=utf-8;',
-    })
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `sistemas-${new Date().toISOString()}.csv`
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `sistemas-${new Date().toISOString()}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
   }
 
-  // Columnas de la tabla
+  const filteredSistemas = useMemo(() => {
+    if (showInactive) {
+      return sistemas
+    }
+    return sistemas.filter((sistema) => sistema.estado === 'ACTIVO')
+  }, [sistemas, showInactive])
+
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'id_padre', header: 'ID Padre', size: 100 },
-      { accessorKey: 'id_entidad', header: 'ID Entidad', size: 100 },
-      { accessorKey: 'codigo', header: 'Código', size: 100 },
-      { accessorKey: 'sigla', header: 'Sigla', size: 100 },
-      { accessorKey: 'nombre', header: 'Nombre', size: 150 },
-      { accessorKey: 'descripcion', header: 'Descripción', size: 200 },
+      {
+        accessorKey: 'id_padre',
+        header: 'Sistema Padre',
+        size: 150,
+        Cell: ({ cell }) => getNombreSistemaPadre(cell.getValue()),
+      },
+      {
+        accessorKey: 'id_entidad',
+        header: 'ID Entidad',
+        size: 100
+      },
+      {
+        accessorKey: 'codigo',
+        header: 'Código',
+        size: 100
+      },
+      {
+        accessorKey: 'sigla',
+        header: 'Sigla',
+        size: 100
+      },
+      {
+        accessorKey: 'nombre',
+        header: 'Nombre',
+        size: 150
+      },
+      {
+        accessorKey: 'descripcion',
+        header: 'Descripción',
+        size: 200
+      },
       {
         accessorKey: 'estado',
         header: 'Estado',
@@ -322,9 +333,9 @@ const SistemasList = ({ sistemas = [] }) => {
       },
       {
         accessorKey: 'ra_creacion',
-        header: 'Ra Creación',
+        header: 'RA Creación',
         size: 150,
-        Cell: ({ cell }) => jsonTruncate(cell.getValue()),
+        Cell: ({ cell }) => cell.getValue() || 'N/A',
       },
       {
         accessorKey: 'fecha_creacion',
@@ -335,30 +346,28 @@ const SistemasList = ({ sistemas = [] }) => {
       {
         accessorKey: 'usuario_creacion',
         header: 'Creado por',
-        size: 120,
-        visible: false,
+        size: 180,
+        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
       },
       {
         accessorKey: 'fecha_modificacion',
         header: 'Última Modificación',
         size: 150,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
       },
       {
         accessorKey: 'usuario_modificacion',
         header: 'Modificado por',
-        size: 120,
-        visible: false,
+        size: 180,
+        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
       },
     ],
-    []
+    [usuarios, allSistemas]
   )
 
-  // Configuración de la tabla
   const table = useMaterialReactTable({
     columns,
-    data: filteredSistemas, // Usamos los datos filtrados
+    data: filteredSistemas,
     enableRowActions: true,
     enableRowSelection: true,
     enableMultiRowSelection: true,
@@ -375,7 +384,6 @@ const SistemasList = ({ sistemas = [] }) => {
     initialState: {
       showGlobalFilter: true,
       columnVisibility: {
-        usuario_creacion: false,
         fecha_modificacion: false,
         usuario_modificacion: false,
       },
@@ -595,7 +603,6 @@ const SistemasList = ({ sistemas = [] }) => {
     <Box sx={{ p: 1 }}>
       <MaterialReactTable table={table} />
 
-      {/* Diálogo de confirmación de desactivación */}
       <Dialog
         open={deleteState.open}
         onClose={() => setDeleteState({ open: false, id: null })}

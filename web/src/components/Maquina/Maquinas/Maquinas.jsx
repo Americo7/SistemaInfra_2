@@ -83,6 +83,17 @@ const QUERY_PARAMETRICAS = gql`
   }
 `
 
+const QUERY_USUARIOS = gql`
+  query FindUsuarios_fromMaquinaLista {
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
+    }
+  }
+`
+
 const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -113,6 +124,11 @@ const formatBoolean = (value) => {
   )
 }
 
+const formatUserName = (user) => {
+  if (!user) return 'N/A'
+  return `${user.nombres} ${user.primer_apellido} ${user.segundo_apellido}`
+}
+
 const parseAlmacenamiento = (value) => {
   try {
     if (!value) return []
@@ -132,6 +148,7 @@ const parseAlmacenamiento = (value) => {
 const MaquinasList = () => {
   const { data: maquinasData } = useQuery(QUERY_MAQUINAS)
   const { data: parametricasData } = useQuery(QUERY_PARAMETRICAS)
+  const { data: usuariosData } = useQuery(QUERY_USUARIOS)
   const [deleteState, setDeleteState] = useState({
     open: false,
     id: null,
@@ -161,6 +178,11 @@ const MaquinasList = () => {
     if (!parametricasData?.parametros) return codigo
     const param = parametricasData.parametros.find((p) => p.codigo === codigo)
     return param ? param.nombre : codigo
+  }
+
+  const getUsuarioById = (id) => {
+    if (!usuariosData?.usuarios) return null
+    return usuariosData.usuarios.find((u) => u.id === id)
   }
 
   const toggleEstado = (id, currentEstado) => {
@@ -203,6 +225,10 @@ const MaquinasList = () => {
           if (column.id === 'estado') return formatEnum(cellValue)
           if (column.id === 'cod_plataforma')
             return getNombrePlataforma(cellValue)
+          if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion') {
+            const usuario = getUsuarioById(cellValue)
+            return formatUserName(usuario)
+          }
           return truncate(cellValue, 100)
         })
       ),
@@ -454,24 +480,39 @@ const MaquinasList = () => {
       {
         accessorKey: 'usuario_creacion',
         header: 'Creado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ row }) => {
+          const usuario = getUsuarioById(row.original.usuario_creacion)
+          return (
+            <Tooltip title={`ID: ${row.original.usuario_creacion}`}>
+              <span>{formatUserName(usuario)}</span>
+            </Tooltip>
+          )
+        },
       },
       {
         accessorKey: 'fecha_modificacion',
         header: 'Última Modificación',
         size: 150,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
       },
       {
         accessorKey: 'usuario_modificacion',
         header: 'Modificado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ row }) => {
+          const usuario = getUsuarioById(row.original.usuario_modificacion)
+          return row.original.usuario_modificacion ? (
+            <Tooltip title={`ID: ${row.original.usuario_modificacion}`}>
+              <span>{formatUserName(usuario)}</span>
+            </Tooltip>
+          ) : (
+            <span>N/A</span>
+          )
+        },
       },
     ],
-    [parametricasData]
+    [parametricasData, usuariosData]
   )
 
   const table = useMaterialReactTable({
@@ -493,9 +534,7 @@ const MaquinasList = () => {
     initialState: {
       showGlobalFilter: true,
       columnVisibility: {
-        usuario_creacion: false,
         fecha_modificacion: false,
-        usuario_modificacion: false,
       },
       density: 'compact',
     },

@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -28,19 +27,26 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useQuery, useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/Usuario/UsuariosCell'
 
 const UPDATE_USUARIO_MUTATION = gql`
-  mutation UpdateUsuarioMutation_fromUsuario(
-    $id: Int!
-    $input: UpdateUsuarioInput!
-  ) {
+  mutation UpdateUsuarioMutation_fromUsuariosList($id: Int!, $input: UpdateUsuarioInput!) {
     updateUsuario(id: $id, input: $input) {
       id
       estado
+    }
+  }
+`
+
+const GET_CREATOR_USERS_QUERY = gql`
+  query GetCreatorUsers {
+    usuarios {
+      id
+      nombres
+      primer_apellido
     }
   }
 `
@@ -84,6 +90,18 @@ const UsuariosList = ({ usuarios = [] }) => {
     selection: null,
   })
   const [showInactive, setShowInactive] = useState(false)
+  const [usuariosMap, setUsuariosMap] = useState({})
+
+  // Consulta para obtener los usuarios (creadores/modificadores)
+  const { loading: loadingUsuarios } = useQuery(GET_CREATOR_USERS_QUERY, {
+    onCompleted: (data) => {
+      const map = data.usuarios.reduce((acc, usuario) => {
+        acc[usuario.id] = `${usuario.nombres} ${usuario.primer_apellido}`
+        return acc
+      }, {})
+      setUsuariosMap(map)
+    },
+  })
 
   const [updateUsuario] = useMutation(UPDATE_USUARIO_MUTATION, {
     onCompleted: () => {
@@ -109,6 +127,18 @@ const UsuariosList = ({ usuarios = [] }) => {
     })
   }
 
+  const getNombreUsuario = (userId) => {
+    if (!userId) return 'N/A'
+    return usuariosMap[userId] || `ID: ${userId}`
+  }
+
+  const filteredUsuarios = useMemo(() => {
+    if (showInactive) {
+      return usuarios
+    }
+    return usuarios.filter((usuario) => usuario.estado === 'ACTIVO')
+  }, [usuarios, showInactive])
+
   const getFormattedData = (rows, table) => {
     const visibleColumns = table
       .getVisibleLeafColumns()
@@ -127,6 +157,8 @@ const UsuariosList = ({ usuarios = [] }) => {
 
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado') return formatEnum(cellValue)
+          if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+            return getNombreUsuario(cellValue)
           return truncate(cellValue, 100)
         })
       ),
@@ -241,9 +273,9 @@ const UsuariosList = ({ usuarios = [] }) => {
     ws['!cols'] = headers.map((_, col) => ({
       wch:
         Math.max(
-          ...data.map((row) => String(row[col]).length),
+          ...data.map((row) => String(row[col]).length,
           headers[col].length
-        ) + 2,
+        ) + 2),
     }))
 
     ws['!merges'] = [
@@ -280,13 +312,6 @@ const UsuariosList = ({ usuarios = [] }) => {
     link.click()
   }
 
-  const filteredUsuarios = useMemo(() => {
-    if (showInactive) {
-      return usuarios
-    }
-    return usuarios.filter((usuario) => usuario.estado === 'ACTIVO')
-  }, [usuarios, showInactive])
-
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
@@ -322,21 +347,28 @@ const UsuariosList = ({ usuarios = [] }) => {
       {
         accessorKey: 'usuario_creacion',
         header: 'Creado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ cell }) => (
+          <Tooltip title={getNombreUsuario(cell.getValue())} arrow>
+            <span>{truncate(getNombreUsuario(cell.getValue()), 20)}</span>
+          </Tooltip>
+        ),
       },
       {
         accessorKey: 'fecha_modificacion',
         header: 'Última Modificación',
         size: 150,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
       },
       {
         accessorKey: 'usuario_modificacion',
         header: 'Modificado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ cell }) => (
+          <Tooltip title={getNombreUsuario(cell.getValue())} arrow>
+            <span>{truncate(getNombreUsuario(cell.getValue()), 20)}</span>
+          </Tooltip>
+        ),
       },
       {
         accessorKey: 'id_ciudadano_digital',
@@ -351,7 +383,7 @@ const UsuariosList = ({ usuarios = [] }) => {
         visible: false,
       },
     ],
-    []
+    [usuariosMap]
   )
 
   const table = useMaterialReactTable({
@@ -373,9 +405,6 @@ const UsuariosList = ({ usuarios = [] }) => {
     initialState: {
       showGlobalFilter: true,
       columnVisibility: {
-        usuario_creacion: false,
-        fecha_modificacion: false,
-        usuario_modificacion: false,
         id_ciudadano_digital: false,
         contrasena: false,
       },

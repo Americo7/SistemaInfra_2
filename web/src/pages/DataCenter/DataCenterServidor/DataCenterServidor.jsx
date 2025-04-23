@@ -1,20 +1,18 @@
-import React, { useState, useEffect } from 'react'
-
+import React, { useState, useMemo } from 'react'
 import {
   ArrowBack as ArrowBackIcon,
   Computer as ComputerIcon,
   MemoryOutlined as MemoryIcon,
   Storage as StorageIcon,
   DeviceHub as DeviceHubIcon,
-  MoreVert as MoreVertIcon,
+  FileDownload as FileDownloadIcon,
+  Visibility as VisibilityIcon,
+  Storage,
 } from '@mui/icons-material'
 import {
-  Avatar,
   Box,
   Breadcrumbs,
   Chip,
-  Divider,
-  Grid,
   IconButton,
   Link as MuiLink,
   Menu,
@@ -24,19 +22,53 @@ import {
   Tabs,
   Typography,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  Tooltip,
+  FormControlLabel,
+  Switch,
+  CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
+import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes, navigate } from '@redwoodjs/router'
 import { useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
-// Query para obtener detalles del data center y sus servidores
+const ServerTypeIcon = React.memo(({ type }) => {
+  switch (type) {
+    case 'CHASIS': return <DeviceHubIcon fontSize="large" sx={{ color: '#1976d2' }} />
+    case 'BLADE': return <MemoryIcon fontSize="large" sx={{ color: '#2e7d32' }} />
+    case 'RACK': return <StorageIcon fontSize="large" sx={{ color: '#ed6c02' }} />
+    case 'TORRE': return <ComputerIcon fontSize="large" sx={{ color: '#9c27b0' }} />
+    default: return <DeviceHubIcon fontSize="large" sx={{ color: '#d32f2f' }} />
+  }
+})
+
+const TypeChip = React.memo(({ type }) => (
+  <Chip
+    label={type}
+    color={{
+      CHASIS: 'primary',
+      BLADE: 'success',
+      RACK: 'warning',
+      TORRE: 'secondary',
+    }[type] || 'error'}
+    variant="outlined"
+  />
+))
+
+const StatusChip = React.memo(({ status }) => (
+  <Chip
+    label={status === 'ACTIVO' ? 'Activo' : 'Inactivo'}
+    color={status === 'ACTIVO' ? 'success' : 'error'}
+    size="small"
+  />
+))
+
 const GET_DATA_CENTER_WITH_SERVERS = gql`
   query DataCenterWithServers($id: Int!) {
     dataCenter(id: $id) {
@@ -60,39 +92,6 @@ const GET_DATA_CENTER_WITH_SERVERS = gql`
   }
 `
 
-// Icono según el tipo de servidor
-const getServerTypeIcon = (type) => {
-  switch (type) {
-    case 'CHASIS':
-      return <DeviceHubIcon fontSize="large" sx={{ color: '#1976d2' }} />
-    case 'BLADE':
-      return <MemoryIcon fontSize="large" sx={{ color: '#2e7d32' }} />
-    case 'RACK':
-      return <StorageIcon fontSize="large" sx={{ color: '#ed6c02' }} />
-    case 'TORRE':
-      return <ComputerIcon fontSize="large" sx={{ color: '#9c27b0' }} />
-    default:
-      return <DeviceHubIcon fontSize="large" sx={{ color: '#d32f2f' }} />
-  }
-}
-
-// Color del chip según tipo
-const getTypeColor = (type) => {
-  switch (type) {
-    case 'CHASIS':
-      return 'primary'
-    case 'BLADE':
-      return 'success'
-    case 'RACK':
-      return 'warning'
-    case 'TORRE':
-      return 'secondary'
-    default:
-      return 'error'
-  }
-}
-
-// Formatear fecha
 const formatDateTime = (dateString) => {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
@@ -107,196 +106,273 @@ const formatDateTime = (dateString) => {
 
 const DataCenterServidor = ({ id }) => {
   const [activeTab, setActiveTab] = useState('all')
-  const [menuAnchorEl, setMenuAnchorEl] = useState(null)
-  const [selectedServerId, setSelectedServerId] = useState(null)
+  const [exportMenuAnchor, setExportMenuAnchor] = useState({ all: null, page: null, selection: null })
+  const [showInactive, setShowInactive] = useState(false)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   const { loading, error, data } = useQuery(GET_DATA_CENTER_WITH_SERVERS, {
     variables: { id: parseInt(id) },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-and-network',
   })
 
-  useEffect(() => {
-    if (error) {
-      console.error('Error al cargar los datos del Data Center:', error)
-      toast.error('No se pudo cargar la información del Data Center')
-      navigate(routes.dataCenters())
+  const serverCounts = useMemo(() => {
+    if (!data?.dataCenter?.servidores) return {}
+
+    const counts = {
+      all: data.dataCenter.servidores.length,
+      CHASIS: 0,
+      BLADE: 0,
+      RACK: 0,
+      TORRE: 0,
     }
-  }, [error])
 
-  if (loading) {
-    return (
-      <Box sx={{ p: 4, textAlign: 'center' }}>
-        <Typography>Cargando datos del Data Center...</Typography>
+    data.dataCenter.servidores.forEach(server => {
+      if (server.cod_tipo_servidor in counts) counts[server.cod_tipo_servidor]++
+    })
+
+    return counts
+  }, [data])
+
+  const filteredServers = useMemo(() => {
+    if (!data?.dataCenter?.servidores) return []
+    return data.dataCenter.servidores.filter(server => {
+      const typeMatch = activeTab === 'all' || server.cod_tipo_servidor === activeTab
+      const statusMatch = showInactive || server.estado === 'ACTIVO'
+      return typeMatch && statusMatch
+    })
+  }, [data, activeTab, showInactive])
+
+  const getFormattedData = (rows, table) => {
+    const visibleColumns = table.getVisibleLeafColumns()
+      .filter(column => !['mrt-row-actions', 'mrt-row-select'].includes(column.id))
+
+    return {
+      headers: visibleColumns.map(column => column.columnDef.header),
+      data: rows.map(row => visibleColumns.map(column => {
+        const cellValue = row.original[column.id] || 'N/A'
+        if (column.id === 'fecha_creacion') return formatDateTime(cellValue)
+        if (column.id === 'estado') return cellValue === 'ACTIVO' ? 'Activo' : 'Inactivo'
+        if (column.id === 'cod_tipo_servidor') return getTypeLabel(cellValue)
+        return cellValue.toString().substring(0, 100)
+      }))
+    }
+  }
+
+  const exportToPDF = (rows, table) => {
+    const { headers, data: exportData } = getFormattedData(rows, table)
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' })
+    const dataCenterName = data?.dataCenter?.nombre || 'Sin nombre'
+    const reportType = activeTab === 'all' ? 'Todos' : getTypeLabel(activeTab)
+
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(15, 40, 77)
+    doc.text(`REPORTE DE SERVIDORES - ${reportType.toUpperCase()}`, 14, 15)
+    doc.setFontSize(12)
+    doc.text(`Data Center: ${dataCenterName}`, 14, 22)
+    doc.text(`Generado: ${formatDateTime(new Date())} | Total: ${rows.length}`, 14, 28)
+
+    autoTable(doc, {
+      head: [headers.map(h => ({ content: h, styles: { fillColor: [15, 40, 77], textColor: 255 } }))],
+      body: exportData.map((row, i) => row.map(cell => ({
+        content: cell,
+        styles: { fillColor: i % 2 === 0 ? [248, 249, 250] : [255, 255, 255] }
+      }))),
+      startY: 35,
+      styles: { fontSize: 9, cellPadding: 3, font: 'helvetica' },
+      margin: { left: 10, right: 10 }
+    })
+
+    doc.save(`Servidores-${dataCenterName}-${reportType}-${new Date().toISOString()}.pdf`)
+  }
+
+  const exportToExcel = (rows, table) => {
+    const { headers, data: exportData } = getFormattedData(rows, table)
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([])
+    const dataCenterName = data?.dataCenter?.nombre || 'Sin nombre'
+    const reportType = activeTab === 'all' ? 'Todos' : getTypeLabel(activeTab)
+
+    XLSX.utils.sheet_add_aoa(ws, [
+      [`REPORTE DE SERVIDORES - ${reportType.toUpperCase()}`],
+      [`Data Center: ${dataCenterName}`],
+      [`Generado: ${formatDateTime(new Date())} | Total: ${rows.length}`],
+      [],
+      headers
+    ], { origin: 'A1' })
+
+    XLSX.utils.sheet_add_aoa(ws, exportData, { origin: 'A5' })
+    XLSX.utils.book_append_sheet(wb, ws, 'Servidores')
+    XLSX.writeFile(wb, `Servidores-${dataCenterName}-${reportType}-${new Date().toISOString()}.xlsx`)
+  }
+
+  const getTypeLabel = (type) => ({
+    CHASIS: 'Chasis',
+    BLADE: 'Blade',
+    RACK: 'Rack',
+    TORRE: 'Torre'
+  }[type] || 'TODOS')
+
+  const columns = useMemo(() => [
+    {
+      accessorKey: 'nombre',
+      header: 'Nombre',
+      Cell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ServerTypeIcon type={row.original.cod_tipo_servidor} />
+          {row.original.nombre}
+        </Box>
+      ),
+      size: 200
+    },
+    { accessorKey: 'cod_inventario_agetic', header: 'Inventario', size: 150 },
+    { accessorKey: 'cod_tipo_servidor', header: 'Tipo', Cell: ({ row }) => <TypeChip type={row.original.cod_tipo_servidor} /> },
+    { accessorKey: 'marca', header: 'Marca', size: 120 },
+    { accessorKey: 'modelo', header: 'Modelo', size: 120 },
+    { accessorKey: 'ram', header: 'RAM (GB)', size: 100 },
+    { accessorKey: 'almacenamiento', header: 'Almacenamiento (GB)', size: 140 },
+    { accessorKey: 'estado', header: 'Estado', Cell: ({ row }) => <StatusChip status={row.original.estado} /> },
+    { accessorKey: 'fecha_creacion', header: 'Fecha Creación', Cell: ({ cell }) => formatDateTime(cell.getValue()) },
+  ], [])
+
+  const table = useMaterialReactTable({
+    columns,
+    data: filteredServers,
+    enableRowActions: true,
+    enableRowSelection: true,
+    state: { isLoading: loading },
+    muiTableContainerProps: { sx: { maxHeight: 'calc(100vh - 300px)' } },
+    renderRowActions: ({ row }) => (
+      <Box sx={{ display: 'flex', gap: '4px' }}>
+        <Tooltip title="Ver detalles">
+          <IconButton onClick={() => navigate(routes.servidor({ id: row.original.id }))}>
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Ver máquinas">
+          <IconButton onClick={() => navigate(routes.maquinasFiltradas({ id: row.original.id }))}>
+            <DeviceHubIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    ),
+    renderTopToolbarCustomActions: ({ table }) => (
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+
+
+        {['all', 'page', 'selection'].map((type) => (
+          <React.Fragment key={type}>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<FileDownloadIcon />}
+              onClick={(e) => setExportMenuAnchor(prev => ({ ...prev, [type]: e.currentTarget }))}
+              disabled={type === 'selection' && !table.getSelectedRowModel().rows.length}
+              sx={{ bgcolor: '#0F284D', '&:hover': { bgcolor: '#1A3D6D' } }}
+            >
+              {isMobile ? (
+                type === 'all' ? 'Todos' :
+                type === 'page' ? 'Página' : `Sel. (${table.getSelectedRowModel().rows.length})`
+              ) : (
+                `Exportar ${type === 'all' ? 'Todos' : type === 'page' ? 'Página' : `Selección (${table.getSelectedRowModel().rows.length})`}`
+              )}
+            </Button>
+            <Menu
+              anchorEl={exportMenuAnchor[type]}
+              open={Boolean(exportMenuAnchor[type])}
+              onClose={() => setExportMenuAnchor(prev => ({ ...prev, [type]: null }))}
+            >
+              {['PDF', 'Excel', 'CSV'].map(format => (
+                <MenuItem key={format} onClick={() => {
+                  const rows = {
+                    all: table.getPrePaginationRowModel().rows,
+                    page: table.getRowModel().rows,
+                    selection: table.getSelectedRowModel().rows
+                  }[type]
+
+                  if (format === 'PDF') exportToPDF(rows, table)
+                  if (format === 'Excel') exportToExcel(rows, table)
+                  if (format === 'CSV') exportToCSV(rows, table)
+
+                  setExportMenuAnchor(prev => ({ ...prev, [type]: null }))
+                }}>
+                  {format}
+                </MenuItem>
+              ))}
+            </Menu>
+          </React.Fragment>
+        ))}
       </Box>
     )
-  }
+  })
 
-  const dataCenter = data?.dataCenter
-  if (!dataCenter) {
-    return (
-      <Box sx={{ p: 4, textAlign: 'center' }}>
-        <Typography color="error">
-          Data Center no encontrado o sin acceso
-        </Typography>
-        <Button
-          component={Link}
-          to={routes.dataCenters()}
-          startIcon={<ArrowBackIcon />}
-          sx={{ mt: 2 }}
-        >
-          Volver a la lista
-        </Button>
-      </Box>
-    )
+  if (error) {
+    toast.error('Error cargando data center')
+    navigate(routes.dataCenters())
+    return null
   }
-
-  const getFilteredServers = () => {
-    if (activeTab === 'all') return dataCenter.servidores
-    return dataCenter.servidores.filter(
-      (server) => server.cod_tipo_servidor === activeTab
-    )
-  }
-
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue)
-  }
-
-  const handleMenuOpen = (event, serverId) => {
-    setMenuAnchorEl(event.currentTarget)
-    setSelectedServerId(serverId)
-  }
-
-  const handleMenuClose = () => {
-    setMenuAnchorEl(null)
-    setSelectedServerId(null)
-  }
-
-  const handleViewServer = () => {
-    navigate(routes.servidor({ id: selectedServerId }))
-    handleMenuClose()
-  }
-  const handleViewMaquina = () => {
-    navigate(routes.maquinasFiltradas({ id: selectedServerId }))
-    handleMenuClose()
-  }
-
-  const serverTypes = ['CHASIS', 'BLADE', 'RACK', 'TORRE']
 
   return (
-    <Box sx={{ p: 2 }}>
-      {/* Breadcrumbs */}
-      <Paper elevation={1} sx={{ p: 2, mb: 3 }}>
-        <Breadcrumbs aria-label="breadcrumb" separator="›">
-          <MuiLink
-            component={Link}
-            to={routes.home()}
-            underline="hover"
-            color="inherit"
-          >
-            Dashboard
-          </MuiLink>
-          <MuiLink
-            component={Link}
-            to={routes.dataCenters()}
-            underline="hover"
-            color="inherit"
-          >
-            Data Centers
-          </MuiLink>
-          <Typography color="text.primary">{dataCenter.nombre}</Typography>
-        </Breadcrumbs>
-      </Paper>
-
-      {/* Cabecera */}
-      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            mb: 2,
-          }}
-        >
-          <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
-            {dataCenter.nombre}
+    <Box sx={{ p: 2, maxWidth: '100%', overflow: 'hidden' }}>
+      <Paper elevation={0} sx={{ p: 2, mb: 2 }}>
+        <Breadcrumbs sx={{ mb: 2, fontSize: '0.9rem' }}>
+          <MuiLink component={Link} to={routes.home()} underline="hover">Dashboard</MuiLink>
+          <MuiLink component={Link} to={routes.dataCenters()} underline="hover">Data Centers</MuiLink>
+          <Typography fontWeight="bold" color="#0F284D">
+            {data?.dataCenter?.nombre || 'Cargando...'}
           </Typography>
-          <Chip
-            label={dataCenter.estado === 'ACTIVO' ? 'Activo' : 'Inactivo'}
-            color={dataCenter.estado === 'ACTIVO' ? 'success' : 'error'}
-            sx={{ mt: { xs: 2, sm: 0 } }}
-          />
+        </Breadcrumbs>
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+          <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#0F284D' }}>
+            <Storage fontSize="large" />
+            {data?.dataCenter?.nombre || 'Data Center'}
+            <Chip
+              label={data?.dataCenter?.estado || '...'}
+              color={data?.dataCenter?.estado === 'ACTIVO' ? 'success' : 'error'}
+              size="small"
+              sx={{ ml: 1 }}
+            />
+          </Typography>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate(routes.dataCenters())}
+            variant="outlined"
+          >
+            Volver
+          </Button>
         </Box>
       </Paper>
 
-      {/* Tabs */}
-      <Paper elevation={1} sx={{ p: 2, mb: 3 }}>
+      <Paper elevation={0} sx={{ p: 2 }}>
         <Tabs
           value={activeTab}
-          onChange={handleTabChange}
+          onChange={(e, newValue) => setActiveTab(newValue)}
           variant="scrollable"
           scrollButtons="auto"
+          sx={{ mb: 2 }}
         >
-          <Tab label="Todos" value="all" />
-          {serverTypes.map((type) => (
-            <Tab key={type} label={type} value={type} />
+          {Object.entries(serverCounts).map(([type, count]) => (
+            <Tab
+              key={type}
+              value={type}
+              label={`${getTypeLabel(type)} (${count})`}
+              sx={{ minWidth: isMobile ? 100 : 150 }}
+            />
           ))}
         </Tabs>
 
-        {/* Tabla */}
-        <TableContainer component={Paper} sx={{ mt: 3 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Nombre</TableCell>
-                <TableCell>Inventario AGETIC</TableCell>
-                <TableCell>Tipo</TableCell>
-                <TableCell>Marca/Modelo</TableCell>
-                <TableCell>RAM</TableCell>
-                <TableCell>Almacenamiento</TableCell>
-                <TableCell>Fecha de Creación</TableCell>
-                <TableCell>Acciones</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {getFilteredServers()?.map((server) => (
-                <TableRow key={server.id}>
-                  <TableCell>{server.nombre}</TableCell>
-                  <TableCell>{server.cod_inventario_agetic}</TableCell>
-                  <TableCell>{server.cod_tipo_servidor}</TableCell>
-                  <TableCell>
-                    {server.marca} {server.modelo}
-                  </TableCell>
-                  <TableCell>{server.ram}</TableCell>
-                  <TableCell>{server.almacenamiento}</TableCell>
-                  <TableCell>{formatDateTime(server.fecha_creacion)}</TableCell>
-                  <TableCell>
-                    <IconButton
-                      aria-label="more"
-                      onClick={(event) => handleMenuOpen(event, server.id)}
-                    >
-                      <MoreVertIcon />
-                    </IconButton>
-                    <Menu
-                      anchorEl={menuAnchorEl}
-                      open={selectedServerId === server.id}
-                      onClose={handleMenuClose}
-                    >
-                      <MenuItem onClick={handleViewServer}>
-                        Ver servidor
-                      </MenuItem>
-                      <MenuItem onClick={handleViewMaquina}>
-                        Ver Maquinas
-                      </MenuItem>
-                    </Menu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <MaterialReactTable table={table} />
+        )}
       </Paper>
     </Box>
   )
 }
 
-export default DataCenterServidor
+export default React.memo(DataCenterServidor)

@@ -33,7 +33,7 @@ import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/AsignacionServidorMaquina/AsignacionServidorMaquinasCell'
 
-// Query to get detailed information for servers, machines, and clusters
+// Query to get detailed information for servers, machines, clusters and users
 const GET_DETAILS_QUERY = gql`
   query GetDetailsForAsignaciones {
     servidores: servidores {
@@ -50,6 +50,12 @@ const GET_DETAILS_QUERY = gql`
     clusters: clusters {
       id
       nombre
+    }
+    usuarios: usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
     }
   }
 `
@@ -88,6 +94,11 @@ const formatEnum = (value) => {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
 }
 
+const formatUserName = (user) => {
+  if (!user) return 'N/A'
+  return `${user.nombres} ${user.primer_apellido} ${user.segundo_apellido}`
+}
+
 const AsignacionServidorMaquinasList = ({
   asignacionServidorMaquinas = [],
 }) => {
@@ -111,12 +122,12 @@ const AsignacionServidorMaquinasList = ({
   })
   const [showInactive, setShowInactive] = useState(false)
 
-  // Fetch details for servers, machines, and clusters
+  // Fetch details for servers, machines, clusters and users
   const { data: detailsData } = useQuery(GET_DETAILS_QUERY, {
     fetchPolicy: 'cache-and-network',
   })
 
-  // Create lookup maps for servers, machines, and clusters
+  // Create lookup maps for servers, machines, clusters and users
   const servidoresMap = useMemo(() => {
     if (!detailsData?.servidores) return {}
     return detailsData.servidores.reduce((acc, servidor) => {
@@ -140,6 +151,14 @@ const AsignacionServidorMaquinasList = ({
       return acc
     }, {})
   }, [detailsData?.clusters])
+
+  const usuariosMap = useMemo(() => {
+    if (!detailsData?.usuarios) return {}
+    return detailsData.usuarios.reduce((acc, usuario) => {
+      acc[usuario.id] = usuario
+      return acc
+    }, {})
+  }, [detailsData?.usuarios])
 
   const [updateAsignacion] = useMutation(UPDATE_ASIGNACION_MUTATION, {
     onCompleted: () => {
@@ -180,6 +199,8 @@ const AsignacionServidorMaquinasList = ({
       const servidor = servidoresMap[asignacion.id_servidor] || { marca: 'N/A', modelo: 'N/A', serie: 'N/A', cod_tipo_servidor: 'N/A' }
       const maquina = maquinasMap[asignacion.id_maquina] || { nombre: 'N/A' }
       const cluster = asignacion.id_cluster ? (clustersMap[asignacion.id_cluster] || { nombre: 'N/A' }) : null
+      const usuarioCreacion = usuariosMap[asignacion.usuario_creacion] || null
+      const usuarioModificacion = asignacion.usuario_modificacion ? (usuariosMap[asignacion.usuario_modificacion] || null) : null
 
       return {
         ...asignacion,
@@ -187,9 +208,11 @@ const AsignacionServidorMaquinasList = ({
         servidor_tipo: servidor.cod_tipo_servidor,
         maquina_nombre: maquina.nombre,
         cluster_nombre: cluster ? cluster.nombre : 'N/A',
+        usuario_creacion_nombre: formatUserName(usuarioCreacion),
+        usuario_modificacion_nombre: formatUserName(usuarioModificacion),
       }
     })
-  }, [filteredAsignaciones, servidoresMap, maquinasMap, clustersMap])
+  }, [filteredAsignaciones, servidoresMap, maquinasMap, clustersMap, usuariosMap])
 
   const getFormattedData = (rows, table) => {
     const visibleColumns = table
@@ -423,23 +446,32 @@ const AsignacionServidorMaquinasList = ({
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
       },
       {
-        accessorKey: 'usuario_creacion',
+        accessorKey: 'usuario_creacion_nombre',
         header: 'Creado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ row }) => (
+          <Tooltip title={`ID: ${row.original.usuario_creacion}`}>
+            <span>{row.original.usuario_creacion_nombre}</span>
+          </Tooltip>
+        ),
       },
       {
         accessorKey: 'fecha_modificacion',
         header: 'Última Modificación',
         size: 150,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
       },
       {
-        accessorKey: 'usuario_modificacion',
+        accessorKey: 'usuario_modificacion_nombre',
         header: 'Modificado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ row }) => (
+          row.original.usuario_modificacion ? (
+            <Tooltip title={`ID: ${row.original.usuario_modificacion}`}>
+              <span>{row.original.usuario_modificacion_nombre}</span>
+            </Tooltip>
+          ) : <span>N/A</span>
+        ),
       },
     ],
     []
@@ -464,9 +496,7 @@ const AsignacionServidorMaquinasList = ({
     initialState: {
       showGlobalFilter: true,
       columnVisibility: {
-        usuario_creacion: false,
         fecha_modificacion: false,
-        usuario_modificacion: false,
       },
       density: 'compact',
     },

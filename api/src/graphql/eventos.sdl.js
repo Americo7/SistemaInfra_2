@@ -1,6 +1,7 @@
 export const schema = gql`
   type Evento {
     id: Int!
+    cod_evento: String
     cod_tipo_evento: String!
     descripcion: String!
     fecha_evento: DateTime!
@@ -29,6 +30,7 @@ export const schema = gql`
   }
 
   input CreateEventoInput {
+    cod_evento: String
     cod_tipo_evento: String!
     descripcion: String!
     fecha_evento: DateTime!
@@ -45,6 +47,7 @@ export const schema = gql`
   }
 
   input UpdateEventoInput {
+    cod_evento: String
     cod_tipo_evento: String
     descripcion: String
     fecha_evento: DateTime

@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -28,7 +27,7 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/UsuarioRol/UsuarioRolsCell'
@@ -41,6 +40,17 @@ const UPDATE_USUARIO_ROL_MUTATION = gql`
     updateUsuarioRol(id: $id, input: $input) {
       id
       estado
+    }
+  }
+`
+
+const USUARIOS_QUERY = gql`
+  query UsuariosQuery {
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
     }
   }
 `
@@ -85,6 +95,10 @@ const UsuarioRolsList = ({ usuarioRols = [] }) => {
   })
   const [showInactive, setShowInactive] = useState(false)
 
+  // Fetch usuarios data
+  const { data: usuariosData } = useQuery(USUARIOS_QUERY)
+  const usuarios = usuariosData?.usuarios || []
+
   const [updateUsuarioRol] = useMutation(UPDATE_USUARIO_ROL_MUTATION, {
     onCompleted: () => {
       toast.success('UsuarioRol desactivado correctamente')
@@ -96,6 +110,15 @@ const UsuarioRolsList = ({ usuarioRols = [] }) => {
     refetchQueries: [{ query: QUERY }],
     awaitRefetchQueries: true,
   })
+
+  // Function to get full user name
+  const getNombreUsuario = (id) => {
+    if (!id) return 'N/A'
+    const usuario = usuarios.find(u => u.id === id)
+    return usuario
+      ? `${usuario.nombres} ${usuario.primer_apellido} ${usuario.segundo_apellido || ''}`.trim()
+      : 'N/A'
+  }
 
   const desactivarUsuarioRol = (id) => {
     updateUsuarioRol({
@@ -134,6 +157,8 @@ const UsuarioRolsList = ({ usuarioRols = [] }) => {
 
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado') return formatEnum(cellValue)
+          if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+            return getNombreUsuario(cellValue)
 
           // Mostrar nombres en lugar de IDs para las relaciones
           if (column.id === 'id_usuario') return row.original.usuarios?.nombres || cellValue
@@ -344,24 +369,23 @@ const UsuarioRolsList = ({ usuarioRols = [] }) => {
       {
         accessorKey: 'usuario_creacion',
         header: 'Creado por',
-        size: 120,
-        visible: false,
+        size: 180,
+        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
       },
       {
         accessorKey: 'fecha_modificacion',
         header: 'Última Modificación',
         size: 150,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
       },
       {
         accessorKey: 'usuario_modificacion',
         header: 'Modificado por',
-        size: 120,
-        visible: false,
+        size: 180,
+        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
       },
     ],
-    []
+    [usuarios]
   )
 
   const table = useMaterialReactTable({
@@ -383,7 +407,6 @@ const UsuarioRolsList = ({ usuarioRols = [] }) => {
     initialState: {
       showGlobalFilter: true,
       columnVisibility: {
-        usuario_creacion: false,
         fecha_modificacion: false,
         usuario_modificacion: false,
       },

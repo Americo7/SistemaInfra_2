@@ -1,7 +1,7 @@
 export const schema = gql`
   type Maquina {
     id: Int!
-    codigo: Int
+    codigo: String
     cod_plataforma: String!
     nombre: String!
     ip: String!
@@ -32,7 +32,7 @@ export const schema = gql`
   }
 
   input CreateMaquinaInput {
-    codigo: Int
+    codigo: String
     cod_plataforma: String!
     nombre: String!
     ip: String!
@@ -49,8 +49,8 @@ export const schema = gql`
   }
 
   input UpdateMaquinaInput {
-    codigo: Int
-    cod_plataforma: String!
+    codigo: String
+    cod_plataforma: String
     nombre: String
     ip: String
     so: String

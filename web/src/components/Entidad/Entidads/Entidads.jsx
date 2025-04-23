@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -28,12 +27,12 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/Entidad/EntidadsCell'
+import { formatEnum, truncate } from 'src/lib/formatters'
 
-// Usamos la mutación updateEntidad que ya existe en lugar de crear una nueva
 const UPDATE_ENTIDAD_MUTATION = gql`
   mutation UpdateEntidadMutationFromEntidadList(
     $id: Int!
@@ -42,6 +41,17 @@ const UPDATE_ENTIDAD_MUTATION = gql`
     updateEntidad(id: $id, input: $input) {
       id
       estado
+    }
+  }
+`
+
+const USUARIOS_QUERY = gql`
+  query UsuariosQuery {
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
     }
   }
 `
@@ -58,16 +68,6 @@ const formatDateTime = (dateString) => {
   })
 }
 
-const truncate = (text, length = 50) => {
-  if (!text) return 'N/A'
-  return text.length > length ? text.substring(0, length) + '...' : text
-}
-
-const formatEnum = (value) => {
-  if (!value) return 'N/A'
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
-}
-
 const EntidadsList = ({ entidads = [] }) => {
   const [deleteState, setDeleteState] = useState({ open: false, id: null })
   const [exportMenuAnchor, setExportMenuAnchor] = useState({
@@ -77,7 +77,10 @@ const EntidadsList = ({ entidads = [] }) => {
   })
   const [showInactive, setShowInactive] = useState(false)
 
-  // Mutación para cambiar el estado a inactivo usando la mutación existente
+  // Fetch usuarios data
+  const { data: usuariosData } = useQuery(USUARIOS_QUERY)
+  const usuarios = usuariosData?.usuarios || []
+
   const [updateEntidad] = useMutation(UPDATE_ENTIDAD_MUTATION, {
     onCompleted: () => {
       toast.success('Entidad desactivada correctamente')
@@ -90,7 +93,15 @@ const EntidadsList = ({ entidads = [] }) => {
     awaitRefetchQueries: true,
   })
 
-  // Función para desactivar la entidad
+  // Function to get full user name
+  const getNombreUsuario = (id) => {
+    if (!id) return 'N/A'
+    const usuario = usuarios.find(u => u.id === id)
+    return usuario
+      ? `${usuario.nombres} ${usuario.primer_apellido} ${usuario.segundo_apellido || ''}`.trim()
+      : 'N/A'
+  }
+
   const desactivarEntidad = (id) => {
     updateEntidad({
       variables: {
@@ -98,8 +109,6 @@ const EntidadsList = ({ entidads = [] }) => {
         input: {
           estado: 'INACTIVO',
           fecha_modificacion: new Date().toISOString(),
-          // Asumiendo que tienes un contexto de usuario puedes añadir:
-          // usuario_modificacion: currentUser.id o currentUser.username
         },
       },
     })
@@ -119,11 +128,13 @@ const EntidadsList = ({ entidads = [] }) => {
       headers,
       data: rows.map((row) =>
         visibleColumns.map((column) => {
-          const cellValue = row.original[column.id] || 'N/A'
+          const cellValue = row.original[column.id]
 
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'estado') return formatEnum(cellValue)
-          return truncate(cellValue, 100)
+          if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+            return getNombreUsuario(cellValue)
+          return cellValue ? String(cellValue) : 'N/A'
         })
       ),
     }
@@ -191,92 +202,63 @@ const EntidadsList = ({ entidads = [] }) => {
   const exportToExcel = (rows, table) => {
     const { headers, data } = getFormattedData(rows, table)
     const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet([])
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
 
+    // Estilos para el encabezado
     const headerStyle = {
-      font: { sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '0F284D' } },
-      alignment: { horizontal: 'center' },
+      fill: { fgColor: { rgb: "0F284D" } },
+      font: { color: { rgb: "FFFFFF" }, bold: true },
+      alignment: { horizontal: "center" },
       border: {
-        top: { style: 'thin', color: { rgb: '000000' } },
-        bottom: { style: 'thin', color: { rgb: '000000' } },
-        left: { style: 'thin', color: { rgb: '000000' } },
-        right: { style: 'thin', color: { rgb: '000000' } },
+        top: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "000000" } },
+        right: { style: "thin", color: { rgb: "000000" } },
       },
     }
 
-    XLSX.utils.sheet_add_aoa(ws, [['Reporte de Entidades']], { origin: 'A1' })
-    XLSX.utils.sheet_add_aoa(
-      ws,
-      [[`Generado: ${formatDateTime(new Date())}`]],
-      { origin: 'A2' }
-    )
-    XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A4' })
-    XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A5' })
+    // Aplicar estilos al encabezado
+    for (let i = 0; i < headers.length; i++) {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: i })
+      ws[cellRef].s = headerStyle
+    }
 
-    const range = XLSX.utils.decode_range(ws['!ref'])
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
-      ws[headerCell].s = headerStyle
-
-      for (let R = 4; R <= range.e.r; ++R) {
-        const cell = XLSX.utils.encode_cell({ r: R, c: C })
-        if (!ws[cell]) ws[cell] = {}
-        ws[cell].s = {
-          fill: { fgColor: { rgb: R % 2 === 0 ? 'F8F9FA' : 'FFFFFF' } },
-          border: {
-            top: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            bottom: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            left: { style: 'thin', color: { rgb: 'DDDDDD' } },
-            right: { style: 'thin', color: { rgb: 'DDDDDD' } },
-          },
+    // Aplicar estilos a las filas
+    for (let r = 1; r <= data.length; r++) {
+      for (let c = 0; c < headers.length; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r, c })
+        ws[cellRef].s = {
+          fill: { fgColor: { rgb: r % 2 === 0 ? "F8F9FA" : "FFFFFF" } },
+          alignment: { wrapText: true },
         }
       }
     }
 
-    ws['!cols'] = headers.map((_, col) => ({
-      wch:
-        Math.max(
-          ...data.map((row) => String(row[col]).length),
-          headers[col].length
-        ) + 2,
-    }))
+    // Ajustar ancho de columnas
+    ws['!cols'] = headers.map(() => ({ width: 20 }))
 
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
-    ]
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Entidades')
+    XLSX.utils.book_append_sheet(wb, ws, "Entidades")
     XLSX.writeFile(wb, `entidades-${new Date().toISOString()}.xlsx`)
   }
 
   const exportToCSV = (rows, table) => {
     const { headers, data } = getFormattedData(rows, table)
     const csvContent = [
-      'Reporte de Entidades',
-      `Generado: ${formatDateTime(new Date())}`,
-      '',
       headers.join(','),
-      ...data.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-      ),
-      '',
-      `*Este archivo fue generado automáticamente el ${formatDateTime(
-        new Date()
-      )}`,
+      ...data.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     ].join('\n')
 
-    const blob = new Blob(['\ufeff', csvContent], {
-      type: 'text/csv;charset=utf-8;',
-    })
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
-    link.href = URL.createObjectURL(blob)
-    link.download = `entidades-${new Date().toISOString()}.csv`
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `entidades-${new Date().toISOString()}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
   }
 
-  // Filtrar las entidades inactivas a menos que se solicite mostrarlas
   const filteredEntidades = useMemo(() => {
     if (showInactive) {
       return entidads
@@ -310,30 +292,29 @@ const EntidadsList = ({ entidads = [] }) => {
       },
       {
         accessorKey: 'usuario_creacion',
-        header: 'Creado por',
-        size: 120,
-        visible: false,
+        header: 'Usuario Creación',
+        size: 180,
+        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
       },
       {
         accessorKey: 'fecha_modificacion',
-        header: 'Última Modificación',
+        header: 'Fecha Modificación',
         size: 150,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
       },
       {
         accessorKey: 'usuario_modificacion',
-        header: 'Modificado por',
-        size: 120,
-        visible: false,
+        header: 'Usuario Modificación',
+        size: 180,
+        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
       },
     ],
-    []
+    [usuarios]
   )
 
   const table = useMaterialReactTable({
     columns,
-    data: filteredEntidades, // Usamos los datos filtrados
+    data: filteredEntidades,
     enableRowActions: true,
     enableRowSelection: true,
     enableMultiRowSelection: true,
@@ -343,14 +324,14 @@ const EntidadsList = ({ entidads = [] }) => {
       sx: {
         cursor: 'pointer',
         backgroundColor: row.getIsSelected()
-          ? 'rgba(0, 0, 255, 0.1)'
+          ? 'rgba(128, 0, 32, 0.1)' // #800020 con 10% de opacidad
           : undefined,
       },
     }),
+
     initialState: {
       showGlobalFilter: true,
       columnVisibility: {
-        usuario_creacion: false,
         fecha_modificacion: false,
         usuario_modificacion: false,
       },
@@ -421,8 +402,8 @@ const EntidadsList = ({ entidads = [] }) => {
             variant="contained"
             size="small"
             sx={{
-              backgroundColor: '#0F284D',
-              '&:hover': { backgroundColor: '#1A3D6D' },
+              backgroundColor: '800020',
+              '&:hover': { backgroundColor: '#800020' },
             }}
           >
             Exportar Todos
@@ -472,8 +453,8 @@ const EntidadsList = ({ entidads = [] }) => {
             variant="contained"
             size="small"
             sx={{
-              backgroundColor: '#0F284D',
-              '&:hover': { backgroundColor: '#1A3D6D' },
+              backgroundColor: '#800020',
+              '&:hover': { backgroundColor: '#800020' },
             }}
           >
             Exportar Página
@@ -523,8 +504,8 @@ const EntidadsList = ({ entidads = [] }) => {
             variant="contained"
             size="small"
             sx={{
-              backgroundColor: '#0F284D',
-              '&:hover': { backgroundColor: '#1A3D6D' },
+              backgroundColor: '#800020',
+              '&:hover': { backgroundColor: '#800020' },
             }}
           >
             Exportar Selección ({hasSelection ? selectedRows.length : 0})
@@ -591,8 +572,8 @@ const EntidadsList = ({ entidads = [] }) => {
             color="error"
             variant="contained"
             sx={{
-              backgroundColor: '#e57373',
-              '&:hover': { backgroundColor: '#ef5350' },
+              backgroundColor: '800020',
+              '&:hover': { backgroundColor: '#800020' },
             }}
           >
             Desactivar

@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -30,7 +29,7 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import * as XLSX from 'xlsx-js-style'
 
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, useQuery } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import { QUERY } from 'src/components/Componente/ComponentesCell'
@@ -43,6 +42,25 @@ const UPDATE_COMPONENTE_MUTATION = gql`
     updateComponente(id: $id, input: $input) {
       id
       estado
+    }
+  }
+`
+
+const GET_SISTEMAS_QUERY = gql`
+  query GetSistemasForComponentesList {
+    sistemas {
+      id
+      nombre
+    }
+  }
+`
+
+const GET_USUARIOS_QUERY = gql`
+  query GetUsuariosForComponentesList {
+    usuarios {
+      id
+      nombres
+      primer_apellido
     }
   }
 `
@@ -124,6 +142,25 @@ const ComponentesList = ({ componentes = [] }) => {
   })
   const [showInactive, setShowInactive] = useState(false)
 
+  // Obtener datos de sistemas y usuarios
+  const { data: sistemasData } = useQuery(GET_SISTEMAS_QUERY)
+  const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
+
+  // Crear mapeos para sistemas y usuarios
+  const sistemasMap = useMemo(() => {
+    return sistemasData?.sistemas?.reduce((map, sistema) => {
+      map[sistema.id] = sistema.nombre
+      return map
+    }, {}) || {}
+  }, [sistemasData])
+
+  const usuariosMap = useMemo(() => {
+    return usuariosData?.usuarios?.reduce((map, usuario) => {
+      map[usuario.id] = `${usuario.nombres} ${usuario.primer_apellido}`
+      return map
+    }, {}) || {}
+  }, [usuariosData])
+
   const [updateComponente] = useMutation(UPDATE_COMPONENTE_MUTATION, {
     onCompleted: () => {
       toast.success('Componente desactivado correctamente')
@@ -167,6 +204,9 @@ const ComponentesList = ({ componentes = [] }) => {
           if (column.id.includes('fecha_')) return formatDateTime(cellValue)
           if (column.id === 'tecnologia') return jsonTruncate(cellValue)
           if (column.id === 'estado') return formatEnum(cellValue)
+          if (column.id === 'id_sistema') return sistemasMap[cellValue] || cellValue
+          if (column.id === 'usuario_creacion') return usuariosMap[cellValue] || cellValue
+          if (column.id === 'usuario_modificacion') return usuariosMap[cellValue] || cellValue
           return truncate(cellValue, 100)
         })
       ),
@@ -330,7 +370,20 @@ const ComponentesList = ({ componentes = [] }) => {
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'id_sistema', header: 'ID Sistema', size: 100 },
+      {
+        accessorKey: 'id_sistema',
+        header: 'Sistema',
+        size: 150,
+        Cell: ({ cell }) => {
+          const sistemaId = cell.getValue()
+          const sistemaNombre = sistemasMap[sistemaId] || sistemaId
+          return (
+            <Tooltip title={sistemaNombre} arrow>
+              <span>{truncate(sistemaNombre, 20)}</span>
+            </Tooltip>
+          )
+        },
+      },
       { accessorKey: 'nombre', header: 'Nombre', size: 150 },
       { accessorKey: 'dominio', header: 'Dominio', size: 120 },
       { accessorKey: 'descripcion', header: 'Descripción', size: 200 },
@@ -395,24 +448,39 @@ const ComponentesList = ({ componentes = [] }) => {
       {
         accessorKey: 'usuario_creacion',
         header: 'Creado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ cell }) => {
+          const usuarioId = cell.getValue()
+          const usuarioNombre = usuariosMap[usuarioId] || usuarioId
+          return (
+            <Tooltip title={usuarioNombre} arrow>
+              <span>{truncate(usuarioNombre, 20)}</span>
+            </Tooltip>
+          )
+        },
       },
       {
         accessorKey: 'fecha_modificacion',
         header: 'Última Modificación',
         size: 150,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
-        visible: false,
       },
       {
         accessorKey: 'usuario_modificacion',
         header: 'Modificado por',
-        size: 120,
-        visible: false,
+        size: 150,
+        Cell: ({ cell }) => {
+          const usuarioId = cell.getValue()
+          const usuarioNombre = usuariosMap[usuarioId] || usuarioId
+          return (
+            <Tooltip title={usuarioNombre} arrow>
+              <span>{truncate(usuarioNombre, 20)}</span>
+            </Tooltip>
+          )
+        },
       },
     ],
-    []
+    [sistemasMap, usuariosMap]
   )
 
   const table = useMaterialReactTable({

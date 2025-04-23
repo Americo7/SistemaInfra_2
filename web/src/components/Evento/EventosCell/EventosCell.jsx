@@ -6,6 +6,7 @@ export const QUERY = gql`
   query FindEventos {
     eventos {
       id
+      cod_evento
       cod_tipo_evento
       descripcion
       fecha_evento

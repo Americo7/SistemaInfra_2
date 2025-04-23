@@ -7,9 +7,7 @@ export const servidores = () => {
 export const servidor = ({ id }) => {
   return db.servidor.findUnique({
     where: { id },
-    include: {
-      asignacion_servidor_maquina: true, // Incluye la relación de servidores
-    },
+
   })
 }
 

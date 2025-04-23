@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
+import Select from 'react-select'
 import {
   Box,
+  Card,
+  CardContent,
+  Divider,
   Grid,
-  TextField,
-  Button,
   Typography,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Select,
+  useTheme,
+  TextField as MuiTextField,
 } from '@mui/material'
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
@@ -16,6 +16,20 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs from 'dayjs'
 import gql from 'graphql-tag'
 import { useQuery } from '@redwoodjs/web'
+import { LoadingButton } from '@mui/lab'
+import {
+  CheckCircleOutline,
+  Computer,
+  Code,
+  CalendarToday,
+  Person,
+  Business,
+  Description,
+  Backup,
+  Link,
+  PlaylistAddCheck,
+  Close,
+} from '@mui/icons-material'
 
 const OBTENER_MAQUINAS = gql`
   query ObtenerMaquinaDespliegue {
@@ -60,6 +74,7 @@ const OBTENER_SISTEMAS = gql`
 `
 
 const DespliegueForm = (props) => {
+  const theme = useTheme()
   const { data: componentesData } = useQuery(OBTENER_COMPONENTES)
   const { data: maquinasData } = useQuery(OBTENER_MAQUINAS)
   const { data: parametrosData } = useQuery(GET_PARAMETROS)
@@ -72,7 +87,7 @@ const DespliegueForm = (props) => {
     fecha_solicitud: null,
     unidad_solicitante: '',
     solicitante: '',
-    descripcion: '', // Nuevo campo añadido
+    descripcion: '',
     cod_tipo_respaldo: '',
     referencia_respaldo: '',
     estado_despliegue: '',
@@ -95,7 +110,7 @@ const DespliegueForm = (props) => {
         fecha_solicitud: props.despliegue.fecha_solicitud ? dayjs(props.despliegue.fecha_solicitud) : null,
         unidad_solicitante: props.despliegue.unidad_solicitante,
         solicitante: props.despliegue.solicitante,
-        descripcion: props.despliegue.descripcion || '', // Manejo del nuevo campo
+        descripcion: props.despliegue.descripcion || '',
         cod_tipo_respaldo: props.despliegue.cod_tipo_respaldo,
         referencia_respaldo: props.despliegue.referencia_respaldo,
         estado_despliegue: props.despliegue.estado_despliegue,
@@ -126,22 +141,39 @@ const DespliegueForm = (props) => {
     setFormData((prev) => ({ ...prev, [name]: date }))
   }
 
+  const handleSelectChange = (name) => (selectedOption) => {
+    setFormData((prev) => ({
+      ...prev,
+      [name]: selectedOption ? selectedOption.value : ''
+    }))
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
 
     // Validar campos requeridos
-    if (
-      !formData.id_componente ||
-      !formData.id_maquina ||
-      !formData.fecha_despliegue ||
-      !formData.fecha_solicitud ||
-      !formData.unidad_solicitante ||
-      !formData.solicitante ||
-      !formData.cod_tipo_respaldo ||
-      !formData.referencia_respaldo ||
-      !formData.estado_despliegue
-    ) {
-      alert('Por favor complete todos los campos requeridos')
+    const requiredFields = [
+      'id_componente',
+      'id_maquina',
+      'fecha_despliegue',
+      'fecha_solicitud',
+      'unidad_solicitante',
+      'solicitante',
+      'cod_tipo_respaldo',
+      'referencia_respaldo',
+      'estado_despliegue'
+    ]
+
+    const missingFields = requiredFields.filter(field => !formData[field])
+    if (missingFields.length > 0) {
+      alert(`Por favor complete los siguientes campos: ${missingFields.join(', ')}`)
+      return
+    }
+
+    // Validar fechas
+    if (formData.fecha_solicitud && formData.fecha_despliegue &&
+        formData.fecha_solicitud.isAfter(formData.fecha_despliegue)) {
+      alert('La fecha de solicitud no puede ser posterior a la fecha de despliegue')
       return
     }
 
@@ -151,188 +183,374 @@ const DespliegueForm = (props) => {
       fecha_despliegue: formData.fecha_despliegue.toISOString(),
       fecha_solicitud: formData.fecha_solicitud.toISOString(),
       estado: 'ACTIVO',
-      usuario_modificacion: 1,
-      usuario_creacion: 1,
+      usuario_modificacion: 2,
+      usuario_creacion: 3,
     }
 
     props.onSave(payload, props?.despliegue?.id)
   }
 
+  // Opciones para los selects
+  const componenteOptions = componentesActivos.map(comp => ({
+    value: comp.id,
+    label: comp.nombre
+  }))
+
+  const maquinaOptions = maquinasActivas.map(maq => ({
+    value: maq.id,
+    label: maq.nombre
+  }))
+
+  const tipoRespaldoOptions = parametrosDeTipoRespaldo.map(p => ({
+    value: p.codigo,
+    label: p.nombre
+  }))
+
+  const estadoDespliegueOptions = parametrosDeEstadoDespliegue.map(p => ({
+    value: p.codigo,
+    label: p.nombre
+  }))
+
+  // Estilos personalizados para los selects
+  const customSelectStyles = {
+    control: (base) => ({
+      ...base,
+      minHeight: '56px',
+      borderRadius: '8px',
+      borderColor: theme.palette.divider,
+      '&:hover': {
+        borderColor: theme.palette.primary.main,
+      },
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isSelected
+        ? theme.palette.primary.light
+        : state.isFocused
+        ? theme.palette.action.hover
+        : 'transparent',
+      color: state.isSelected
+        ? theme.palette.primary.contrastText
+        : theme.palette.text.primary,
+    }),
+    menu: (base) => ({
+      ...base,
+      zIndex: 9999,
+    }),
+    singleValue: (base) => ({
+      ...base,
+      color: theme.palette.text.primary,
+    }),
+    placeholder: (base) => ({
+      ...base,
+      color: theme.palette.text.secondary,
+    }),
+  }
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
-          <Box p={3} border={1} borderRadius={2} boxShadow={2}>
-            <Typography variant="h6" gutterBottom>
-              Formulario de Despliegue
-            </Typography>
-            <form onSubmit={handleSubmit}>
-              <Grid container spacing={2} direction="column">
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Componente</InputLabel>
-                    <Select
-                      name="id_componente"
-                      value={formData.id_componente}
-                      label="Componente"
-                      onChange={handleChange}
-                      required
-                    >
-                      {componentesActivos.map((comp) => (
-                        <MenuItem key={comp.id} value={comp.id}>
-                          {comp.nombre}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+      <Card
+        sx={{
+          maxWidth: '1200px',
+          margin: 'auto',
+          boxShadow: theme.shadows[6],
+          borderRadius: '12px',
+          overflow: 'visible',
+        }}
+      >
+        <Box
+          sx={{
+            backgroundColor: theme.palette.primary.main,
+            color: theme.palette.primary.contrastText,
+            p: 3,
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+            marginTop: '-1px',
+          }}
+        >
+          <Typography variant="h5" fontWeight="600">
+            {props.despliegue?.id ? 'Editar Despliegue' : 'Nuevo Despliegue'}
+          </Typography>
+          <Typography variant="body2" sx={{ opacity: 0.9 }}>
+            {props.despliegue?.id ? 'Actualice los datos del despliegue' : 'Complete la información para registrar un nuevo despliegue'}
+          </Typography>
+        </Box>
 
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Máquina</InputLabel>
-                    <Select
-                      name="id_maquina"
-                      value={formData.id_maquina}
-                      label="Máquina"
-                      onChange={handleChange}
-                      required
-                    >
-                      {maquinasActivas.map((maq) => (
-                        <MenuItem key={maq.id} value={maq.id}>
-                          {maq.nombre}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+        <CardContent sx={{ p: 4 }}>
+          <form onSubmit={handleSubmit}>
+            <Grid container spacing={4}>
+              <Grid item xs={12} md={6}>
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Code sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Componente
+                    </Typography>
+                  </Box>
+                  <Select
+                    options={componenteOptions}
+                    value={componenteOptions.find(option => option.value === formData.id_componente) || null}
+                    onChange={handleSelectChange('id_componente')}
+                    placeholder="Seleccionar componente..."
+                    noOptionsMessage={() => "No hay componentes disponibles"}
+                    styles={customSelectStyles}
+                    isSearchable
+                    required
+                  />
+                </Box>
 
-                <Grid item xs={12}>
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Computer sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Máquina
+                    </Typography>
+                  </Box>
+                  <Select
+                    options={maquinaOptions}
+                    value={maquinaOptions.find(option => option.value === formData.id_maquina) || null}
+                    onChange={handleSelectChange('id_maquina')}
+                    placeholder="Seleccionar máquina..."
+                    noOptionsMessage={() => "No hay máquinas disponibles"}
+                    styles={customSelectStyles}
+                    isSearchable
+                    required
+                  />
+                </Box>
+
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <CalendarToday sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Fecha de Despliegue
+                    </Typography>
+                  </Box>
                   <DateTimePicker
-                    label="Fecha de Despliegue"
                     value={formData.fecha_despliegue}
                     onChange={handleDateChange('fecha_despliegue')}
-                    inputFormat="DD/MM/YYYY, HH:mm"
+                    inputFormat="DD/MM/YYYY HH:mm"
                     renderInput={(params) => (
-                      <TextField {...params} fullWidth required />
+                      <MuiTextField
+                        {...params}
+                        fullWidth
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: '8px',
+                            height: '56px'
+                          }
+                        }}
+                      />
                     )}
                   />
-                </Grid>
+                </Box>
 
-                <Grid item xs={12}>
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <CalendarToday sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Fecha de Solicitud
+                    </Typography>
+                  </Box>
                   <DateTimePicker
-                    label="Fecha de Solicitud"
                     value={formData.fecha_solicitud}
                     onChange={handleDateChange('fecha_solicitud')}
-                    inputFormat="DD/MM/YYYY, HH:mm"
+                    inputFormat="DD/MM/YYYY HH:mm"
                     renderInput={(params) => (
-                      <TextField {...params} fullWidth required />
+                      <MuiTextField
+                        {...params}
+                        fullWidth
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: '8px',
+                            height: '56px'
+                          }
+                        }}
+                      />
                     )}
                   />
-                </Grid>
+                </Box>
+              </Grid>
 
-                <Grid item xs={12}>
-                  <TextField
+              <Grid item xs={12} md={6}>
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Business sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Unidad Solicitante
+                    </Typography>
+                  </Box>
+                  <MuiTextField
                     fullWidth
                     name="unidad_solicitante"
-                    label="Unidad Solicitante"
                     value={formData.unidad_solicitante}
                     onChange={handleChange}
-                    required
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                        height: '56px'
+                      }
+                    }}
+                    inputProps={{ maxLength: 100 }}
                   />
-                </Grid>
+                </Box>
 
-                <Grid item xs={12}>
-                  <TextField
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Person sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Solicitante
+                    </Typography>
+                  </Box>
+                  <MuiTextField
                     fullWidth
                     name="solicitante"
-                    label="Solicitante"
                     value={formData.solicitante}
                     onChange={handleChange}
-                    required
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                        height: '56px'
+                      }
+                    }}
+                    inputProps={{ maxLength: 100 }}
                   />
-                </Grid>
+                </Box>
 
-                {/* Nuevo campo de descripción añadido */}
-                <Grid item xs={12}>
-                  <TextField
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Description sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Descripción
+                    </Typography>
+                  </Box>
+                  <MuiTextField
                     fullWidth
                     name="descripcion"
-                    label="Descripción"
                     value={formData.descripcion}
                     onChange={handleChange}
                     multiline
                     rows={4}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                      }
+                    }}
+                    inputProps={{ maxLength: 500 }}
                   />
-                </Grid>
+                </Box>
 
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Tipo de Respaldo</InputLabel>
-                    <Select
-                      name="cod_tipo_respaldo"
-                      value={formData.cod_tipo_respaldo}
-                      onChange={handleChange}
-                      label="Tipo de Respaldo"
-                      required
-                    >
-                      {parametrosDeTipoRespaldo.map((p) => (
-                        <MenuItem key={p.id} value={p.codigo}>
-                          {p.nombre}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    name="referencia_respaldo"
-                    label="Referencia de Respaldo"
-                    value={formData.referencia_respaldo}
-                    onChange={handleChange}
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Backup sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Tipo de Respaldo
+                    </Typography>
+                  </Box>
+                  <Select
+                    options={tipoRespaldoOptions}
+                    value={tipoRespaldoOptions.find(option => option.value === formData.cod_tipo_respaldo) || null}
+                    onChange={handleSelectChange('cod_tipo_respaldo')}
+                    placeholder="Seleccionar tipo de respaldo..."
+                    noOptionsMessage={() => "No hay tipos de respaldo disponibles"}
+                    styles={customSelectStyles}
+                    isSearchable
                     required
                   />
-                </Grid>
+                </Box>
 
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Estado Despliegue</InputLabel>
-                    <Select
-                      name="estado_despliegue"
-                      value={formData.estado_despliegue}
-                      onChange={handleChange}
-                      label="Estado Despliegue"
-                      required
-                    >
-                      {parametrosDeEstadoDespliegue.map((p) => (
-                        <MenuItem key={p.id} value={p.codigo}>
-                          {p.nombre}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12}>
-                  <Button
-                    variant="contained"
-                    type="submit"
-                    color="primary"
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Link sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Referencia de Respaldo
+                    </Typography>
+                  </Box>
+                  <MuiTextField
                     fullWidth
-                  >
-                    Guardar Despliegue
-                  </Button>
-                </Grid>
-              </Grid>
-            </form>
-          </Box>
-        </Grid>
+                    name="referencia_respaldo"
+                    value={formData.referencia_respaldo}
+                    onChange={handleChange}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '8px',
+                        height: '56px'
+                      }
+                    }}
+                    inputProps={{ maxLength: 100 }}
+                  />
+                </Box>
 
-        <Grid item xs={12} md={6}>
-          {/* Espacio para información adicional si es necesario */}
-        </Grid>
-      </Grid>
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <PlaylistAddCheck sx={{ mr: 1, fontSize: '1rem', color: theme.palette.text.secondary }} />
+                    <Typography variant="body2" color="textSecondary">
+                      Estado Despliegue
+                    </Typography>
+                  </Box>
+                  <Select
+                    options={estadoDespliegueOptions}
+                    value={estadoDespliegueOptions.find(option => option.value === formData.estado_despliegue) || null}
+                    onChange={handleSelectChange('estado_despliegue')}
+                    placeholder="Seleccionar estado..."
+                    noOptionsMessage={() => "No hay estados disponibles"}
+                    styles={customSelectStyles}
+                    isSearchable
+                    required
+                  />
+                </Box>
+              </Grid>
+            </Grid>
+
+            <Divider sx={{ my: 4, borderColor: theme.palette.divider }} />
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <LoadingButton
+                variant="outlined"
+                onClick={props.onCancel}
+                startIcon={<Close />}
+                sx={{
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  fontWeight: '600',
+                  fontSize: '0.9375rem',
+                  borderColor: theme.palette.divider,
+                  color: theme.palette.text.primary,
+                  '&:hover': {
+                    borderColor: theme.palette.error.main,
+                    color: theme.palette.error.main,
+                  },
+                }}
+              >
+                Cancelar
+              </LoadingButton>
+
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={props.loading}
+                loadingPosition="start"
+                startIcon={<CheckCircleOutline />}
+                sx={{
+                  px: 4,
+                  py: 1.5,
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  fontWeight: '600',
+                  fontSize: '0.9375rem',
+                  backgroundColor: theme.palette.primary.main,
+                  '&:hover': {
+                    backgroundColor: theme.palette.primary.dark,
+                  },
+                }}
+              >
+                {props.loading ? 'Guardando...' : (props.despliegue?.id ? 'Actualizar' : 'Guardar')}
+              </LoadingButton>
+            </Box>
+          </form>
+        </CardContent>
+      </Card>
     </LocalizationProvider>
   )
 }

@@ -5,10 +5,26 @@ import {
   FormError,
   FieldError,
   Label,
-  TextField,
-  Submit,
+  TextField as RedwoodTextField,
 } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+import {
+  Box,
+  Card,
+  CardContent,
+  Divider,
+  Grid,
+  Typography,
+  useTheme,
+  InputAdornment,
+  IconButton,
+} from '@mui/material'
+import { LoadingButton } from '@mui/lab'
+import {
+  CheckCircleOutline,
+  ErrorOutline,
+  HelpOutline,
+} from '@mui/icons-material'
 
 const OBTENER_SISTEMAS = gql`
   query ObtenerSistemasPadre {
@@ -31,13 +47,13 @@ const OBTENER_ENTIDADES = gql`
 `
 
 const SistemaForm = (props) => {
+  const theme = useTheme()
   const { data: sistemasData } = useQuery(OBTENER_SISTEMAS)
   const { data: entidadesData } = useQuery(OBTENER_ENTIDADES)
 
   const [selectedPadre, setSelectedPadre] = useState(null)
   const [selectedEntidad, setSelectedEntidad] = useState(null)
 
-  // Inicializar valores cuando se carga el componente o cambian las props
   useEffect(() => {
     if (props.sistema) {
       setSelectedPadre(props.sistema.id_padre)
@@ -56,7 +72,6 @@ const SistemaForm = (props) => {
       .map((e) => ({ value: e.id, label: e.nombre })) || []
 
   const onSubmit = (data) => {
-    // Construir el objeto de datos completo
     const formData = {
       ...data,
       id_padre: selectedPadre,
@@ -66,9 +81,6 @@ const SistemaForm = (props) => {
       usuario_creacion: 3,
     }
 
-    console.log('Enviando datos:', formData)
-
-    // Si tenemos un ID de sistema, estamos editando; de lo contrario, creamos
     if (props?.sistema?.id) {
       props.onSave(formData, props.sistema.id)
     } else {
@@ -76,135 +88,415 @@ const SistemaForm = (props) => {
     }
   }
 
+  const customSelectStyles = {
+    control: (base, state) => ({
+      ...base,
+      minHeight: '44px',
+      borderRadius: '8px',
+      borderColor: state.isFocused
+        ? theme.palette.primary.main
+        : theme.palette.divider,
+      boxShadow: state.isFocused
+        ? `0 0 0 1px ${theme.palette.primary.main}`
+        : 'none',
+      '&:hover': {
+        borderColor: theme.palette.primary.main,
+      },
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isSelected
+        ? theme.palette.primary.light
+        : state.isFocused
+        ? theme.palette.action.hover
+        : 'transparent',
+      color: state.isSelected
+        ? theme.palette.primary.contrastText
+        : theme.palette.text.primary,
+    }),
+  }
+
   return (
-    <div className="rw-form-wrapper">
-      <Form onSubmit={onSubmit} error={props.error}>
-        <FormError
-          error={props.error}
-          wrapperClassName="rw-form-error-wrapper"
-          titleClassName="rw-form-error-title"
-          listClassName="rw-form-error-list"
-        />
+    <Card
+      sx={{
+        maxWidth: '1000px',
+        margin: 'auto',
+        boxShadow: theme.shadows[6],
+        borderRadius: '12px',
+        overflow: 'visible',
+      }}
+    >
+      <Box
+        sx={{
+          backgroundColor: theme.palette.primary.main,
+          color: theme.palette.primary.contrastText,
+          p: 3,
+          borderTopLeftRadius: '12px',
+          borderTopRightRadius: '12px',
+          marginTop: '-1px',
+        }}
+      >
+        <Typography variant="h5" fontWeight="600">
+          {props.sistema?.id ? 'Editar Sistema' : 'Nuevo Sistema'}
+        </Typography>
+        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+          Complete todos los campos requeridos
+        </Typography>
+      </Box>
 
-        <Label className="input-label">Sistema Padre (Opcional)</Label>
-        <Select
-          name="id_padre"
-          value={
-            sistemasOptions.find((opt) => opt.value === selectedPadre) || null
-          }
-          options={sistemasOptions}
-          onChange={(option) => {
-            console.log('Sistema Padre seleccionado:', option)
-            setSelectedPadre(option?.value || null)
-          }}
-          className="input-field select-field"
-          isClearable
-          placeholder="Buscar y seleccionar un sistema..."
-        />
+      <CardContent sx={{ p: 4 }}>
+        <Form onSubmit={onSubmit} error={props.error}>
+          <FormError
+            error={props.error}
+            wrapperStyle={{
+              backgroundColor: theme.palette.error.light,
+              color: theme.palette.error.contrastText,
+              padding: '16px',
+              marginBottom: '24px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+            titleStyle={{
+              fontWeight: '600',
+              marginBottom: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            listStyle={{
+              listStyleType: 'none',
+              padding: 0,
+              margin: 0,
+            }}
+          />
 
-        <Label className="input-label">Entidad</Label>
-        <Select
-          name="id_entidad"
-          value={
-            entidadesOptions.find((opt) => opt.value === selectedEntidad) ||
-            null
-          }
-          options={entidadesOptions}
-          onChange={(option) => {
-            console.log('Entidad seleccionada:', option)
-            setSelectedEntidad(option?.value || null)
-          }}
-          className="input-field select-field"
-          isClearable
-          placeholder="Buscar y seleccionar una entidad..."
-        />
+          <Grid container spacing={4}>
+            <Grid item xs={12} md={6}>
+              <Label
+                name="id_padre"
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '500',
+                  color: theme.palette.text.primary,
+                  fontSize: '0.875rem',
+                }}
+              >
+                Sistema Padre (Opcional)
+                <IconButton size="small" sx={{ ml: 0.5, color: 'text.secondary' }}>
+                  <HelpOutline fontSize="small" />
+                </IconButton>
+              </Label>
+              <Select
+                name="id_padre"
+                value={
+                  sistemasOptions.find((opt) => opt.value === selectedPadre) ||
+                  null
+                }
+                options={sistemasOptions}
+                onChange={(option) => setSelectedPadre(option?.value || null)}
+                styles={customSelectStyles}
+                classNamePrefix="select"
+                isClearable
+                placeholder="Buscar sistema padre..."
+                noOptionsMessage={() => 'No hay sistemas disponibles'}
+              />
+            </Grid>
 
-        <Label
-          name="codigo"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Codigo
-        </Label>
-        <TextField
-          name="codigo"
-          defaultValue={props.sistema?.codigo}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-        <FieldError name="codigo" className="rw-field-error" />
+            <Grid item xs={12} md={6}>
+              <Label
+                name="id_entidad"
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '500',
+                  color: theme.palette.text.primary,
+                  fontSize: '0.875rem',
+                }}
+              >
+                Entidad
+              </Label>
+              <Select
+                name="id_entidad"
+                value={
+                  entidadesOptions.find((opt) => opt.value === selectedEntidad) ||
+                  null
+                }
+                options={entidadesOptions}
+                onChange={(option) => setSelectedEntidad(option?.value || null)}
+                styles={customSelectStyles}
+                classNamePrefix="select"
+                isClearable
+                placeholder="Seleccione una entidad..."
+                noOptionsMessage={() => 'No hay entidades disponibles'}
+              />
+              <FieldError
+                name="id_entidad"
+                style={{
+                  color: theme.palette.error.main,
+                  fontSize: '0.75rem',
+                  marginTop: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              />
+            </Grid>
 
-        <Label
-          name="sigla"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Sigla
-        </Label>
-        <TextField
-          name="sigla"
-          defaultValue={props.sistema?.sigla}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-        <FieldError name="sigla" className="rw-field-error" />
+            <Grid item xs={12} md={4}>
+              <Label
+                name="codigo"
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '500',
+                  color: theme.palette.text.primary,
+                  fontSize: '0.875rem',
+                }}
+              >
+                Código
+              </Label>
+              <RedwoodTextField
+                name="codigo"
+                defaultValue={props.sistema?.codigo}
+                validation={{ required: 'El código es requerido' }}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s ease',
+                }}
+                errorStyle={{
+                  borderColor: theme.palette.error.main,
+                  backgroundColor: theme.palette.error.lighter,
+                }}
+              />
+              <FieldError
+                name="codigo"
+                style={{
+                  color: theme.palette.error.main,
+                  fontSize: '0.75rem',
+                  marginTop: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              />
+            </Grid>
 
-        <Label
-          name="nombre"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Nombre
-        </Label>
-        <TextField
-          name="nombre"
-          defaultValue={props.sistema?.nombre}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-        <FieldError name="nombre" className="rw-field-error" />
+            <Grid item xs={12} md={4}>
+              <Label
+                name="sigla"
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '500',
+                  color: theme.palette.text.primary,
+                  fontSize: '0.875rem',
+                }}
+              >
+                Sigla
+              </Label>
+              <RedwoodTextField
+                name="sigla"
+                defaultValue={props.sistema?.sigla}
+                validation={{ required: 'La sigla es requerida' }}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s ease',
+                }}
+                errorStyle={{
+                  borderColor: theme.palette.error.main,
+                  backgroundColor: theme.palette.error.lighter,
+                }}
+              />
+              <FieldError
+                name="sigla"
+                style={{
+                  color: theme.palette.error.main,
+                  fontSize: '0.75rem',
+                  marginTop: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              />
+            </Grid>
 
-        <Label
-          name="descripcion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          Descripción
-        </Label>
-        <TextField
-          name="descripcion"
-          defaultValue={props.sistema?.descripcion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-          validation={{ required: true }}
-        />
-        <FieldError name="descripcion" className="rw-field-error" />
+            <Grid item xs={12} md={4}>
+              <Label
+                name="ra_creacion"
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '500',
+                  color: theme.palette.text.primary,
+                  fontSize: '0.875rem',
+                }}
+              >
+                RA Creación
+              </Label>
+              <RedwoodTextField
+                name="ra_creacion"
+                defaultValue={props.sistema?.ra_creacion}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s ease',
+                }}
+              />
+              <FieldError
+                name="ra_creacion"
+                style={{
+                  color: theme.palette.error.main,
+                  fontSize: '0.75rem',
+                  marginTop: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              />
+            </Grid>
 
-        <Label
-          name="ra_creacion"
-          className="rw-label"
-          errorClassName="rw-label rw-label-error"
-        >
-          RA Creación
-        </Label>
-        <TextField
-          name="ra_creacion"
-          defaultValue={props.sistema?.ra_creacion}
-          className="rw-input"
-          errorClassName="rw-input rw-input-error"
-        />
-        <FieldError name="ra_creacion" className="rw-field-error" />
+            <Grid item xs={12}>
+              <Label
+                name="nombre"
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '500',
+                  color: theme.palette.text.primary,
+                  fontSize: '0.875rem',
+                }}
+              >
+                Nombre completo
+              </Label>
+              <RedwoodTextField
+                name="nombre"
+                defaultValue={props.sistema?.nombre}
+                validation={{ required: 'El nombre es requerido' }}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  fontSize: '0.9375rem',
+                  transition: 'all 0.2s ease',
+                }}
+                errorStyle={{
+                  borderColor: theme.palette.error.main,
+                  backgroundColor: theme.palette.error.lighter,
+                }}
+              />
+              <FieldError
+                name="nombre"
+                style={{
+                  color: theme.palette.error.main,
+                  fontSize: '0.75rem',
+                  marginTop: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              />
+            </Grid>
 
-        <div className="rw-button-group">
-          <Submit disabled={props.loading} className="rw-button rw-button-blue">
-            Guardar
-          </Submit>
-        </div>
-      </Form>
-    </div>
+            <Grid item xs={12}>
+              <Label
+                name="descripcion"
+                style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontWeight: '500',
+                  color: theme.palette.text.primary,
+                  fontSize: '0.875rem',
+                }}
+              >
+                Descripción
+              </Label>
+              <RedwoodTextField
+                name="descripcion"
+                defaultValue={props.sistema?.descripcion}
+                validation={{ required: 'La descripción es requerida' }}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${theme.palette.divider}`,
+                  fontSize: '0.9375rem',
+                  minHeight: '120px',
+                  transition: 'all 0.2s ease',
+                }}
+                multiline
+                rows={4}
+                errorStyle={{
+                  borderColor: theme.palette.error.main,
+                  backgroundColor: theme.palette.error.lighter,
+                }}
+              />
+              <FieldError
+                name="descripcion"
+                style={{
+                  color: theme.palette.error.main,
+                  fontSize: '0.75rem',
+                  marginTop: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              />
+            </Grid>
+          </Grid>
+
+          <Divider sx={{ my: 4, borderColor: theme.palette.divider }} />
+
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 2,
+            }}
+          >
+            <LoadingButton
+              type="submit"
+              variant="contained"
+              color="primary"
+              loading={props.loading}
+              loadingPosition="start"
+              startIcon={
+                props.loading ? null : <CheckCircleOutline fontSize="small" />
+              }
+              sx={{
+                px: 5,
+                py: 1.5,
+                borderRadius: '8px',
+                textTransform: 'none',
+                fontWeight: '600',
+                fontSize: '0.9375rem',
+                boxShadow: theme.shadows[2],
+                '&:hover': {
+                  boxShadow: theme.shadows[4],
+                  backgroundColor: theme.palette.primary.dark,
+                },
+              }}
+            >
+              {props.loading ? 'Guardando...' : 'Guardar Sistema'}
+            </LoadingButton>
+          </Box>
+        </Form>
+      </CardContent>
+    </Card>
   )
 }
 
