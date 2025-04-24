@@ -18,6 +18,7 @@ import {
   useTheme,
   Chip,
   Stack,
+  Alert,
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 import {
@@ -30,22 +31,8 @@ import {
   Assignment,
   Person,
   Code,
+  Info,
 } from '@mui/icons-material'
-
-// Función para manejar los contadores en localStorage
-const manageEventCounters = (tipoEvento, action = 'get') => {
-  const counters = JSON.parse(localStorage.getItem('eventoCounters') || '{}')
-
-  if (action === 'get') {
-    return counters[tipoEvento] || 0
-  } else if (action === 'increment') {
-    const newValue = (counters[tipoEvento] || 0) + 1
-    counters[tipoEvento] = newValue
-    localStorage.setItem('eventoCounters', JSON.stringify(counters))
-    return newValue
-  }
-  return 0
-}
 
 const ResponsablesSelect = ({ usuarios, value, onChange, theme }) => {
   const options = usuarios.map((u) => ({
@@ -209,38 +196,29 @@ const EventoForm = (props) => {
     }
   }, [loadingUsuarios, loadingParametros, props.evento, isInitialized, parametrosData])
 
-  useEffect(() => {
-    if (selectedTipoEvento && !props.evento?.id) {
-      const counter = manageEventCounters(selectedTipoEvento.value, 'get')
-      const nuevoCodigo = `${selectedTipoEvento.value}-${(counter + 1).toString().padStart(3, '0')}`
-      setCodigoGenerado(nuevoCodigo)
-      setMostrarCodigo(true)
+  const onSubmit = async (data) => {
+    try {
+      const formData = {
+        ...data,
+        cod_tipo_evento: selectedTipoEvento?.value,
+        estado_evento: selectedEstadoEvento?.value,
+        responsables: responsablesSeleccionados,
+        estado: 'ACTIVO',
+        usuario_modificacion: 2,
+        usuario_creacion: 3,
+      }
+
+      // Llama a la función onSave que ahora devuelve la respuesta de la API
+      const resultado = await props.onSave(formData, props?.evento?.id)
+
+      // Si es una creación (no hay ID) y la API devolvió un código
+      if (!props.evento?.id && resultado?.cod_evento) {
+        setCodigoGenerado(resultado.cod_evento)
+        setMostrarCodigo(true)
+      }
+    } catch (error) {
+      console.error('Error al guardar el evento:', error)
     }
-  }, [selectedTipoEvento, props.evento?.id])
-
-  const onSubmit = (data) => {
-    let codigoFinal = codigoGenerado
-
-    // Solo generar nuevo código si es un evento nuevo y hay tipo de evento seleccionado
-    if (!props.evento?.id && selectedTipoEvento) {
-      const counter = manageEventCounters(selectedTipoEvento.value, 'increment')
-      codigoFinal = `${selectedTipoEvento.value}-${counter.toString().padStart(3, '0')}`
-      setCodigoGenerado(codigoFinal)
-      setMostrarCodigo(true)
-    }
-
-    const formData = {
-      ...data,
-      cod_tipo_evento: selectedTipoEvento?.value,
-      cod_evento: codigoFinal,
-      estado_evento: selectedEstadoEvento?.value,
-      responsables: responsablesSeleccionados,
-      estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
-    }
-
-    props.onSave(formData, props?.evento?.id)
   }
 
   const parametrosDeTipoEvento = parametrosData?.parametros?.filter((param) => {
@@ -354,35 +332,53 @@ const EventoForm = (props) => {
           />
 
           <Grid container spacing={4}>
-            {/* Mostrar código generado cuando hay tipo de evento seleccionado */}
-            {mostrarCodigo && selectedTipoEvento && (
+            {/* Mostrar código generado por la API */}
+            {mostrarCodigo && codigoGenerado && (
               <Grid item xs={12}>
-                <Stack direction="row" alignItems="center" spacing={2}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      backgroundColor: theme.palette.primary.light,
-                      color: theme.palette.primary.contrastText,
-                      px: 3,
-                      py: 1.5,
-                      borderRadius: '8px',
-                      boxShadow: theme.shadows[1],
-                    }}
-                  >
-                    <Code fontSize="small" />
-                    <Typography variant="subtitle1" fontWeight="600">
-                      Código generado:
-                    </Typography>
-                    <Typography variant="h6" fontWeight="700">
-                      {codigoGenerado}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" color="text.secondary">
-                    {props.evento?.id ? 'Código del evento' : 'Este será el código del nuevo evento'}
-                  </Typography>
-                </Stack>
+                <Alert
+                  icon={<Info fontSize="inherit" />}
+                  severity="info"
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    borderRadius: '8px',
+                    backgroundColor: theme.palette.info.light,
+                    color: theme.palette.info.contrastText,
+                  }}
+                >
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <Code sx={{ mr: 1 }} />
+                      <Typography variant="subtitle1">
+                        Código del evento:
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={codigoGenerado}
+                      color="info"
+                      variant="filled"
+                      sx={{
+                        fontSize: '1rem',
+                        fontWeight: '700',
+                        px: 2,
+                        py: 1,
+                      }}
+                    />
+                  </Stack>
+                </Alert>
+              </Grid>
+            )}
+
+            {/* Mensaje informativo para nuevos eventos */}
+            {!props.evento?.id && selectedTipoEvento && !mostrarCodigo && (
+              <Grid item xs={12}>
+                <Alert
+                  icon={<Info fontSize="inherit" />}
+                  severity="info"
+                  sx={{ borderRadius: '8px' }}
+                >
+                  Al guardar el evento se generará automáticamente un código con el formato: {selectedTipoEvento.value}-XXX
+                </Alert>
               </Grid>
             )}
 
@@ -424,6 +420,7 @@ const EventoForm = (props) => {
               />
             </Grid>
 
+            {/* Resto de los campos del formulario... */}
             <Grid item xs={12} md={6}>
               <Label
                 name="fecha_evento"

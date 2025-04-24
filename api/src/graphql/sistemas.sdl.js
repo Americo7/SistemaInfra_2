@@ -24,10 +24,21 @@ export const schema = gql`
     ACTIVO
     INACTIVO
   }
+  enum SortOrder {
+  asc
+  desc
+}
+
+input SistemaOrderByInput {
+  fecha_creacion: SortOrder
+}
+
 
   type Query {
     sistemas: [Sistema!]! @requireAuth
     sistema(id: Int!): Sistema @requireAuth
+    sistemas(limit: Int, orderBy: SistemaOrderByInput): [Sistema!]! @requireAuth
+
   }
 
   input CreateSistemaInput {

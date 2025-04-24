@@ -25,10 +25,22 @@ export const schema = gql`
     ACTIVO
     INACTIVO
   }
+  enum SortOrder {
+  asc
+  desc
+}
+
+input DespliegueOrderByInput {
+  fecha_despliegue: SortOrder
+}
+
+
 
   type Query {
     despliegues: [Despliegue!]! @requireAuth
     despliegue(id: Int!): Despliegue @requireAuth
+    despliegues(limit: Int, orderBy: DespliegueOrderByInput): [Despliegue!]! @requireAuth
+
   }
 
   input CreateDespliegueInput {

@@ -132,6 +132,9 @@ const DespliegueForm = (props) => {
       (p) => p.grupo === 'E_EVENTO_DESPLIEGUE'
     ) || []
 
+  const unidadesAgeticOptions =
+    parametrosData?.parametros?.filter((p) => p.grupo === 'UNIDAD_AGETIC') || []
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -209,6 +212,11 @@ const DespliegueForm = (props) => {
   const estadoDespliegueOptions = parametrosDeEstadoDespliegue.map(p => ({
     value: p.codigo,
     label: p.nombre
+  }))
+
+  const unidadSolicitanteOptions = unidadesAgeticOptions.map(p => ({
+    value: p.codigo,
+    label: `${p.codigo} - ${p.nombre}`
   }))
 
   // Estilos personalizados para los selects
@@ -379,18 +387,15 @@ const DespliegueForm = (props) => {
                       Unidad Solicitante
                     </Typography>
                   </Box>
-                  <MuiTextField
-                    fullWidth
-                    name="unidad_solicitante"
-                    value={formData.unidad_solicitante}
-                    onChange={handleChange}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '8px',
-                        height: '56px'
-                      }
-                    }}
-                    inputProps={{ maxLength: 100 }}
+                  <Select
+                    options={unidadSolicitanteOptions}
+                    value={unidadSolicitanteOptions.find(option => option.value === formData.unidad_solicitante) || null}
+                    onChange={handleSelectChange('unidad_solicitante')}
+                    placeholder="Seleccionar unidad..."
+                    noOptionsMessage={() => "No hay unidades disponibles"}
+                    styles={customSelectStyles}
+                    isSearchable
+                    required
                   />
                 </Box>
 

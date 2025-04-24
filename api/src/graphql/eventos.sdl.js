@@ -24,13 +24,24 @@ export const schema = gql`
     INACTIVO
   }
 
+
+  enum SortOrder {
+    asc
+    desc
+  }
+
+  input EventoOrderByInput {
+    fecha_evento: SortOrder
+  }
+
   type Query {
     eventos: [Evento!]! @requireAuth
     evento(id: Int!): Evento @requireAuth
+    eventos(limit: Int, orderBy: EventoOrderByInput): [Evento!]! @requireAuth
   }
 
   input CreateEventoInput {
-    cod_evento: String
+
     cod_tipo_evento: String!
     descripcion: String!
     fecha_evento: DateTime!
