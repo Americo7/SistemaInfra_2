@@ -140,8 +140,8 @@ const DespliegueForm = (props) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleDateChange = (name) => (date) => {
-    setFormData((prev) => ({ ...prev, [name]: date }))
+  const handleDateChange = (name) => (newValue) => {
+    setFormData((prev) => ({ ...prev, [name]: newValue }))
   }
 
   const handleSelectChange = (name) => (selectedOption) => {
@@ -183,8 +183,8 @@ const DespliegueForm = (props) => {
     // Preparar payload con fechas en formato ISO
     const payload = {
       ...formData,
-      fecha_despliegue: formData.fecha_despliegue.toISOString(),
-      fecha_solicitud: formData.fecha_solicitud.toISOString(),
+      fecha_despliegue: formData.fecha_despliegue ? formData.fecha_despliegue.toISOString() : null,
+      fecha_solicitud: formData.fecha_solicitud ? formData.fecha_solicitud.toISOString() : null,
       estado: 'ACTIVO',
       usuario_modificacion: 2,
       usuario_creacion: 3,
@@ -336,7 +336,6 @@ const DespliegueForm = (props) => {
                   <DateTimePicker
                     value={formData.fecha_despliegue}
                     onChange={handleDateChange('fecha_despliegue')}
-                    inputFormat="DD/MM/YYYY HH:mm"
                     renderInput={(params) => (
                       <MuiTextField
                         {...params}
@@ -349,6 +348,8 @@ const DespliegueForm = (props) => {
                         }}
                       />
                     )}
+                    maxDate={null}
+                    disableFuture={false}
                   />
                 </Box>
 
@@ -362,7 +363,6 @@ const DespliegueForm = (props) => {
                   <DateTimePicker
                     value={formData.fecha_solicitud}
                     onChange={handleDateChange('fecha_solicitud')}
-                    inputFormat="DD/MM/YYYY HH:mm"
                     renderInput={(params) => (
                       <MuiTextField
                         {...params}
@@ -375,6 +375,8 @@ const DespliegueForm = (props) => {
                         }}
                       />
                     )}
+                    maxDate={null}
+                    disableFuture={false}
                   />
                 </Box>
               </Grid>

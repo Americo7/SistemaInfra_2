@@ -35,6 +35,8 @@ import Chart from 'react-apexcharts'
 import { useQuery } from '@redwoodjs/web'
 import { styled, alpha } from '@mui/material/styles'
 
+
+
 // Consultas GraphQL optimizadas
 const GET_SYSTEMS = gql`
   query FindSystems {
@@ -125,7 +127,15 @@ const GET_MACHINES = gql`
     }
   }
 `
-
+const GET_DEPLOYMENTS_HISTORY = gql`
+  query FindDeploymentsHistory {
+    despliegues(orderBy: { fecha_despliegue: asc }) {
+      id
+      estado_despliegue
+      fecha_despliegue
+    }
+  }
+`
 // Componentes personalizados
 const GlowCard = styled(Paper)(({ theme, glowcolor }) => ({
   borderRadius: '16px',
@@ -152,7 +162,7 @@ const HomePage = () => {
   const { data: serversData, loading: serversLoading } = useQuery(GET_SERVERS)
   const { data: dataCentersData, loading: dataCentersLoading } = useQuery(GET_DATA_CENTERS)
   const { data: machinesData, loading: machinesLoading } = useQuery(GET_MACHINES)
-
+  const { data: deploymentsHistoryData } = useQuery(GET_DEPLOYMENTS_HISTORY)
   // Estado para sistemas expandidos
   const [expandedSystems, setExpandedSystems] = useState({})
 
@@ -202,11 +212,47 @@ const HomePage = () => {
     return { total: machinesData.maquinas.length, physical, virtual }
   }, [machinesData])
 
-  // Función para manejar la expansión de sistemas
-  const toggleSystemExpansion = (systemId) => {
-    setExpandedSystems(prev => ({ ...prev, [systemId]: !prev[systemId] }))
-  }
 
+ // Procesar datos históricos de despliegues
+ const deploymentHistoryData = useMemo(() => {
+  if (!deploymentsHistoryData) return { series: [], categories: [] }
+
+  const monthlyData = deploymentsHistoryData.despliegues.reduce((acc, deployment) => {
+    const date = new Date(deployment.fecha_despliegue)
+    const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+
+    if (!acc[monthYear]) {
+      acc[monthYear] = { started: 0, finished: 0 }
+    }
+
+    if (deployment.estado_despliegue === 'INICIADO') {
+      acc[monthYear].started += 1
+    } else if (deployment.estado_despliegue === 'FINALIZADO') {
+      acc[monthYear].finished += 1
+    }
+
+    return acc
+  }, {})
+
+  const sortedMonths = Object.keys(monthlyData).sort()
+
+  const categories = sortedMonths.map(month => {
+    const [year, monthNum] = month.split('-')
+    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    return `${monthNames[parseInt(monthNum) - 1]} ${year}`
+  })
+
+  const startedData = sortedMonths.map(month => monthlyData[month].started)
+  const finishedData = sortedMonths.map(month => monthlyData[month].finished)
+
+  return {
+    series: [
+      { name: 'Despliegues Iniciados', data: startedData },
+      { name: 'Despliegues Finalizados', data: finishedData }
+    ],
+    categories
+  }
+}, [deploymentsHistoryData])
   // Componentes de estado optimizados
   const StateChip = ({ estado }) => {
     switch(estado) {
@@ -251,12 +297,24 @@ const HomePage = () => {
       width: 3,
       lineCap: 'round'
     },
-    xaxis: {
-      categories: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+ xaxis: {
+      categories: deploymentHistoryData.categories,
       axisBorder: { show: false },
-      axisTicks: { show: false }
+      axisTicks: { show: false },
+      labels: {
+        style: {
+          fontSize: '12px'
+        }
+      }
     },
-    yaxis: { show: false },
+  yaxis: {
+      show: true,
+      labels: {
+        style: {
+          fontSize: '12px'
+        }
+      }
+    },
     grid: {
       borderColor: alpha(theme.palette.divider, 0.1),
       strokeDashArray: 3,
@@ -288,10 +346,6 @@ const HomePage = () => {
     dataLabels: { enabled: false }
   }
 
-  const deploymentChartSeries = [
-    { name: 'Despliegues Iniciados', data: [12, 15, 10, 18, 14, 20, 16, 22, 18, 24, 20, 26] },
-    { name: 'Despliegues Finalizados', data: [10, 12, 8, 15, 12, 18, 14, 20, 16, 22, 18, 24] }
-  ]
 
   const systemStatusOptions = {
     chart: {
@@ -370,14 +424,15 @@ const HomePage = () => {
     tooltip: { theme: theme.palette.mode }
   }
 
+
   if (systemsLoading || deploymentsLoading || eventsLoading ||
-      serversLoading || dataCentersLoading || machinesLoading) {
-    return (
-      <Container maxWidth="xl" sx={{ mt: 3, mb: 6 }}>
-        <LinearProgress color="primary" sx={{ height: 6, borderRadius: 3 }} />
-      </Container>
-    )
-  }
+    serversLoading || dataCentersLoading || machinesLoading) {
+  return (
+    <Container maxWidth="xl" sx={{ mt: 3, mb: 6 }}>
+      <LinearProgress color="primary" sx={{ height: 6, borderRadius: 3 }} />
+    </Container>
+  )
+}
 
   return (
     <>
@@ -776,14 +831,26 @@ const HomePage = () => {
                   </Button>
                 </Box>
                 <Box sx={{ height: '350px' }}>
-                  <Chart
-                    options={deploymentChartOptions}
-                    series={deploymentChartSeries}
-                    type="area"
-                    height="100%"
-                  />
+                  {deploymentHistoryData.series.length > 0 ? (
+                    <Chart
+                      options={deploymentChartOptions}
+                      series={deploymentHistoryData.series}
+                      type="area"
+                      height="100%"
+                    />
+                  ) : (
+                    <Box sx={{
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      height: '100%',
+                      color: 'text.secondary'
+                    }}>
+                      <Typography>No hay datos de despliegues disponibles</Typography>
+                    </Box>
+                  )}
                 </Box>
-              </Box>
+                </Box>
             </GlowCard>
           </Grid>
 

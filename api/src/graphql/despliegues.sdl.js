@@ -47,7 +47,7 @@ input DespliegueOrderByInput {
     id_componente: Int!
     id_maquina: Int!
     descripcion: String!
-    fecha_despliegue: DateTime
+    fecha_despliegue: DateTime!
     estado: estado!
     fecha_creacion: DateTime
     usuario_creacion: Int!

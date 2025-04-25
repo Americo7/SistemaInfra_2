@@ -16,7 +16,7 @@ export const createDespliegue = ({ input }) => {
       id_componente: input.id_componente,
       id_maquina: input.id_maquina,
       descripcion: input.descripcion,
-      fecha_despliegue: new Date(),
+      fecha_despliegue: input.fecha_despliegue,
       estado: input.estado,
       fecha_creacion: new Date(),
       usuario_creacion: input.usuario_creacion,

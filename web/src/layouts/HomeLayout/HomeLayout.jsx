@@ -243,7 +243,6 @@ const HomeLayout = ({ children }) => {
         { id: 'asignacion', label: 'Asignación Servidor-Máquina', icon: <HardwareIcon />, route: routes.asignacionServidorMaquinas() },
         { id: 'servidores', label: 'Servidores', icon: <ServersIcon />, route: routes.servidors() },
         { id: 'dataCenters', label: 'Data Centers', icon: <DataCenterIcon />, route: routes.dataCenters() }
-
       ]
     },
     {
@@ -255,7 +254,6 @@ const HomeLayout = ({ children }) => {
         { id: 'componentes', label: 'Componentes', icon: <ComponentsIcon />, route: routes.componentes() },
         { id: 'despliegues', label: 'Despliegues', icon: <DeployIcon />, route: routes.despliegues() },
         { id: 'entidades', label: 'Entidades', icon: <EntitiesIcon />, route: routes.entidads() }
-
       ]
     },
     {
@@ -266,7 +264,6 @@ const HomeLayout = ({ children }) => {
         { id: 'usuarios', label: 'Usuarios', icon: <UsuariosIcon />, route: routes.usuarios() },
         { id: 'usuarioRoles', label: 'Asignación de Roles', icon: <UsuarioRolsIcon />, route: routes.usuarioRols() },
         { id: 'roles', label: 'Roles', icon: <RolesIcon />, route: routes.roles() }
-
       ]
     },
     {
@@ -278,8 +275,6 @@ const HomeLayout = ({ children }) => {
         { id: 'infraAfectadas', label: 'Infraestructura Afectada', icon: <SystemsIcon />, route: routes.infraAfectadas() }
       ]
     },
-
-
     {
       id: 'parameters',
       label: 'Paramétricas',
@@ -636,23 +631,19 @@ const HomeLayout = ({ children }) => {
 
       {/* Footer */}
       <Divider sx={{ my: 1 }} />
-
     </Box>
-
-
-  )
-    , [
-      theme,
-      isMobile,
-      mode,
-      handleDrawerToggle,
-      handleThemeToggle,
-      menuStructure,
-      StandaloneMenuItem,
-      AccordionSection,
-      currentUser,
-      handleLogout
-    ]);
+  ), [
+    theme,
+    isMobile,
+    mode,
+    handleDrawerToggle,
+    handleThemeToggle,
+    menuStructure,
+    StandaloneMenuItem,
+    AccordionSection,
+    currentUser,
+    handleLogout
+  ]);
 
   // Profile menu
   const profileMenu = useMemo(() => (
@@ -804,7 +795,6 @@ const HomeLayout = ({ children }) => {
                   </IconButton>
                 </Tooltip>
 
-
                 {/* Help button */}
                 <Tooltip title="Ayuda" arrow TransitionComponent={Fade} TransitionProps={{ timeout: 600 }}>
                   <IconButton
@@ -891,103 +881,117 @@ const HomeLayout = ({ children }) => {
           component="main"
           sx={{
             flexGrow: 1,
-            p: 3,
             width: '100%',
             bgcolor: 'background.default',
             height: '100vh',
-            overflow: 'auto',
-            pt: 8
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            pt: '64px',
           }}
         >
           {/* Breadcrumbs */}
-          <Container
-            maxWidth="xl"
-            sx={{
-              mb: 2,
-              mt: { xs: 1, sm: 2 },
-              px: { xs: 1.5, sm: 3 }
-            }}
-          >
-            <Box
+          <Box sx={{ p: { xs: 1, sm: 2 } }}>
+            <Container
+              maxWidth="xl"
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 2
+                mb: 2,
+                mt: { xs: 1, sm: 2 },
+                px: { xs: 1.5, sm: 3 }
               }}
             >
-              <Box>
-                <Typography
-                  variant="h5"
-                  color="textPrimary"
-                  sx={{
-                    fontWeight: 600,
-                    mb: 0.5,
-                    letterSpacing: '-0.025em',
-                    display: { xs: 'block', sm: 'none' }
-                  }}
-                >
-                  {getPageTitle()}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ display: 'flex', alignItems: 'center' }}
-                >
-                  <Link to={routes.home()} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
-                      <HomeIcon fontSize="small" sx={{ mr: 0.5, fontSize: '0.875rem' }} />
-                      Inicio
-                    </Box>
-                  </Link>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 2
+                }}
+              >
+                <Box>
+                  <Typography
+                    variant="h5"
+                    color="textPrimary"
+                    sx={{
+                      fontWeight: 600,
+                      mb: 0.5,
+                      letterSpacing: '-0.025em',
+                      display: { xs: 'block', sm: 'none' }
+                    }}
+                  >
+                    {getPageTitle()}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ display: 'flex', alignItems: 'center' }}
+                  >
+                    <Link to={routes.home()} style={{ textDecoration: 'none', color: 'inherit' }}>
+                      <Box component="span" sx={{ display: 'flex', alignItems: 'center' }}>
+                        <HomeIcon fontSize="small" sx={{ mr: 0.5, fontSize: '0.875rem' }} />
+                        Inicio
+                      </Box>
+                    </Link>
 
-                  {activeSection && !activeSection.standalone && (
-                    <>
-                      <Box component="span" sx={{ mx: 1, color: 'text.disabled' }}>/</Box>
-                      <Box component="span">{activeSection.label}</Box>
+                    {activeSection && !activeSection.standalone && (
+                      <>
+                        <Box component="span" sx={{ mx: 1, color: 'text.disabled' }}>/</Box>
+                        <Box component="span">{activeSection.label}</Box>
 
-                      {findActiveSectionAndItem().item && (
-                        <>
-                          <Box component="span" sx={{ mx: 1, color: 'text.disabled' }}>/</Box>
-                          <Box component="span" sx={{ color: 'primary.main', fontWeight: 500 }}>
-                            {findActiveSectionAndItem().item.label}
-                          </Box>
-                        </>
-                      )}
-                    </>
-                  )}
-                </Typography>
+                        {findActiveSectionAndItem().item && (
+                          <>
+                            <Box component="span" sx={{ mx: 1, color: 'text.disabled' }}>/</Box>
+                            <Box component="span" sx={{ color: 'primary.main', fontWeight: 500 }}>
+                              {findActiveSectionAndItem().item.label}
+                            </Box>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </Typography>
+                </Box>
               </Box>
-            </Box>
-          </Container>
+            </Container>
+          </Box>
 
           {/* Page content */}
-          <Container
-            maxWidth="xl"
+          <Box
             sx={{
-              px: { xs: 1.5, sm: 3 },
-              py: { xs: 2, sm: 3 },
-              height: 'calc(100% - 80px)'
+              flexGrow: 1,
+              overflow: 'auto',
+              p: { xs: 1, sm: 2 },
             }}
           >
-            <Paper
-              elevation={0}
+            <Container
+              maxWidth="xl"
               sx={{
-                p: { xs: 2, sm: 3 },
                 height: '100%',
-                borderRadius: 3,
-                border: `1px solid ${theme.palette.divider}`
+                px: { xs: 1, sm: 2 },
+                py: 1,
               }}
             >
-              {children}
-            </Paper>
-          </Container>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: { xs: 2, sm: 3 },
+                  height: '100%',
+                  minHeight: '100%',
+                  borderRadius: 3,
+                  border: `1px solid ${theme.palette.divider}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'auto'
+                }}
+              >
+                {children}
+              </Paper>
+            </Container>
+          </Box>
         </Box>
 
         {/* Profile Menu */}
         {profileMenu}
-
       </Box>
     </ThemeProvider>
   )
