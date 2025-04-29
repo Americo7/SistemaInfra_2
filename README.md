@@ -1,13 +1,22 @@
 # README
+# 📦 Sistema de Inventariado de la UIT
 
-Welcome to [RedwoodJS](https://redwoodjs.com)!
+El **Sistema de Inventariado de la UIT**, es una aplicación full-stack desarrollada con **RedwoodJS** que permite la gestión eficiente de activos tecnológicos de la Unidad de Infraestructura Tecnológica. La aplicación se compone de:
 
-> **Prerequisites**
->
-> - Redwood requires [Node.js](https://nodejs.org/en/) (=20.x) and [Yarn](https://yarnpkg.com/)
-> - Are you on Windows? For best results, follow our [Windows development setup](https://redwoodjs.com/docs/how-to/windows-development-setup) guide
+- **Frontend**: Desarrollado en **React** y estilizado con **Material UI** para ofrecer una interfaz moderna, intuitiva y responsiva.
+- **Backend**: Implementado con **GraphQL** para la comunicación entre cliente y servidor, y **Prisma ORM** para la gestión de la base de datos PostgreSQL.
 
-Start by installing dependencies:
+---
+
+## Requisitos Previos
+
+Antes de comenzar, asegúrate de tener instalado y configurado lo siguiente:
+
+- **Node.js** (versión 20.x)
+- **Yarn** (version 4.x)
+- **PostgreSQL**: Debes tenerlo instalado y configurado en tu entorno.(16)
+- **Git**: Para clonar el repositorio.
+
 
 ```
 yarn install
