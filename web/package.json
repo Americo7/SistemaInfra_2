@@ -11,10 +11,13 @@
     ]
   },
   "dependencies": {
+    "@redwoodjs/auth": "8.6.1",
     "@redwoodjs/forms": "8.6.1",
     "@redwoodjs/router": "8.6.1",
     "@redwoodjs/web": "8.6.1",
+    "@types/keycloak-js": "^3.4.1",
     "humanize-string": "2.1.0",
+    "keycloak-js": "^26.2.0",
     "react": "18.2.0",
     "react-dom": "18.2.0"
   },

@@ -59,6 +59,7 @@ const GET_MAQUINA = gql`
       id
       nombre
       estado
+      ip
     }
   }
 `
@@ -79,6 +80,7 @@ const AsignacionServidorMaquinaForm = (props) => {
     tipo: '',
     estado: 'ACTIVO'
   })
+  const [maquinaSearchTerm, setMaquinaSearchTerm] = useState('')
 
   // Inicializar valores cuando hay datos para editar
   useEffect(() => {
@@ -98,7 +100,8 @@ const AsignacionServidorMaquinaForm = (props) => {
       })
       if (maquina) setSelectedMaquina({
         value: maquina.id,
-        label: maquina.nombre
+        label: `${maquina.nombre}${maquina.ip ? ` (${maquina.ip})` : ''}`,
+        data: maquina
       })
     }
   }, [props.asignacionServidorMaquina, servidoresData, clustersData, maquinasData])
@@ -119,6 +122,16 @@ const AsignacionServidorMaquinaForm = (props) => {
       return matchesSearch && matchesFilters
     }) || []
 
+  // Filtrar máquinas basadas en búsqueda (nombre o IP)
+  const filteredMaquinas = maquinasData?.maquinas
+    ?.filter(maquina => {
+      const matchesSearch = maquinaSearchTerm === '' ||
+        maquina.nombre.toLowerCase().includes(maquinaSearchTerm.toLowerCase()) ||
+        (maquina.ip && maquina.ip.toLowerCase().includes(maquinaSearchTerm.toLowerCase()))
+
+      return matchesSearch && maquina.estado === 'ACTIVO'
+    }) || []
+
   // Opciones para los selects
   const clustersOptions = clustersData?.clusters
     ?.filter(cluster => cluster.estado === 'ACTIVO')
@@ -133,12 +146,11 @@ const AsignacionServidorMaquinaForm = (props) => {
     data: servidor
   }))
 
-  const maquinasOptions = maquinasData?.maquinas
-    ?.filter(maquina => maquina.estado === 'ACTIVO')
-    .map(maquina => ({
-      value: maquina.id,
-      label: maquina.nombre,
-    })) || []
+  const maquinasOptions = filteredMaquinas.map(maquina => ({
+    value: maquina.id,
+    label: `${maquina.nombre}${maquina.ip ? ` (${maquina.ip})` : ''}`,
+    data: maquina
+  }))
 
   // Valores únicos para filtros
   const marcasUnicas = [...new Set(servidoresData?.servidores?.map(s => s.marca))].filter(Boolean)
@@ -276,7 +288,6 @@ const AsignacionServidorMaquinaForm = (props) => {
                   </Tooltip>
                 </Box>
 
-
                 <Collapse in={showFilters}>
                   <Grid container spacing={2} sx={{ mb: 2 }}>
                     <Grid item xs={12} md={4}>
@@ -373,16 +384,47 @@ const AsignacionServidorMaquinaForm = (props) => {
                     Máquina Virtual
                   </Typography>
                 </Box>
+
                 <Select
                   value={selectedMaquina}
                   options={maquinasOptions}
-                  onChange={setSelectedMaquina}
-                  styles={customSelectStyles}
-                  placeholder="Buscar máquina virtual..."
-                  noOptionsMessage={() => "No hay máquinas disponibles"}
+                  onChange={(option) => {
+                    setSelectedMaquina(option)
+                    setMaquinaSearchTerm('')
+                  }}
+                  styles={{
+                    ...customSelectStyles,
+                    menuList: (base) => ({
+                      ...base,
+                      maxHeight: '400px'
+                    })
+                  }}
+                  placeholder="Seleccione una máquina virtual..."
+                  noOptionsMessage={() => "No hay máquinas que coincidan"}
                   isClearable
                   isSearchable
                 />
+                {selectedMaquina && (
+                  <Box sx={{
+                    mt: 1,
+                    p: 2,
+                    backgroundColor: theme.palette.grey[100],
+                    borderRadius: '8px',
+                    borderLeft: `4px solid ${theme.palette.primary.main}`
+                  }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      Detalles de la máquina seleccionada:
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Nombre:</strong> {selectedMaquina.data.nombre}<br />
+                      {selectedMaquina.data.ip && (
+                        <>
+                          <strong>IP:</strong> {selectedMaquina.data.ip}
+                        </>
+                      )}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             </Grid>
 

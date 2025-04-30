@@ -1,12 +1,27 @@
-import { Link, routes, navigate } from '@redwoodjs/router'
-import { useMutation, useQuery } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
-import { useState, useEffect } from 'react'
-import logo from 'src/images/logo-agetic-reporte.png'
+import { useState } from 'react'
 
-// Material-UI Components
+import {
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Dns as SystemIcon,
+  Event as EventIcon,
+  ArrowBack as BackIcon,
+  Info as InfoIcon,
+  DeveloperBoard as ComponentIcon,
+  Group as PeopleIcon,
+  Cloud as DeployIcon,
+  Business as EntityIcon,
+  CalendarToday as CalendarIcon,
+  Person as PersonIcon,
+  Update as UpdateIcon,
+  MoreVert as MoreIcon,
+  OpenInNew as OpenInNewIcon,
+  Code as CodeIcon,
+  PictureAsPdf as PdfIcon,
+  Download as DownloadIcon,
+  Assessment as StatsIcon,
+  SettingsInputComponent as MachineAdminIcon,
+} from '@mui/icons-material'
 import {
   Box,
   Typography,
@@ -40,31 +55,16 @@ import {
   Badge,
   LinearProgress,
 } from '@mui/material'
-import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Dns as SystemIcon,
-  Event as EventIcon,
-  ArrowBack as BackIcon,
-  Info as InfoIcon,
-  Storage as ServerIcon,
-  DeveloperBoard as ComponentIcon,
-  Group as PeopleIcon,
-  Cloud as DeployIcon,
-  Business as EntityIcon,
-  CalendarToday as CalendarIcon,
-  Person as PersonIcon,
-  Update as UpdateIcon,
-  MoreVert as MoreIcon,
-  OpenInNew as OpenInNewIcon,
-  Code as CodeIcon,
-  Computer as MachineIcon,
-  PictureAsPdf as PdfIcon,
-  Visibility as PreviewIcon,
-  Download as DownloadIcon,
-  Assessment as StatsIcon,
-  SettingsInputComponent as MachineAdminIcon,
-} from '@mui/icons-material'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
+import { Link, routes, navigate } from '@redwoodjs/router'
+import { useMutation, useQuery } from '@redwoodjs/web'
+import { toast } from '@redwoodjs/web/toast'
+
+import logo from 'src/images/logo-agetic-reporte.png'
+
+// Material-UI Components
 
 // Paleta de colores para PDF
 const COLOR_GUINDO = [143, 20, 64]
@@ -178,7 +178,9 @@ const Sistema = ({ sistema }) => {
 
   // Funciones auxiliares
   const confirmDelete = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar el sistema ${sistema.nombre}?`)) {
+    if (
+      confirm(`¿Está seguro que desea eliminar el sistema ${sistema.nombre}?`)
+    ) {
       deleteSistema({ variables: { id } })
     }
   }
@@ -188,7 +190,9 @@ const Sistema = ({ sistema }) => {
   }
 
   const getEstadoColor = (estado) => {
-    return estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main
+    return estado === 'ACTIVO'
+      ? theme.palette.success.main
+      : theme.palette.error.main
   }
 
   const formatDate = (dateString) => {
@@ -206,9 +210,12 @@ const Sistema = ({ sistema }) => {
   // Funciones para generar PDF
   const formatTecnologia = (tecnologia) => {
     try {
-      const tech = typeof tecnologia === 'string' ? JSON.parse(tecnologia) : tecnologia
+      const tech =
+        typeof tecnologia === 'string' ? JSON.parse(tecnologia) : tecnologia
       if (Array.isArray(tech)) {
-        return tech.map(t => `${t.nombre}${t.version ? ` v${t.version}` : ''}`).join(', ')
+        return tech
+          .map((t) => `${t.nombre}${t.version ? ` v${t.version}` : ''}`)
+          .join(', ')
       }
       return JSON.stringify(tech)
     } catch {
@@ -218,17 +225,19 @@ const Sistema = ({ sistema }) => {
 
   const mapEstadoDespliegue = (estado) => {
     const estados = {
-      'DESPLEGADO': 'Desplegado',
-      'PENDIENTE': 'Pendiente',
-      'EN_PROGRESO': 'En progreso',
-      'FALLIDO': 'Fallido',
-      'NO_APLICA': 'No aplica'
+      DESPLEGADO: 'Desplegado',
+      PENDIENTE: 'Pendiente',
+      EN_PROGRESO: 'En progreso',
+      FALLIDO: 'Fallido',
+      NO_APLICA: 'No aplica',
     }
     return estados[estado] || estado || 'No especificado'
   }
 
   const getEstadoDespliegue = (componentes, entorno) => {
-    const componentesEntorno = componentes.filter(c => c.cod_entorno === entorno)
+    const componentesEntorno = componentes.filter(
+      (c) => c.cod_entorno === entorno
+    )
     if (componentesEntorno.length === 0) return 'No aplica'
 
     for (const comp of componentesEntorno) {
@@ -245,11 +254,12 @@ const Sistema = ({ sistema }) => {
 
     const machineAdminsMap = new Map()
 
-    sistemaDetails.componentes.forEach(componente => {
-      componente.despliegue?.forEach(despliegue => {
-        despliegue.maquinas?.usuario_roles?.forEach(usuarioRol => {
+    sistemaDetails.componentes.forEach((componente) => {
+      componente.despliegue?.forEach((despliegue) => {
+        despliegue.maquinas?.usuario_roles?.forEach((usuarioRol) => {
           if (usuarioRol.usuarios && usuarioRol.roles) {
-            const nombreCompleto = `${usuarioRol.usuarios.nombres || ''} ${usuarioRol.usuarios.primer_apellido || ''} ${usuarioRol.usuarios.segundo_apellido || ''}`.trim()
+            const nombreCompleto =
+              `${usuarioRol.usuarios.nombres || ''} ${usuarioRol.usuarios.primer_apellido || ''} ${usuarioRol.usuarios.segundo_apellido || ''}`.trim()
             const rolNombre = usuarioRol.roles.nombre || 'N/A'
 
             if (nombreCompleto) {
@@ -263,7 +273,7 @@ const Sistema = ({ sistema }) => {
                   nombreCompleto,
                   roles: [rolNombre],
                   maquina: despliegue.maquinas.nombre,
-                  ip: despliegue.maquinas.ip
+                  ip: despliegue.maquinas.ip,
                 })
               }
             }
@@ -272,9 +282,9 @@ const Sistema = ({ sistema }) => {
       })
     })
 
-    return Array.from(machineAdminsMap.values()).map(admin => ({
+    return Array.from(machineAdminsMap.values()).map((admin) => ({
       ...admin,
-      roles: admin.roles.join(', ')
+      roles: admin.roles.join(', '),
     }))
   }
 
@@ -283,26 +293,28 @@ const Sistema = ({ sistema }) => {
 
     // Agrupar componentes por entorno
     const entornos = {}
-    sistemaDetails.componentes?.forEach(comp => {
+    sistemaDetails.componentes?.forEach((comp) => {
       const entorno = comp.cod_entorno || 'SIN_ENTORNO'
       if (!entornos[entorno]) {
         entornos[entorno] = {
           estado: getEstadoDespliegue(sistemaDetails.componentes, entorno),
           dominio: comp.dominio || 'N/A',
-          componentes: []
+          componentes: [],
         }
       }
 
       entornos[entorno].componentes.push({
         nombre: comp.nombre,
-        tecnologia: formatTecnologia(comp.tecnologia)
+        tecnologia: formatTecnologia(comp.tecnologia),
       })
     })
 
     // Procesar despliegues
     const despliegues = []
-    Object.keys(entornos).forEach(entorno => {
-      const componentesEntorno = sistemaDetails.componentes?.filter(c => c.cod_entorno === entorno) || []
+    Object.keys(entornos).forEach((entorno) => {
+      const componentesEntorno =
+        sistemaDetails.componentes?.filter((c) => c.cod_entorno === entorno) ||
+        []
       for (const comp of componentesEntorno) {
         if (comp.despliegue && comp.despliegue.length > 0) {
           const desp = comp.despliegue[0]
@@ -315,7 +327,7 @@ const Sistema = ({ sistema }) => {
             fechaRespaldo: desp.fecha_despliegue
               ? new Date(desp.fecha_despliegue).toLocaleDateString()
               : 'N/A',
-            estadoDespliegue: desp.estado_despliegue || 'No especificado'
+            estadoDespliegue: desp.estado_despliegue || 'No especificado',
           })
           break
         }
@@ -324,10 +336,14 @@ const Sistema = ({ sistema }) => {
 
     // Procesar administradores agrupando roles
     const administradoresMap = new Map()
-    if (sistemaDetails.usuario_roles && Array.isArray(sistemaDetails.usuario_roles)) {
-      sistemaDetails.usuario_roles.forEach(ur => {
+    if (
+      sistemaDetails.usuario_roles &&
+      Array.isArray(sistemaDetails.usuario_roles)
+    ) {
+      sistemaDetails.usuario_roles.forEach((ur) => {
         if (ur && ur.usuarios && ur.roles) {
-          const nombreCompleto = `${ur.usuarios.nombres || ''} ${ur.usuarios.primer_apellido || ''} ${ur.usuarios.segundo_apellido || ''}`.trim()
+          const nombreCompleto =
+            `${ur.usuarios.nombres || ''} ${ur.usuarios.primer_apellido || ''} ${ur.usuarios.segundo_apellido || ''}`.trim()
           const rolNombre = ur.roles.nombre || 'N/A'
           const entidad = sistemaDetails.entidades?.sigla || 'AGETIC'
 
@@ -339,7 +355,7 @@ const Sistema = ({ sistema }) => {
               administradoresMap.set(nombreCompleto, {
                 nombreCompleto,
                 entidad,
-                roles: [rolNombre]
+                roles: [rolNombre],
               })
             }
           }
@@ -347,10 +363,12 @@ const Sistema = ({ sistema }) => {
       })
     }
 
-    const administradores = Array.from(administradoresMap.values()).map(admin => ({
-      ...admin,
-      roles: admin.roles.join(', ')
-    }))
+    const administradores = Array.from(administradoresMap.values()).map(
+      (admin) => ({
+        ...admin,
+        roles: admin.roles.join(', '),
+      })
+    )
 
     // Procesar administradores de máquina
     const machineAdmins = getMachineAdmins()
@@ -360,12 +378,12 @@ const Sistema = ({ sistema }) => {
         nombre: sistemaDetails.nombre || 'N/A',
         sigla: sistemaDetails.sigla || 'N/A',
         codigo: sistemaDetails.codigo || 'N/A',
-        entidad: sistemaDetails.entidades?.sigla || 'N/A'
+        entidad: sistemaDetails.entidades?.sigla || 'N/A',
       },
       entornos,
       despliegues,
       administradores,
-      machineAdmins
+      machineAdmins,
     }
   }
 
@@ -381,7 +399,7 @@ const Sistema = ({ sistema }) => {
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
       })
 
       // Configuración
@@ -396,16 +414,27 @@ const Sistema = ({ sistema }) => {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(10)
       doc.setTextColor(...COLOR_NEGRO)
-      doc.text('AGENCIA DE GOBIERNO ELECTRÓNICO Y TECNOLOGÍAS DE LA INFORMACIÓN Y COMUNICACIÓN',
-               margin + logoSize + 5, margin + 6)
+      doc.text(
+        'AGENCIA DE GOBIERNO ELECTRÓNICO Y TECNOLOGÍAS DE LA INFORMACIÓN Y COMUNICACIÓN',
+        margin + logoSize + 5,
+        margin + 6
+      )
 
       doc.setFontSize(9)
-      doc.text('UNIDAD DE INFRAESTRUCTURA TECNOLÓGICA',
-               margin + logoSize + 5, margin + 11)
+      doc.text(
+        'UNIDAD DE INFRAESTRUCTURA TECNOLÓGICA',
+        margin + logoSize + 5,
+        margin + 11
+      )
 
       doc.setFontSize(11)
       doc.setTextColor(...COLOR_GUINDO)
-      doc.text('FORMULARIO DE REGISTRO DE SISTEMA', pageWidth/2, margin + 20, { align: 'center' })
+      doc.text(
+        'FORMULARIO DE REGISTRO DE SISTEMA',
+        pageWidth / 2,
+        margin + 20,
+        { align: 'center' }
+      )
 
       // Línea separadora
       doc.setDrawColor(...COLOR_GUINDO)
@@ -417,11 +446,13 @@ const Sistema = ({ sistema }) => {
       // Información General
       doc.setFontSize(10)
       doc.setTextColor(...COLOR_NEGRO)
-      doc.text('INFORMACIÓN GENERAL', pageWidth/2, startY, { align: 'center' })
+      doc.text('INFORMACIÓN GENERAL', pageWidth / 2, startY, {
+        align: 'center',
+      })
 
       doc.setDrawColor(...COLOR_GRIS)
       doc.setLineWidth(0.2)
-      doc.line(pageWidth/2 - 30, startY + 2, pageWidth/2 + 30, startY + 2)
+      doc.line(pageWidth / 2 - 30, startY + 2, pageWidth / 2 + 30, startY + 2)
 
       startY += 8
 
@@ -431,16 +462,28 @@ const Sistema = ({ sistema }) => {
         body: [
           [
             { content: 'Sistema', styles: { fontStyle: 'bold', fontSize: 9 } },
-            { content: reportData.general.nombre || 'N/A', styles: { fontStyle: 'normal', fontSize: 9 } },
+            {
+              content: reportData.general.nombre || 'N/A',
+              styles: { fontStyle: 'normal', fontSize: 9 },
+            },
             { content: 'Sigla', styles: { fontStyle: 'bold', fontSize: 9 } },
-            { content: reportData.general.sigla || 'N/A', styles: { fontStyle: 'normal', fontSize: 9 } }
+            {
+              content: reportData.general.sigla || 'N/A',
+              styles: { fontStyle: 'normal', fontSize: 9 },
+            },
           ],
           [
             { content: 'Código', styles: { fontStyle: 'bold', fontSize: 9 } },
-            { content: reportData.general.codigo || 'N/A', styles: { fontStyle: 'normal', fontSize: 9 } },
+            {
+              content: reportData.general.codigo || 'N/A',
+              styles: { fontStyle: 'normal', fontSize: 9 },
+            },
             { content: 'Entidad', styles: { fontStyle: 'bold', fontSize: 9 } },
-            { content: reportData.general.entidad || 'N/A', styles: { fontStyle: 'normal', fontSize: 9 } }
-          ]
+            {
+              content: reportData.general.entidad || 'N/A',
+              styles: { fontStyle: 'normal', fontSize: 9 },
+            },
+          ],
         ],
         theme: 'grid',
         margin: { left: margin, right: margin },
@@ -455,8 +498,8 @@ const Sistema = ({ sistema }) => {
           0: { cellWidth: 25 },
           1: { cellWidth: null },
           2: { cellWidth: 25 },
-          3: { cellWidth: null }
-        }
+          3: { cellWidth: null },
+        },
       })
 
       startY = doc.lastAutoTable.finalY + 5
@@ -465,25 +508,39 @@ const Sistema = ({ sistema }) => {
       doc.setFontSize(10)
       doc.setTextColor(...COLOR_NEGRO)
       doc.setFont('helvetica', 'bold')
-      doc.text('ENTORNOS DE DESPLIEGUE', pageWidth/2, startY + 4, { align: 'center' })
+      doc.text('ENTORNOS DE DESPLIEGUE', pageWidth / 2, startY + 4, {
+        align: 'center',
+      })
 
       doc.setDrawColor(...COLOR_GRIS)
       doc.setLineWidth(0.2)
-      doc.line(pageWidth/2 - 35, startY + 6, pageWidth/2 + 35, startY + 6)
+      doc.line(pageWidth / 2 - 35, startY + 6, pageWidth / 2 + 35, startY + 6)
 
       startY += 8
 
-      const entornosOrden = ['PRODUCCION', 'PRE-PRODUCCION', 'DEMO', 'DESARROLLO', 'PRUEBAS']
+      const entornosOrden = [
+        'PRODUCCION',
+        'PRE-PRODUCCION',
+        'DEMO',
+        'DESARROLLO',
+        'PRUEBAS',
+      ]
       const entornosOrdenados = entornosOrden
-        .filter(entorno => Object.keys(reportData.entornos).includes(entorno))
-        .concat(Object.keys(reportData.entornos).filter(e => !entornosOrden.includes(e)))
+        .filter((entorno) => Object.keys(reportData.entornos).includes(entorno))
+        .concat(
+          Object.keys(reportData.entornos).filter(
+            (e) => !entornosOrden.includes(e)
+          )
+        )
 
       for (const entorno of entornosOrdenados) {
         const datos = reportData.entornos[entorno]
         if (!datos) continue
 
         const formatEntorno = (entorno) => {
-          return entorno.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+          return entorno
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (l) => l.toUpperCase())
         }
 
         autoTable(doc, {
@@ -496,8 +553,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: [255, 255, 255],
                   textColor: COLOR_GUINDO,
                   fontStyle: 'bold',
-                  fontSize: 9
-                }
+                  fontSize: 9,
+                },
               },
               {
                 content: `Estado: ${mapEstadoDespliegue(datos.estado)}`,
@@ -506,18 +563,18 @@ const Sistema = ({ sistema }) => {
                   textColor: COLOR_GRIS_OSCURO,
                   fontStyle: 'normal',
                   fontSize: 8,
-                  halign: 'right'
-                }
-              }
-            ]
+                  halign: 'right',
+                },
+              },
+            ],
           ],
           margin: { left: margin, right: margin },
           styles: {
             cellPadding: 2,
             lineColor: COLOR_GRIS,
-            lineWidth: 0.1
+            lineWidth: 0.1,
           },
-          theme: 'plain'
+          theme: 'plain',
         })
 
         startY = doc.lastAutoTable.finalY
@@ -532,16 +589,16 @@ const Sistema = ({ sistema }) => {
                   styles: {
                     fontStyle: 'normal',
                     textColor: COLOR_GRIS_OSCURO,
-                    fontSize: 8
-                  }
-                }
-              ]
+                    fontSize: 8,
+                  },
+                },
+              ],
             ],
             margin: { left: margin + 5, right: margin },
             styles: {
-              cellPadding: 1
+              cellPadding: 1,
             },
-            theme: 'plain'
+            theme: 'plain',
           })
 
           startY = doc.lastAutoTable.finalY
@@ -558,8 +615,8 @@ const Sistema = ({ sistema }) => {
                     fillColor: COLOR_GRIS_CLARO,
                     textColor: COLOR_NEGRO,
                     fontStyle: 'bold',
-                    fontSize: 8
-                  }
+                    fontSize: 8,
+                  },
                 },
                 {
                   content: 'Tecnología',
@@ -567,34 +624,34 @@ const Sistema = ({ sistema }) => {
                     fillColor: COLOR_GRIS_CLARO,
                     textColor: COLOR_NEGRO,
                     fontStyle: 'bold',
-                    fontSize: 8
-                  }
-                }
-              ]
+                    fontSize: 8,
+                  },
+                },
+              ],
             ],
-            body: datos.componentes.map(comp => [
+            body: datos.componentes.map((comp) => [
               {
                 content: comp.nombre,
                 styles: {
                   textColor: COLOR_NEGRO,
-                  fontSize: 7
-                }
+                  fontSize: 7,
+                },
               },
               {
                 content: comp.tecnologia,
                 styles: {
                   textColor: COLOR_GRIS_OSCURO,
-                  fontSize: 7
-                }
-              }
+                  fontSize: 7,
+                },
+              },
             ]),
             margin: { left: margin + 5, right: margin },
             styles: {
               cellPadding: 2,
               lineColor: COLOR_GRIS,
-              lineWidth: 0.1
+              lineWidth: 0.1,
             },
-            theme: 'grid'
+            theme: 'grid',
           })
 
           startY = doc.lastAutoTable.finalY + 3
@@ -609,16 +666,16 @@ const Sistema = ({ sistema }) => {
                     textColor: COLOR_GRIS,
                     fontStyle: 'italic',
                     fontSize: 7,
-                    halign: 'center'
-                  }
-                }
-              ]
+                    halign: 'center',
+                  },
+                },
+              ],
             ],
             margin: { left: margin + 5, right: margin },
             styles: {
-              cellPadding: 1
+              cellPadding: 1,
             },
-            theme: 'plain'
+            theme: 'plain',
           })
           startY = doc.lastAutoTable.finalY + 3
         }
@@ -628,11 +685,13 @@ const Sistema = ({ sistema }) => {
       doc.setFontSize(10)
       doc.setTextColor(...COLOR_NEGRO)
       doc.setFont('helvetica', 'bold')
-      doc.text('RESPALDO DE DESPLIEGUE', pageWidth/2, startY + 4, { align: 'center' })
+      doc.text('RESPALDO DE DESPLIEGUE', pageWidth / 2, startY + 4, {
+        align: 'center',
+      })
 
       doc.setDrawColor(...COLOR_GRIS)
       doc.setLineWidth(0.2)
-      doc.line(pageWidth/2 - 35, startY + 6, pageWidth/2 + 35, startY + 6)
+      doc.line(pageWidth / 2 - 35, startY + 6, pageWidth / 2 + 35, startY + 6)
 
       startY += 8
 
@@ -647,8 +706,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
+                  fontSize: 8,
+                },
               },
               {
                 content: 'Referencia',
@@ -656,8 +715,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
+                  fontSize: 8,
+                },
               },
               {
                 content: 'Unidad Solicitante',
@@ -665,8 +724,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
+                  fontSize: 8,
+                },
               },
               {
                 content: 'Solicitante',
@@ -674,8 +733,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
+                  fontSize: 8,
+                },
               },
               {
                 content: 'Fecha',
@@ -683,25 +742,25 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
-              }
-            ]
+                  fontSize: 8,
+                },
+              },
+            ],
           ],
-          body: reportData.despliegues.map(d => [
+          body: reportData.despliegues.map((d) => [
             { content: d.tipoRespaldo, styles: { fontSize: 7 } },
             { content: d.referenciaRespaldo, styles: { fontSize: 7 } },
             { content: d.unidadSolicitante, styles: { fontSize: 7 } },
             { content: d.solicitante, styles: { fontSize: 7 } },
-            { content: d.fechaRespaldo, styles: { fontSize: 7 } }
+            { content: d.fechaRespaldo, styles: { fontSize: 7 } },
           ]),
           margin: { left: margin, right: margin },
           styles: {
             cellPadding: 2,
             lineColor: COLOR_GRIS,
-            lineWidth: 0.1
+            lineWidth: 0.1,
           },
-          theme: 'grid'
+          theme: 'grid',
         })
       } else {
         autoTable(doc, {
@@ -714,16 +773,16 @@ const Sistema = ({ sistema }) => {
                   textColor: COLOR_GRIS,
                   fontStyle: 'italic',
                   fontSize: 8,
-                  halign: 'center'
-                }
-              }
-            ]
+                  halign: 'center',
+                },
+              },
+            ],
           ],
           margin: { left: margin, right: margin },
           styles: {
-            cellPadding: 2
+            cellPadding: 2,
           },
-          theme: 'plain'
+          theme: 'plain',
         })
       }
 
@@ -733,11 +792,13 @@ const Sistema = ({ sistema }) => {
       doc.setFontSize(10)
       doc.setTextColor(...COLOR_NEGRO)
       doc.setFont('helvetica', 'bold')
-      doc.text('ADMINISTRADORES DEL SISTEMA', pageWidth/2, startY + 4, { align: 'center' })
+      doc.text('ADMINISTRADORES DEL SISTEMA', pageWidth / 2, startY + 4, {
+        align: 'center',
+      })
 
       doc.setDrawColor(...COLOR_GRIS)
       doc.setLineWidth(0.2)
-      doc.line(pageWidth/2 - 40, startY + 6, pageWidth/2 + 40, startY + 6)
+      doc.line(pageWidth / 2 - 40, startY + 6, pageWidth / 2 + 40, startY + 6)
 
       startY += 8
 
@@ -752,8 +813,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
+                  fontSize: 8,
+                },
               },
               {
                 content: 'Entidad',
@@ -761,8 +822,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
+                  fontSize: 8,
+                },
               },
               {
                 content: 'Roles',
@@ -770,23 +831,23 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
-              }
-            ]
+                  fontSize: 8,
+                },
+              },
+            ],
           ],
-          body: reportData.administradores.map(a => [
+          body: reportData.administradores.map((a) => [
             { content: a.nombreCompleto, styles: { fontSize: 7 } },
             { content: a.entidad, styles: { fontSize: 7 } },
-            { content: a.roles, styles: { fontSize: 7 } }
+            { content: a.roles, styles: { fontSize: 7 } },
           ]),
           margin: { left: margin, right: margin },
           styles: {
             cellPadding: 2,
             lineColor: COLOR_GRIS,
-            lineWidth: 0.1
+            lineWidth: 0.1,
           },
-          theme: 'grid'
+          theme: 'grid',
         })
       } else {
         autoTable(doc, {
@@ -799,16 +860,16 @@ const Sistema = ({ sistema }) => {
                   textColor: COLOR_GRIS,
                   fontStyle: 'italic',
                   fontSize: 8,
-                  halign: 'center'
-                }
-              }
-            ]
+                  halign: 'center',
+                },
+              },
+            ],
           ],
           margin: { left: margin, right: margin },
           styles: {
-            cellPadding: 2
+            cellPadding: 2,
           },
-          theme: 'plain'
+          theme: 'plain',
         })
       }
 
@@ -818,11 +879,13 @@ const Sistema = ({ sistema }) => {
       doc.setFontSize(10)
       doc.setTextColor(...COLOR_NEGRO)
       doc.setFont('helvetica', 'bold')
-      doc.text('ADMINISTRADORES DE MÁQUINA', pageWidth/2, startY + 4, { align: 'center' })
+      doc.text('ADMINISTRADORES DE MÁQUINA', pageWidth / 2, startY + 4, {
+        align: 'center',
+      })
 
       doc.setDrawColor(...COLOR_GRIS)
       doc.setLineWidth(0.2)
-      doc.line(pageWidth/2 - 40, startY + 6, pageWidth/2 + 40, startY + 6)
+      doc.line(pageWidth / 2 - 40, startY + 6, pageWidth / 2 + 40, startY + 6)
 
       startY += 8
 
@@ -837,8 +900,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
+                  fontSize: 8,
+                },
               },
               {
                 content: 'Máquina',
@@ -846,8 +909,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
+                  fontSize: 8,
+                },
               },
               {
                 content: 'IP',
@@ -855,8 +918,8 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
+                  fontSize: 8,
+                },
               },
               {
                 content: 'Roles',
@@ -864,24 +927,24 @@ const Sistema = ({ sistema }) => {
                   fillColor: COLOR_GRIS_CLARO,
                   textColor: COLOR_NEGRO,
                   fontStyle: 'bold',
-                  fontSize: 8
-                }
-              }
-            ]
+                  fontSize: 8,
+                },
+              },
+            ],
           ],
-          body: reportData.machineAdmins.map(a => [
+          body: reportData.machineAdmins.map((a) => [
             { content: a.nombreCompleto, styles: { fontSize: 7 } },
             { content: a.maquina, styles: { fontSize: 7 } },
             { content: a.ip, styles: { fontSize: 7 } },
-            { content: a.roles, styles: { fontSize: 7 } }
+            { content: a.roles, styles: { fontSize: 7 } },
           ]),
           margin: { left: margin, right: margin },
           styles: {
             cellPadding: 2,
             lineColor: COLOR_GRIS,
-            lineWidth: 0.1
+            lineWidth: 0.1,
           },
-          theme: 'grid'
+          theme: 'grid',
         })
       } else {
         autoTable(doc, {
@@ -894,16 +957,16 @@ const Sistema = ({ sistema }) => {
                   textColor: COLOR_GRIS,
                   fontStyle: 'italic',
                   fontSize: 8,
-                  halign: 'center'
-                }
-              }
-            ]
+                  halign: 'center',
+                },
+              },
+            ],
           ],
           margin: { left: margin, right: margin },
           styles: {
-            cellPadding: 2
+            cellPadding: 2,
           },
-          theme: 'plain'
+          theme: 'plain',
         })
       }
 
@@ -918,7 +981,12 @@ const Sistema = ({ sistema }) => {
       doc.setTextColor(...COLOR_GRIS_OSCURO)
       doc.setFont('helvetica', 'normal')
 
-      doc.text(`${reportData.general.nombre} | ${reportData.general.codigo} | Generado: ${new Date().toLocaleDateString()}`, pageWidth / 2, footerY - 3, { align: 'center' })
+      doc.text(
+        `${reportData.general.nombre} | ${reportData.general.codigo} | Generado: ${new Date().toLocaleDateString()}`,
+        pageWidth / 2,
+        footerY - 3,
+        { align: 'center' }
+      )
 
       setPdfData(doc.output('datauristring'))
       setPreviewOpen(true)
@@ -937,7 +1005,7 @@ const Sistema = ({ sistema }) => {
 
     const link = document.createElement('a')
     link.href = pdfData
-    link.download = `Registro_Sistema_${sistemaDetails.codigo || sistema.id}_${new Date().toISOString().slice(0,10)}.pdf`
+    link.download = `Registro_Sistema_${sistemaDetails.nombre || sistema.codigo}_${new Date().toISOString().slice(0, 10)}.pdf`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -950,7 +1018,12 @@ const Sistema = ({ sistema }) => {
   const machineAdminsCount = machineAdmins.length || 0
 
   if (loading) return <LinearProgress />
-  if (error) return <Typography color="error">Error al cargar los datos del sistema</Typography>
+  if (error)
+    return (
+      <Typography color="error">
+        Error al cargar los datos del sistema
+      </Typography>
+    )
 
   return (
     <Box sx={{ p: 3 }}>
@@ -964,7 +1037,7 @@ const Sistema = ({ sistema }) => {
               backgroundColor: theme.palette.action.hover,
               '&:hover': {
                 backgroundColor: theme.palette.action.selected,
-              }
+              },
             }}
           >
             <BackIcon />
@@ -973,7 +1046,11 @@ const Sistema = ({ sistema }) => {
         <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
           {sistemaDetails.nombre}
           {sistemaDetails.sigla && (
-            <Typography variant="h5" component="span" sx={{ ml: 2, color: 'text.secondary' }}>
+            <Typography
+              variant="h5"
+              component="span"
+              sx={{ ml: 2, color: 'text.secondary' }}
+            >
               ({sistemaDetails.sigla})
             </Typography>
           )}
@@ -1012,7 +1089,9 @@ const Sistema = ({ sistema }) => {
           <Button
             variant="contained"
             color="primary"
-            startIcon={generatingPdf ? <CircularProgress size={20} /> : <PdfIcon />}
+            startIcon={
+              generatingPdf ? <CircularProgress size={20} /> : <PdfIcon />
+            }
             onClick={generatePDF}
             disabled={generatingPdf}
             sx={{
@@ -1031,11 +1110,13 @@ const Sistema = ({ sistema }) => {
       <Card sx={{ mb: 3, borderRadius: 3, boxShadow: theme.shadows[3] }}>
         <CardHeader
           avatar={
-            <Avatar sx={{
-              bgcolor: theme.palette.primary.main,
-              width: 56,
-              height: 56,
-            }}>
+            <Avatar
+              sx={{
+                bgcolor: theme.palette.primary.main,
+                width: 56,
+                height: 56,
+              }}
+            >
               <SystemIcon fontSize="large" />
             </Avatar>
           }
@@ -1059,7 +1140,8 @@ const Sistema = ({ sistema }) => {
           subheader={
             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
               <Typography variant="subtitle1" color="text.secondary">
-                Código: {sistemaDetails.codigo || 'N/A'} • Entidad: {sistemaDetails.entidades?.sigla || 'AGETIC'}
+                Código: {sistemaDetails.codigo || 'N/A'} • Entidad:{' '}
+                {sistemaDetails.entidades?.sigla || 'AGETIC'}
               </Typography>
             </Box>
           }
@@ -1077,21 +1159,30 @@ const Sistema = ({ sistema }) => {
           <Grid container spacing={3}>
             {/* Columna izquierda - Detalles del sistema */}
             <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  mb: 2,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
                 <InfoIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
                 Detalles del Sistema
               </Typography>
 
-              <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+              <TableContainer
+                component={Paper}
+                variant="outlined"
+                sx={{ borderRadius: 2 }}
+              >
                 <Table size="small">
                   <TableBody>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 600, width: '40%' }}>Nombre</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: '40%' }}>
+                        Nombre
+                      </TableCell>
                       <TableCell>{sistemaDetails.nombre}</TableCell>
                     </TableRow>
                     <TableRow>
@@ -1106,48 +1197,64 @@ const Sistema = ({ sistema }) => {
                       <TableCell sx={{ fontWeight: 600 }}>Entidad</TableCell>
                       <TableCell>
                         {sistemaDetails.entidades ? (
-                          <Stack direction="row" alignItems="center" spacing={1}>
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={1}
+                          >
                             <EntityIcon fontSize="small" color="action" />
                             <span>
-                              {sistemaDetails.entidades.nombre} ({sistemaDetails.entidades.sigla})
+                              {sistemaDetails.entidades.nombre} (
+                              {sistemaDetails.entidades.sigla})
                             </span>
                           </Stack>
-                        ) : '-'}
+                        ) : (
+                          '-'
+                        )}
                       </TableCell>
                     </TableRow>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>RA Creación</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        RA Creación
+                      </TableCell>
                       <TableCell>{sistemaDetails.ra_creacion || '-'}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </TableContainer>
 
-              <Typography variant="h6" sx={{
-                mt: 3,
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  mt: 3,
+                  mb: 2,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
                 <CodeIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
                 Descripción
               </Typography>
               <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                 <Typography variant="body2">
-                  {sistemaDetails.descripcion || 'No hay descripción disponible para este sistema.'}
+                  {sistemaDetails.descripcion ||
+                    'No hay descripción disponible para este sistema.'}
                 </Typography>
               </Paper>
             </Grid>
 
             {/* Columna derecha - Estado y auditoría */}
             <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  mb: 2,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
                 <EventIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
                 Auditoría
               </Typography>
@@ -1155,7 +1262,12 @@ const Sistema = ({ sistema }) => {
               <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
                 <Grid container spacing={2}>
                   <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                      sx={{ mb: 1 }}
+                    >
                       <PersonIcon fontSize="small" color="action" />
                       <Typography variant="subtitle2" color="text.secondary">
                         Creado por
@@ -1166,7 +1278,12 @@ const Sistema = ({ sistema }) => {
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                      sx={{ mb: 1 }}
+                    >
                       <CalendarIcon fontSize="small" color="action" />
                       <Typography variant="subtitle2" color="text.secondary">
                         Fecha Creación
@@ -1177,7 +1294,12 @@ const Sistema = ({ sistema }) => {
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                      sx={{ mb: 1 }}
+                    >
                       <PersonIcon fontSize="small" color="action" />
                       <Typography variant="subtitle2" color="text.secondary">
                         Modificado por
@@ -1188,7 +1310,12 @@ const Sistema = ({ sistema }) => {
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                      sx={{ mb: 1 }}
+                    >
                       <UpdateIcon fontSize="small" color="action" />
                       <Typography variant="subtitle2" color="text.secondary">
                         Última Modificación
@@ -1201,23 +1328,33 @@ const Sistema = ({ sistema }) => {
                 </Grid>
               </Paper>
 
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  mb: 2,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
                 <StatsIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
                 Resumen
               </Typography>
 
               <Grid container spacing={2}>
                 <Grid item xs={6}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}
+                  >
                     <Typography variant="subtitle2" color="text.secondary">
                       Componentes
                     </Typography>
-                    <Badge badgeContent={componentesCount} color="primary" max={999}>
+                    <Badge
+                      badgeContent={componentesCount}
+                      color="primary"
+                      max={999}
+                    >
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
                         <ComponentIcon fontSize="large" color="action" />
                       </Typography>
@@ -1225,11 +1362,18 @@ const Sistema = ({ sistema }) => {
                   </Paper>
                 </Grid>
                 <Grid item xs={6}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}
+                  >
                     <Typography variant="subtitle2" color="text.secondary">
                       Responsables
                     </Typography>
-                    <Badge badgeContent={responsablesCount} color="primary" max={999}>
+                    <Badge
+                      badgeContent={responsablesCount}
+                      color="primary"
+                      max={999}
+                    >
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
                         <PeopleIcon fontSize="large" color="action" />
                       </Typography>
@@ -1237,11 +1381,18 @@ const Sistema = ({ sistema }) => {
                   </Paper>
                 </Grid>
                 <Grid item xs={6}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}
+                  >
                     <Typography variant="subtitle2" color="text.secondary">
                       Admin. Máquinas
                     </Typography>
-                    <Badge badgeContent={machineAdminsCount} color="primary" max={999}>
+                    <Badge
+                      badgeContent={machineAdminsCount}
+                      color="primary"
+                      max={999}
+                    >
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
                         <MachineAdminIcon fontSize="large" color="action" />
                       </Typography>
@@ -1265,7 +1416,7 @@ const Sistema = ({ sistema }) => {
           sx={{
             '& .MuiTabs-flexContainer': {
               borderBottom: `1px solid ${theme.palette.divider}`,
-            }
+            },
           }}
         >
           <Tab
@@ -1326,17 +1477,29 @@ const Sistema = ({ sistema }) => {
                 Componentes asociados a este sistema
               </Typography>
               {componentesCount > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                <TableContainer
+                  component={Paper}
+                  variant="outlined"
+                  sx={{ borderRadius: 2 }}
+                >
                   <Table>
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
+                      <TableRow
+                        sx={{ backgroundColor: theme.palette.grey[50] }}
+                      >
                         <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Dominio</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Entorno</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Categoría</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Tecnología</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          Categoría
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          Tecnología
+                        </TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Último Despliegue</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          Último Despliegue
+                        </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -1347,7 +1510,13 @@ const Sistema = ({ sistema }) => {
                               to={routes.componente({ id: componente.id })}
                               style={{ textDecoration: 'none' }}
                             >
-                              <Typography variant="body2" sx={{ fontWeight: 500, color: theme.palette.primary.main }}>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 500,
+                                  color: theme.palette.primary.main,
+                                }}
+                              >
                                 {componente.nombre}
                               </Typography>
                             </Link>
@@ -1361,17 +1530,35 @@ const Sistema = ({ sistema }) => {
                                 sx={{ display: 'flex', alignItems: 'center' }}
                               >
                                 {componente.dominio}
-                                <OpenInNewIcon fontSize="small" sx={{ ml: 1 }} />
+                                <OpenInNewIcon
+                                  fontSize="small"
+                                  sx={{ ml: 1 }}
+                                />
                               </MuiLink>
-                            ) : '-'}
+                            ) : (
+                              '-'
+                            )}
                           </TableCell>
                           <TableCell>{componente.cod_entorno || '-'}</TableCell>
-                          <TableCell>{componente.cod_categoria || '-'}</TableCell>
                           <TableCell>
-                            <Tooltip title={componente.tecnologia || 'Sin tecnología especificada'}>
-                              <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
+                            {componente.cod_categoria || '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip
+                              title={
+                                componente.tecnologia ||
+                                'Sin tecnología especificada'
+                              }
+                            >
+                              <Typography
+                                variant="body2"
+                                noWrap
+                                sx={{ maxWidth: 150 }}
+                              >
                                 {componente.tecnologia?.substring(0, 20) || '-'}
-                                {componente.tecnologia?.length > 20 ? '...' : ''}
+                                {componente.tecnologia?.length > 20
+                                  ? '...'
+                                  : ''}
                               </Typography>
                             </Tooltip>
                           </TableCell>
@@ -1380,7 +1567,9 @@ const Sistema = ({ sistema }) => {
                               label={componente.estado}
                               size="small"
                               sx={{
-                                backgroundColor: getEstadoColor(componente.estado),
+                                backgroundColor: getEstadoColor(
+                                  componente.estado
+                                ),
                                 color: 'white',
                                 fontSize: '0.7rem',
                               }}
@@ -1388,24 +1577,38 @@ const Sistema = ({ sistema }) => {
                           </TableCell>
                           <TableCell>
                             {componente.despliegue?.[0] ? (
-                              <Stack direction="row" spacing={1} alignItems="center">
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                alignItems="center"
+                              >
                                 <Chip
-                                  label={componente.despliegue[0].estado_despliegue}
+                                  label={
+                                    componente.despliegue[0].estado_despliegue
+                                  }
                                   size="small"
                                   sx={{
                                     backgroundColor:
-                                      componente.despliegue[0].estado_despliegue === 'EXITOSO' ? theme.palette.success.main :
-                                      componente.despliegue[0].estado_despliegue === 'FALLIDO' ? theme.palette.error.main :
-                                      theme.palette.warning.main,
+                                      componente.despliegue[0]
+                                        .estado_despliegue === 'EXITOSO'
+                                        ? theme.palette.success.main
+                                        : componente.despliegue[0]
+                                              .estado_despliegue === 'FALLIDO'
+                                          ? theme.palette.error.main
+                                          : theme.palette.warning.main,
                                     color: 'white',
                                     fontSize: '0.7rem',
                                   }}
                                 />
                                 <Typography variant="caption">
-                                  {formatDate(componente.despliegue[0].fecha_despliegue)}
+                                  {formatDate(
+                                    componente.despliegue[0].fecha_despliegue
+                                  )}
                                 </Typography>
                               </Stack>
-                            ) : '-'}
+                            ) : (
+                              '-'
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1413,8 +1616,13 @@ const Sistema = ({ sistema }) => {
                   </Table>
                 </TableContainer>
               ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <ComponentIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}
+                >
+                  <ComponentIcon
+                    sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }}
+                  />
                   <Typography variant="body1" color="text.secondary">
                     No hay componentes registrados para este sistema.
                   </Typography>
@@ -1429,20 +1637,31 @@ const Sistema = ({ sistema }) => {
                 Usuarios responsables de este sistema
               </Typography>
               {responsablesCount > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                <TableContainer
+                  component={Paper}
+                  variant="outlined"
+                  sx={{ borderRadius: 2 }}
+                >
                   <Table>
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
+                      <TableRow
+                        sx={{ backgroundColor: theme.palette.grey[50] }}
+                      >
                         <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Rol</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Tipo de Rol</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          Tipo de Rol
+                        </TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {sistemaDetails.usuario_roles?.map((usuarioRol) => (
                         <TableRow key={usuarioRol.id} hover>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 500 }}
+                            >
                               {`${usuarioRol.usuarios.nombres} ${usuarioRol.usuarios.primer_apellido} ${usuarioRol.usuarios.segundo_apellido || ''}`.trim()}
                             </Typography>
                           </TableCell>
@@ -1454,8 +1673,13 @@ const Sistema = ({ sistema }) => {
                   </Table>
                 </TableContainer>
               ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <PeopleIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}
+                >
+                  <PeopleIcon
+                    sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }}
+                  />
                   <Typography variant="body1" color="text.secondary">
                     No hay usuarios responsables registrados para este sistema.
                   </Typography>
@@ -1470,10 +1694,16 @@ const Sistema = ({ sistema }) => {
                 Administradores de máquina asociados a este sistema
               </Typography>
               {machineAdminsCount > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                <TableContainer
+                  component={Paper}
+                  variant="outlined"
+                  sx={{ borderRadius: 2 }}
+                >
                   <Table>
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
+                      <TableRow
+                        sx={{ backgroundColor: theme.palette.grey[50] }}
+                      >
                         <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Máquina</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>IP</TableCell>
@@ -1482,9 +1712,15 @@ const Sistema = ({ sistema }) => {
                     </TableHead>
                     <TableBody>
                       {machineAdmins.map((admin) => (
-                        <TableRow key={admin.nombreCompleto + admin.maquina} hover>
+                        <TableRow
+                          key={admin.nombreCompleto + admin.maquina}
+                          hover
+                        >
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 500 }}
+                            >
                               {admin.nombreCompleto}
                             </Typography>
                           </TableCell>
@@ -1497,10 +1733,16 @@ const Sistema = ({ sistema }) => {
                   </Table>
                 </TableContainer>
               ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <MachineAdminIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}
+                >
+                  <MachineAdminIcon
+                    sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }}
+                  />
                   <Typography variant="body1" color="text.secondary">
-                    No hay administradores de máquina registrados para este sistema.
+                    No hay administradores de máquina registrados para este
+                    sistema.
                   </Typography>
                 </Paper>
               )}
@@ -1513,55 +1755,85 @@ const Sistema = ({ sistema }) => {
                 Historial de despliegues del sistema
               </Typography>
               {componentesCount > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                <TableContainer
+                  component={Paper}
+                  variant="outlined"
+                  sx={{ borderRadius: 2 }}
+                >
                   <Table>
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Componente</TableCell>
+                      <TableRow
+                        sx={{ backgroundColor: theme.palette.grey[50] }}
+                      >
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          Componente
+                        </TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Entorno</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {sistemaDetails.componentes?.flatMap(componente =>
-                        componente.despliegue?.map(despliegue => (
-                          <TableRow key={`${componente.id}-${despliegue.id}`} hover>
-                            <TableCell>
-                              <Link
-                                to={routes.componente({ id: componente.id })}
-                                style={{ textDecoration: 'none' }}
-                              >
-                                <Typography variant="body2" sx={{ fontWeight: 500, color: theme.palette.primary.main }}>
-                                  {componente.nombre}
-                                </Typography>
-                              </Link>
-                            </TableCell>
-                            <TableCell>{componente.cod_entorno || '-'}</TableCell>
-                            <TableCell>{formatDate(despliegue.fecha_despliegue)}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={despliegue.estado_despliegue}
-                                size="small"
-                                sx={{
-                                  backgroundColor:
-                                    despliegue.estado_despliegue === 'EXITOSO' ? theme.palette.success.main :
-                                    despliegue.estado_despliegue === 'FALLIDO' ? theme.palette.error.main :
-                                    theme.palette.warning.main,
-                                  color: 'white',
-                                  fontSize: '0.7rem',
-                                }}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        )) || []
+                      {sistemaDetails.componentes?.flatMap(
+                        (componente) =>
+                          componente.despliegue?.map((despliegue) => (
+                            <TableRow
+                              key={`${componente.id}-${despliegue.id}`}
+                              hover
+                            >
+                              <TableCell>
+                                <Link
+                                  to={routes.componente({ id: componente.id })}
+                                  style={{ textDecoration: 'none' }}
+                                >
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontWeight: 500,
+                                      color: theme.palette.primary.main,
+                                    }}
+                                  >
+                                    {componente.nombre}
+                                  </Typography>
+                                </Link>
+                              </TableCell>
+                              <TableCell>
+                                {componente.cod_entorno || '-'}
+                              </TableCell>
+                              <TableCell>
+                                {formatDate(despliegue.fecha_despliegue)}
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={despliegue.estado_despliegue}
+                                  size="small"
+                                  sx={{
+                                    backgroundColor:
+                                      despliegue.estado_despliegue === 'EXITOSO'
+                                        ? theme.palette.success.main
+                                        : despliegue.estado_despliegue ===
+                                            'FALLIDO'
+                                          ? theme.palette.error.main
+                                          : theme.palette.warning.main,
+                                    color: 'white',
+                                    fontSize: '0.7rem',
+                                  }}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          )) || []
                       )}
                     </TableBody>
                   </Table>
                 </TableContainer>
               ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <DeployIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}
+                >
+                  <DeployIcon
+                    sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }}
+                  />
                   <Typography variant="body1" color="text.secondary">
                     No hay despliegues registrados para este sistema.
                   </Typography>
@@ -1581,7 +1853,11 @@ const Sistema = ({ sistema }) => {
         sx={{ '& .MuiDialog-paper': { minHeight: '80vh' } }}
       >
         <DialogTitle>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+          >
             <Typography variant="h6">Vista previa del reporte</Typography>
             <Button
               variant="contained"

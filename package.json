@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@prisma/client": "^6.5.0",
+    "@redwoodjs/auth-custom-setup": "8.6.1",
     "@redwoodjs/core": "8.6.1",
     "@redwoodjs/project-config": "8.6.1",
     "prettier-plugin-tailwindcss": "0.4.1",
