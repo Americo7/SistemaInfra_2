@@ -149,7 +149,8 @@ El sistema cuenta con una base de datos relacional que gestiona información sob
 
 ### 🔗 Diagrama Entidad-Relación
 
-![Modelo Relacional](./path/to/tu/imagen-modelo.png)
+![image](https://github.com/user-attachments/assets/bab81763-19e6-4a5f-a268-e64fbfd6aedc)
+
 
 ### 🧩 Entidades Principales
 
