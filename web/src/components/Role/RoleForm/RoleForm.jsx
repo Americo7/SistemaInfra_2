@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Select from 'react-select'
 import { Form, FormError, FieldError, Label, TextField } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth'
 import {
   Box,
   Card,
@@ -32,6 +33,7 @@ const GET_PARAMETROS = gql`
 
 const RoleForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth()
   const { data: parametrosData, loading: parametrosLoading } = useQuery(GET_PARAMETROS)
 
   const [selectedTipoRol, setSelectedTipoRol] = useState(props.role?.cod_tipo_rol || null)
@@ -50,8 +52,8 @@ const RoleForm = (props) => {
       ...data,
       cod_tipo_rol: selectedTipoRol,
       estado: props.role?.id ? data.estado : 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_creacion: props.role?.id ? props.role.usuario_creacion : currentUser?.id,
+      usuario_modificacion: currentUser?.id
     }
     props.onSave(formData, props?.role?.id)
   }

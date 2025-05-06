@@ -6,6 +6,7 @@ import {
   TextField,
 } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth' // Importa el hook de autenticación
 import {
   Box,
   Card,
@@ -38,6 +39,7 @@ const GET_PARAMETROS = gql`
 
 const ClusterForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth() // Obtiene el usuario actual autenticado
   const { data: parametrosData, loading: loadingParametros } = useQuery(GET_PARAMETROS)
   const [selectedTipoCluster, setSelectedTipoCluster] = useState(null)
 
@@ -65,12 +67,13 @@ const ClusterForm = (props) => {
   }))
 
   const onSubmit = (data) => {
+    // Utiliza el ID del usuario actual para los campos de usuario_creacion y usuario_modificacion
     const formData = {
       ...data,
       cod_tipo_cluster: selectedTipoCluster?.value,
       estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_modificacion: currentUser?.id, // ID del usuario actual
+      usuario_creacion: props.cluster?.id ? props.cluster.usuario_creacion : currentUser?.id, // Si es edición, mantiene el usuario de creación original
     }
     props.onSave(formData, props?.cluster?.id)
   }

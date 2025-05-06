@@ -16,6 +16,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import dayjs from 'dayjs'
 import gql from 'graphql-tag'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth'
 import { LoadingButton } from '@mui/lab'
 import {
   CheckCircleOutline,
@@ -75,6 +76,7 @@ const OBTENER_SISTEMAS = gql`
 
 const DespliegueForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth()
   const { data: componentesData } = useQuery(OBTENER_COMPONENTES)
   const { data: maquinasData } = useQuery(OBTENER_MAQUINAS)
   const { data: parametrosData } = useQuery(GET_PARAMETROS)
@@ -186,8 +188,8 @@ const DespliegueForm = (props) => {
       fecha_despliegue: formData.fecha_despliegue ? formData.fecha_despliegue.toISOString() : null,
       fecha_solicitud: formData.fecha_solicitud ? formData.fecha_solicitud.toISOString() : null,
       estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_creacion: props.despliegue?.id ? props.despliegue.usuario_creacion : currentUser?.id,
+      usuario_modificacion: currentUser?.id
     }
 
     props.onSave(payload, props?.despliegue?.id)

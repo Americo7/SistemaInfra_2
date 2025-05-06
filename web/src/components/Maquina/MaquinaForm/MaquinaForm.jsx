@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth'
 import {
   Box,
   Button,
@@ -49,6 +50,7 @@ const GET_PARAMETROS = gql`
 
 const MaquinaForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth()
   const { data: parametrosData, loading: parametrosLoading } = useQuery(GET_PARAMETROS)
   const [nombreWarning, setNombreWarning] = useState('')
   const [discos, setDiscos] = useState([{ Disco: 1, Valor: 0 }])
@@ -246,8 +248,8 @@ const MaquinaForm = (props) => {
         nombre: cleanedNombre,
         almacenamiento: discos,
         estado: 'ACTIVO',
-        usuario_modificacion: 2,
-        usuario_creacion: 3,
+        usuario_creacion: props.maquina?.id ? props.maquina.usuario_creacion : currentUser?.id,
+        usuario_modificacion: currentUser?.id,
         es_virtual: esVirtual,
         so: sistemaOperativo,
         ram: Number(formValues.ram),

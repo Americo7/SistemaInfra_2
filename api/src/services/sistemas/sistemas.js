@@ -58,7 +58,7 @@ export const updateSistema = ({ id, input }) => {
       estado: input.estado,
       ra_creacion: input.ra_creacion,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_creacion,
+      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })

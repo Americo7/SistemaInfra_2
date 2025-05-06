@@ -3,6 +3,7 @@ import { useForm, Controller } from 'react-hook-form'
 import Select from 'react-select'
 import { Form, FormError, Label, TextField, Submit } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth'
 import {
   Box,
   Card,
@@ -10,8 +11,7 @@ import {
   Divider,
   Grid,
   Typography,
-  TextField as MuiTextField,
-  InputAdornment
+  TextField as MuiTextField
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 import {
@@ -64,21 +64,17 @@ const GET_PARAMETROS = gql`
 `
 
 const ServidorForm = (props) => {
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    watch,
-  } = useForm({
+  const { currentUser } = useAuth()
+  const { control, handleSubmit, formState: { errors }, setValue, watch } = useForm({
     defaultValues: {
       ...props.servidor,
       estado: 'ACTIVO',
-      usuario_creacion: 2,
+      usuario_creacion: props.servidor?.id ? props.servidor.usuario_creacion : currentUser?.id,
+      usuario_modificacion: currentUser?.id, // Siempre actualiza al usuario actual al guardar
       ram: props.servidor?.ram?.toString() || '',
       almacenamiento: props.servidor?.almacenamiento?.toString() || '',
     },
-  })
+  });
 
   const { data: dataCentersData, loading: dataCentersLoading } = useQuery(GET_DATA_CENTERS)
   const { data: servidoresData, loading: servidoresLoading } = useQuery(GET_SERVIDORES)
@@ -114,11 +110,11 @@ const ServidorForm = (props) => {
   const parametrosTipoServidor = parametrosData?.parametros?.filter(
     (param) => param.grupo === 'TIPO_SERVIDOR'
   ) || [
-    { id: 6, codigo: 'BLADE', nombre: 'Blade' },
-    { id: 7, codigo: 'RACK', nombre: 'Rack' },
-    { id: 9, codigo: 'TORRE', nombre: 'Torre' },
-    { id: 59, codigo: 'CHASIS', nombre: 'Chasis' }
-  ]
+      { id: 6, codigo: 'BLADE', nombre: 'Blade' },
+      { id: 7, codigo: 'RACK', nombre: 'Rack' },
+      { id: 9, codigo: 'TORRE', nombre: 'Torre' },
+      { id: 59, codigo: 'CHASIS', nombre: 'Chasis' }
+    ];
 
   const dataCenterOptions =
     dataCentersData?.dataCenters?.map((dc) => ({
@@ -129,8 +125,8 @@ const ServidorForm = (props) => {
   // Filtrar servidores por data center seleccionado y excluir el servidor actual
   const servidoresFiltrados = servidoresData?.servidores?.filter(
     (serv) => serv.id !== props.servidor?.id &&
-            serv.estado === 'ACTIVO' &&
-            (idDataCenter ? serv.id_data_center === idDataCenter : true)
+      serv.estado === 'ACTIVO' &&
+      (idDataCenter ? serv.id_data_center === idDataCenter : true)
   ) || []
 
   const servidoresChasis = servidoresFiltrados.filter(
@@ -197,8 +193,8 @@ const ServidorForm = (props) => {
       backgroundColor: state.isSelected
         ? '#e3f2fd'
         : state.isFocused
-        ? '#f5f5f5'
-        : 'transparent',
+          ? '#f5f5f5'
+          : 'transparent',
       color: state.isSelected
         ? '#1976d2'
         : '#333',
@@ -231,8 +227,8 @@ const ServidorForm = (props) => {
       almacenamiento: data.almacenamiento ? parseInt(data.almacenamiento) : null,
       estado_operativo: data.estado_operativo,
       estado: data.estado,
-      usuario_creacion: data.usuario_creacion,
-      usuario_modificacion: props.servidor?.id ? 2 : undefined
+      usuario_creacion: props.servidor?.id ? props.servidor.usuario_creacion : currentUser?.id,
+      usuario_modificacion: currentUser?.id
     }
 
     props.onSave(cleanData, props?.servidor?.id)

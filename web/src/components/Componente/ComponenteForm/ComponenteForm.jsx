@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useForm } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth'
 import {
   Box,
   Card,
@@ -9,7 +10,6 @@ import {
   Grid,
   Typography,
   useTheme,
-  IconButton,
   TextField,
   FormControl,
   InputLabel,
@@ -21,9 +21,6 @@ import {
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 import {
-  CheckCircleOutline,
-  ErrorOutline,
-  HelpOutline,
   Save as SaveIcon,
   Cancel as CancelIcon,
   Code,
@@ -120,6 +117,7 @@ const TecnologiasSelector = ({ tecnologias, value, onChange }) => {
 
 const ComponenteForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth()
   const { register, formState: { errors }, handleSubmit } = useForm()
   const { data: sistemasData } = useQuery(OBTENER_SISTEMAS)
   const { data: parametrosData } = useQuery(GET_PARAMETROS)
@@ -159,8 +157,8 @@ const ComponenteForm = (props) => {
       cod_categoria: selectedCategoria,
       tecnologia: tecnologiaJson,
       estado: 'ACTIVO',
-      usuario_creacion: 3,
-      usuario_modificacion: 2
+      usuario_creacion: props.componente?.id ? props.componente.usuario_creacion : currentUser?.id,
+      usuario_modificacion: currentUser?.id
     }
     props.onSave(formData, props?.componente?.id)
   }

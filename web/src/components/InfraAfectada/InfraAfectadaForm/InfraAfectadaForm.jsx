@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Select from 'react-select'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth' // Importa el hook de autenticació
 import {
   Box,
   Card,
@@ -14,7 +15,6 @@ import {
   Tooltip,
   Collapse,
   TextField,
-  InputAdornment,
   MenuItem,
   FormControlLabel,
   Checkbox,
@@ -28,7 +28,6 @@ import {
   Dns,
   Computer,
   Event,
-  Search,
   FilterAlt,
   FilterAltOff
 } from '@mui/icons-material'
@@ -80,6 +79,7 @@ const GET_MAQUINAS = gql`
 
 const InfraAfectadaForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth()
   const { data: eventosData, loading: loadingEventos } = useQuery(GET_EVENTOS)
   const { data: dataCentersData, loading: loadingDataCenters } = useQuery(GET_DATA_CENTERS)
   const { data: servidoresData, loading: loadingServidores } = useQuery(GET_SERVIDORES)
@@ -101,7 +101,6 @@ const InfraAfectadaForm = (props) => {
     maquina: false,
     servidor: false
   })
-
   // Efecto para inicializar los valores cuando hay datos para editar
   useEffect(() => {
     if (props.infraAfectada && eventosData && servidoresData && maquinasData && dataCentersData) {
@@ -289,8 +288,8 @@ const InfraAfectadaForm = (props) => {
       id_servidor: selectedComponents.servidor ? selectedServidor?.value : null,
       id_maquina: selectedComponents.maquina ? selectedMaquina?.value : null,
       estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_creacion: props.infraAfectada?.id ? props.infraAfectada.usuario_creacion : currentUser?.id,
+      usuario_modificacion: currentUser?.id
     }
 
     props.onSave(formData, props?.infraAfectada?.id)

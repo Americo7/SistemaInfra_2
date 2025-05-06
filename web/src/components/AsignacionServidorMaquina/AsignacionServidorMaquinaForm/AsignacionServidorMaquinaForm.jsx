@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Select from 'react-select'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth'
 import {
   Box,
   Card,
@@ -14,7 +15,6 @@ import {
   Tooltip,
   Collapse,
   TextField,
-  InputAdornment,
   MenuItem
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
@@ -24,7 +24,6 @@ import {
   Storage,
   Dns,
   Computer,
-  Search,
   FilterAlt,
   FilterAltOff
 } from '@mui/icons-material'
@@ -66,6 +65,7 @@ const GET_MAQUINA = gql`
 
 const AsignacionServidorMaquinaForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth()
   const { data: servidoresData, loading: loadingServidores } = useQuery(OBTENER_SERVIDORES)
   const { data: clustersData, loading: loadingClusters } = useQuery(OBTENER_CLUSTERS)
   const { data: maquinasData, loading: loadingMaquinas } = useQuery(GET_MAQUINA)
@@ -173,8 +173,8 @@ const AsignacionServidorMaquinaForm = (props) => {
       backgroundColor: state.isSelected
         ? theme.palette.primary.light
         : state.isFocused
-        ? theme.palette.action.hover
-        : 'transparent',
+          ? theme.palette.action.hover
+          : 'transparent',
       color: state.isSelected
         ? theme.palette.primary.contrastText
         : theme.palette.text.primary,
@@ -222,8 +222,8 @@ const AsignacionServidorMaquinaForm = (props) => {
       id_cluster: selectedCluster?.value || null,
       id_maquina: selectedMaquina?.value || null,
       estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_creacion: props.asignacionServidorMaquina?.id ? props.asignacionServidorMaquina.usuario_creacion : currentUser?.id,
+      usuario_modificacion: currentUser?.id
     }
 
     props.onSave(formData, props?.asignacionServidorMaquina?.id)
@@ -296,7 +296,7 @@ const AsignacionServidorMaquinaForm = (props) => {
                         fullWidth
                         label="Marca"
                         value={filters.marca}
-                        onChange={(e) => setFilters({...filters, marca: e.target.value})}
+                        onChange={(e) => setFilters({ ...filters, marca: e.target.value })}
                         size="small"
                       >
                         <MenuItem value="">Todas</MenuItem>
@@ -311,7 +311,7 @@ const AsignacionServidorMaquinaForm = (props) => {
                         fullWidth
                         label="Tipo"
                         value={filters.tipo}
-                        onChange={(e) => setFilters({...filters, tipo: e.target.value})}
+                        onChange={(e) => setFilters({ ...filters, tipo: e.target.value })}
                         size="small"
                       >
                         <MenuItem value="">Todos</MenuItem>
@@ -326,7 +326,7 @@ const AsignacionServidorMaquinaForm = (props) => {
                         fullWidth
                         label="Estado"
                         value={filters.estado}
-                        onChange={(e) => setFilters({...filters, estado: e.target.value})}
+                        onChange={(e) => setFilters({ ...filters, estado: e.target.value })}
                         size="small"
                       >
                         <MenuItem value="ACTIVO">Activo</MenuItem>

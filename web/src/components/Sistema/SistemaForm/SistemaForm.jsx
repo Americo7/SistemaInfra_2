@@ -8,6 +8,7 @@ import {
   TextField as RedwoodTextField,
 } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth';
 import {
   Box,
   Card,
@@ -16,13 +17,11 @@ import {
   Grid,
   Typography,
   useTheme,
-  InputAdornment,
   IconButton,
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 import {
   CheckCircleOutline,
-  ErrorOutline,
   HelpOutline,
 } from '@mui/icons-material'
 
@@ -48,6 +47,7 @@ const OBTENER_ENTIDADES = gql`
 
 const SistemaForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth();
   const { data: sistemasData } = useQuery(OBTENER_SISTEMAS)
   const { data: entidadesData } = useQuery(OBTENER_ENTIDADES)
 
@@ -77,8 +77,8 @@ const SistemaForm = (props) => {
       id_padre: selectedPadre,
       id_entidad: selectedEntidad,
       estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_modificacion: currentUser?.id, // ID del usuario actual
+      usuario_creacion: props.sistema?.id ? props.sistema.usuario_creacion : currentUser?.id, // Si es edición, mantiene el usuario de creación original
     }
 
     if (props?.sistema?.id) {
@@ -108,8 +108,8 @@ const SistemaForm = (props) => {
       backgroundColor: state.isSelected
         ? theme.palette.primary.light
         : state.isFocused
-        ? theme.palette.action.hover
-        : 'transparent',
+          ? theme.palette.action.hover
+          : 'transparent',
       color: state.isSelected
         ? theme.palette.primary.contrastText
         : theme.palette.text.primary,

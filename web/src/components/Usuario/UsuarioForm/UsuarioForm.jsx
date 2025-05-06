@@ -15,7 +15,6 @@ import {
   Typography,
   useTheme,
   IconButton,
-  InputAdornment,
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 import {
@@ -31,9 +30,11 @@ import {
   Visibility,
   VisibilityOff,
 } from '@mui/icons-material'
+import { useAuth } from 'src/auth'
 
 const UsuarioForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
 
   const handleClickShowPassword = () => {
@@ -44,8 +45,8 @@ const UsuarioForm = (props) => {
     const formData = {
       ...data,
       estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_creacion: props.usuario?.id ? props.usuario.usuario_creacion : currentUser?.id,
+      usuario_modificacion: currentUser?.id
     }
     props.onSave(formData, props?.usuario?.id)
   }

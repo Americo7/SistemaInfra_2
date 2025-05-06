@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import Select from 'react-select'
 import { Form, FormError, Label } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth'
 import {
   Box,
   Card,
@@ -23,7 +24,6 @@ import {
 import { LoadingButton } from '@mui/lab'
 import {
   CheckCircleOutline,
-  ErrorOutline,
   HelpOutline,
   Person,
   Badge,
@@ -77,6 +77,7 @@ const GET_SISTEMAS = gql`
 
 const UsuarioRolForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth()
   const { data: usuariosData } = useQuery(GET_USUARIOS)
   const { data: rolesData } = useQuery(GET_ROLES)
   const { data: maquinasData } = useQuery(GET_MAQUINAS)
@@ -209,8 +210,8 @@ const UsuarioRolForm = (props) => {
         id_maquina: null,
         id_sistema: selectedSistema,
         estado: 'ACTIVO',
-        usuario_modificacion: 2,
-        usuario_creacion: 3,
+        usuario_creacion: props.usuarioRol?.id ? props.usuarioRol.usuario_creacion : currentUser?.id,
+        usuario_modificacion: currentUser?.id
       }
       props.onSave(asignacion, props?.usuarioRol?.id)
       return

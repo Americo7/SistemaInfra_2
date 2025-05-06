@@ -7,8 +7,6 @@ import {
   Grid,
   Typography,
   useTheme,
-  InputAdornment,
-  IconButton,
 } from '@mui/material';
 import { LoadingButton } from '@mui/lab';
 import {
@@ -19,16 +17,17 @@ import {
   TextField as RedwoodTextField,
 } from '@redwoodjs/forms';
 import { CheckCircleOutline, ErrorOutline } from '@mui/icons-material';
+import { useAuth } from 'src/auth'
 
 const EntidadForm = (props) => {
   const theme = useTheme();
-
+  const { currentUser } = useAuth();
   const onSubmit = (data) => {
     const formData = {
       ...data,
       estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_modificacion: currentUser?.id, // ID del usuario actual
+      usuario_creacion: props.entidad?.id ? props.entidad.usuario_creacion : currentUser?.id, // Si es edición, mantiene el usuario de creación original
     };
     props.onSave(formData, props?.entidad?.id);
   };

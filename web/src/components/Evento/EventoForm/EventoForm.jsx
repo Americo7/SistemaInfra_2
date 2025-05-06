@@ -8,6 +8,7 @@ import {
   TextField,
 } from '@redwoodjs/forms'
 import { useQuery } from '@redwoodjs/web'
+import { useAuth } from 'src/auth'
 import {
   Box,
   Card,
@@ -58,8 +59,8 @@ const ResponsablesSelect = ({ usuarios, value, onChange, theme }) => {
       backgroundColor: state.isSelected
         ? theme.palette.primary.light
         : state.isFocused
-        ? theme.palette.action.hover
-        : 'transparent',
+          ? theme.palette.action.hover
+          : 'transparent',
       color: state.isSelected
         ? theme.palette.primary.contrastText
         : theme.palette.text.primary,
@@ -141,14 +142,19 @@ const GET_USUARIOS = gql`
 
 const formatDateForInput = (dateString) => {
   if (!dateString) return ''
-  const date = new Date(dateString)
-  if (isNaN(date.getTime())) return ''
-  const tzOffset = date.getTimezoneOffset() * 60000
-  return new Date(date - tzOffset).toISOString().slice(0, 16)
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ''
+    const pad = (num) => num.toString().padStart(2, '0')
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  } catch {
+    return ''
+  }
 }
 
 const EventoForm = (props) => {
   const theme = useTheme()
+  const { currentUser } = useAuth()
   const { data: usuariosData, loading: loadingUsuarios } = useQuery(GET_USUARIOS)
   const { data: parametrosData, loading: loadingParametros } = useQuery(GET_PARAMETROS)
   const [responsablesSeleccionados, setResponsablesSeleccionados] = useState(
@@ -156,7 +162,6 @@ const EventoForm = (props) => {
   )
   const [selectedTipoEvento, setSelectedTipoEvento] = useState(null)
   const [selectedEstadoEvento, setSelectedEstadoEvento] = useState(null)
-  const [fechaEvento, setFechaEvento] = useState('')
   const [isInitialized, setIsInitialized] = useState(false)
   const [codigoGenerado, setCodigoGenerado] = useState(props.evento?.cod_evento || '')
   const [mostrarCodigo, setMostrarCodigo] = useState(!!props.evento?.cod_evento)
@@ -164,9 +169,6 @@ const EventoForm = (props) => {
   useEffect(() => {
     if (!loadingUsuarios && !loadingParametros && props.evento && !isInitialized) {
       setResponsablesSeleccionados(props.evento.responsables || [])
-      if (props.evento.fecha_evento) {
-        setFechaEvento(formatDateForInput(props.evento.fecha_evento))
-      }
 
       if (props.evento.cod_tipo_evento) {
         const tipoEvento = parametrosData?.parametros?.find(
@@ -204,14 +206,12 @@ const EventoForm = (props) => {
         estado_evento: selectedEstadoEvento?.value,
         responsables: responsablesSeleccionados,
         estado: 'ACTIVO',
-        usuario_modificacion: 2,
-        usuario_creacion: 3,
+        usuario_creacion: props.evento?.id ? props.evento.usuario_creacion : currentUser?.id,
+        usuario_modificacion: currentUser?.id
       }
 
-      // Llama a la función onSave que ahora devuelve la respuesta de la API
       const resultado = await props.onSave(formData, props?.evento?.id)
 
-      // Si es una creación (no hay ID) y la API devolvió un código
       if (!props.evento?.id && resultado?.cod_evento) {
         setCodigoGenerado(resultado.cod_evento)
         setMostrarCodigo(true)
@@ -255,8 +255,8 @@ const EventoForm = (props) => {
       backgroundColor: state.isSelected
         ? theme.palette.primary.light
         : state.isFocused
-        ? theme.palette.action.hover
-        : 'transparent',
+          ? theme.palette.action.hover
+          : 'transparent',
       color: state.isSelected
         ? theme.palette.primary.contrastText
         : theme.palette.text.primary,
@@ -332,7 +332,6 @@ const EventoForm = (props) => {
           />
 
           <Grid container spacing={4}>
-            {/* Mostrar código generado por la API */}
             {mostrarCodigo && codigoGenerado && (
               <Grid item xs={12}>
                 <Alert
@@ -369,7 +368,6 @@ const EventoForm = (props) => {
               </Grid>
             )}
 
-            {/* Mensaje informativo para nuevos eventos */}
             {!props.evento?.id && selectedTipoEvento && !mostrarCodigo && (
               <Grid item xs={12}>
                 <Alert
@@ -420,7 +418,6 @@ const EventoForm = (props) => {
               />
             </Grid>
 
-            {/* Resto de los campos del formulario... */}
             <Grid item xs={12} md={6}>
               <Label
                 name="fecha_evento"
@@ -438,10 +435,21 @@ const EventoForm = (props) => {
               </Label>
               <TextField
                 name="fecha_evento"
-                value={fechaEvento}
-                onChange={(e) => setFechaEvento(e.target.value)}
+                defaultValue={props.evento?.fecha_evento ? formatDateForInput(props.evento.fecha_evento) : ''}
                 type="datetime-local"
-                validation={{ required: true }}
+                validation={{
+                  required: {
+                    value: true,
+                    message: 'La fecha del evento es requerida'
+                  },
+                  validate: {
+                    validDate: (value) => {
+                      if (!value) return true // required validation ya maneja esto
+                      const date = new Date(value)
+                      return !isNaN(date.getTime()) || 'Fecha inválida'
+                    }
+                  }
+                }}
                 style={{
                   minHeight: '50px',
                   borderRadius: '8px',

@@ -8,6 +8,7 @@ import {
   FileDownload as FileDownloadIcon,
   Visibility as VisibilityIcon,
   Storage,
+  Close as CloseIcon,
 } from '@mui/icons-material'
 import {
   Box,
@@ -23,11 +24,13 @@ import {
   Typography,
   Button,
   Tooltip,
-  FormControlLabel,
-  Switch,
   CircularProgress,
   useMediaQuery,
   useTheme,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -87,6 +90,7 @@ const GET_DATA_CENTER_WITH_SERVERS = gql`
         modelo
         cod_tipo_servidor
         fecha_creacion
+        id_padre
       }
     }
   }
@@ -108,6 +112,8 @@ const DataCenterServidor = ({ id }) => {
   const [activeTab, setActiveTab] = useState('all')
   const [exportMenuAnchor, setExportMenuAnchor] = useState({ all: null, page: null, selection: null })
   const [showInactive, setShowInactive] = useState(false)
+  const [selectedServerId, setSelectedServerId] = useState(null)
+  const [bladesDialogOpen, setBladesDialogOpen] = useState(false)
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
@@ -116,31 +122,40 @@ const DataCenterServidor = ({ id }) => {
     fetchPolicy: 'cache-and-network',
   })
 
-  const serverCounts = useMemo(() => {
-    if (!data?.dataCenter?.servidores) return {}
+  // Procesamos los servidores para identificar los blade que pertenecen a cada chasis
+  const processedData = useMemo(() => {
+    if (!data?.dataCenter?.servidores) return { serverCounts: {}, filteredServers: [], bladesByChasis: {} }
 
+    const servers = data.dataCenter.servidores
     const counts = {
-      all: data.dataCenter.servidores.length,
+      all: servers.length,
       CHASIS: 0,
       BLADE: 0,
       RACK: 0,
       TORRE: 0,
     }
 
-    data.dataCenter.servidores.forEach(server => {
+    const bladesByChasis = {}
+
+    servers.forEach(server => {
       if (server.cod_tipo_servidor in counts) counts[server.cod_tipo_servidor]++
+
+      // Agrupamos los blades por su chasis padre
+      if (server.cod_tipo_servidor === 'BLADE' && server.id_padre) {
+        if (!bladesByChasis[server.id_padre]) {
+          bladesByChasis[server.id_padre] = []
+        }
+        bladesByChasis[server.id_padre].push(server)
+      }
     })
 
-    return counts
-  }, [data])
-
-  const filteredServers = useMemo(() => {
-    if (!data?.dataCenter?.servidores) return []
-    return data.dataCenter.servidores.filter(server => {
+    const filtered = servers.filter(server => {
       const typeMatch = activeTab === 'all' || server.cod_tipo_servidor === activeTab
       const statusMatch = showInactive || server.estado === 'ACTIVO'
       return typeMatch && statusMatch
     })
+
+    return { serverCounts: counts, filteredServers: filtered, bladesByChasis }
   }, [data, activeTab, showInactive])
 
   const getFormattedData = (rows, table) => {
@@ -207,12 +222,36 @@ const DataCenterServidor = ({ id }) => {
     XLSX.writeFile(wb, `Servidores-${dataCenterName}-${reportType}-${new Date().toISOString()}.xlsx`)
   }
 
+  const exportToCSV = (rows, table) => {
+    const { headers, data: exportData } = getFormattedData(rows, table)
+    const csvContent = [
+      headers.join(','),
+      ...exportData.map(row => row.join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+
+    link.setAttribute('href', url)
+    link.setAttribute('download', `Servidores-${data?.dataCenter?.nombre}-${activeTab}-${new Date().toISOString()}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   const getTypeLabel = (type) => ({
     CHASIS: 'Chasis',
     BLADE: 'Blade',
     RACK: 'Rack',
     TORRE: 'Torre'
   }[type] || 'TODOS')
+
+  const handleViewBlades = (serverId) => {
+    setSelectedServerId(serverId)
+    setBladesDialogOpen(true)
+  }
 
   const columns = useMemo(() => [
     {
@@ -236,9 +275,30 @@ const DataCenterServidor = ({ id }) => {
     { accessorKey: 'fecha_creacion', header: 'Fecha Creación', Cell: ({ cell }) => formatDateTime(cell.getValue()) },
   ], [])
 
+  const bladeColumns = useMemo(() => [
+    {
+      accessorKey: 'nombre',
+      header: 'Nombre',
+      Cell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ServerTypeIcon type="BLADE" />
+          {row.original.nombre}
+        </Box>
+      ),
+      size: 200
+    },
+    { accessorKey: 'cod_inventario_agetic', header: 'Inventario', size: 150 },
+    { accessorKey: 'marca', header: 'Marca', size: 120 },
+    { accessorKey: 'modelo', header: 'Modelo', size: 120 },
+    { accessorKey: 'ram', header: 'RAM (GB)', size: 100 },
+    { accessorKey: 'almacenamiento', header: 'Almacenamiento (GB)', size: 140 },
+    { accessorKey: 'estado', header: 'Estado', Cell: ({ row }) => <StatusChip status={row.original.estado} /> },
+    { accessorKey: 'fecha_creacion', header: 'Fecha Creación', Cell: ({ cell }) => formatDateTime(cell.getValue()) },
+  ], [])
+
   const table = useMaterialReactTable({
     columns,
-    data: filteredServers,
+    data: processedData.filteredServers,
     enableRowActions: true,
     enableRowSelection: true,
     state: { isLoading: loading },
@@ -250,17 +310,23 @@ const DataCenterServidor = ({ id }) => {
             <VisibilityIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title="Ver máquinas">
-          <IconButton onClick={() => navigate(routes.maquinasFiltradas({ id: row.original.id }))}>
-            <DeviceHubIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        {row.original.cod_tipo_servidor === 'CHASIS' ? (
+          <Tooltip title="Ver Blades">
+            <IconButton onClick={() => handleViewBlades(row.original.id)}>
+              <MemoryIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Tooltip title="Ver Máquinas">
+            <IconButton onClick={() => navigate(routes.maquinasFiltradas({ id: row.original.id }))}>
+              <DeviceHubIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
       </Box>
     ),
     renderTopToolbarCustomActions: ({ table }) => (
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-
-
         {['all', 'page', 'selection'].map((type) => (
           <React.Fragment key={type}>
             <Button
@@ -303,6 +369,50 @@ const DataCenterServidor = ({ id }) => {
             </Menu>
           </React.Fragment>
         ))}
+        <Button
+          size="small"
+          color={showInactive ? 'error' : 'success'}
+          variant="outlined"
+          onClick={() => setShowInactive(!showInactive)}
+        >
+          {showInactive ? 'Ocultar inactivos' : 'Mostrar inactivos'}
+        </Button>
+      </Box>
+    )
+  })
+
+  // Tabla para los blades específicos de un chasis
+  const selectedChasisBlades = useMemo(() => {
+    if (!selectedServerId || !processedData.bladesByChasis) return []
+    return processedData.bladesByChasis[selectedServerId] || []
+  }, [selectedServerId, processedData.bladesByChasis])
+
+  const bladesTable = useMaterialReactTable({
+    columns: bladeColumns,
+    data: selectedChasisBlades,
+    enableRowActions: true,
+    enablePagination: false,
+    initialState: {
+      density: 'compact',
+    },
+    renderRowActions: ({ row }) => (
+      <Box sx={{ display: 'flex', gap: '4px' }}>
+        <Tooltip title="Ver detalles">
+          <IconButton onClick={() => {
+            setBladesDialogOpen(false)
+            navigate(routes.servidor({ id: row.original.id }))
+          }}>
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Ver Máquinas">
+          <IconButton onClick={() => {
+            setBladesDialogOpen(false)
+            navigate(routes.maquinasFiltradas({ id: row.original.id }))
+          }}>
+            <DeviceHubIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Box>
     )
   })
@@ -312,6 +422,12 @@ const DataCenterServidor = ({ id }) => {
     navigate(routes.dataCenters())
     return null
   }
+
+  const selectedChasisName = useMemo(() => {
+    if (!selectedServerId || !data?.dataCenter?.servidores) return ''
+    const chasis = data.dataCenter.servidores.find(s => s.id === selectedServerId)
+    return chasis ? chasis.nombre : ''
+  }, [selectedServerId, data])
 
   return (
     <Box sx={{ p: 2, maxWidth: '100%', overflow: 'hidden' }}>
@@ -353,7 +469,7 @@ const DataCenterServidor = ({ id }) => {
           scrollButtons="auto"
           sx={{ mb: 2 }}
         >
-          {Object.entries(serverCounts).map(([type, count]) => (
+          {Object.entries(processedData.serverCounts).map(([type, count]) => (
             <Tab
               key={type}
               value={type}
@@ -371,6 +487,45 @@ const DataCenterServidor = ({ id }) => {
           <MaterialReactTable table={table} />
         )}
       </Paper>
+
+      {/* Modal para mostrar los Blades de un chassis */}
+      <Dialog
+        open={bladesDialogOpen}
+        onClose={() => setBladesDialogOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle sx={{ bgcolor: '#0F284D', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DeviceHubIcon />
+            <Typography variant="h6">
+              Blades del servidor Chasis: {selectedChasisName}
+            </Typography>
+          </Box>
+          <IconButton
+            edge="end"
+            color="inherit"
+            onClick={() => setBladesDialogOpen(false)}
+            aria-label="close"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pb: 0, pt: 2 }}>
+          {selectedChasisBlades.length === 0 ? (
+            <Typography sx={{ py: 4, textAlign: 'center' }}>
+              Este chasis no tiene servidores Blade asociados.
+            </Typography>
+          ) : (
+            <MaterialReactTable table={bladesTable} />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBladesDialogOpen(false)} color="primary">
+            Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
