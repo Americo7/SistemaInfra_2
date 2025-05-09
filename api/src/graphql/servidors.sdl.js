@@ -3,7 +3,6 @@ export const schema = gql`
     id: Int!
     cod_inventario_agetic: String! # Código de inventario AGETIC
     nombre: String!
-
     ram: Int # Cantidad de RAM en GB
     almacenamiento: Int # Almacenamiento en GB
     estado_operativo: String! # Estado operativo

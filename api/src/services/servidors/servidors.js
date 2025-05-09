@@ -16,7 +16,6 @@ export const createServidor = ({ input }) => {
     data: {
       cod_inventario_agetic: input.cod_inventario_agetic,
       nombre: input.nombre,
-
       ram: input.ram,
       almacenamiento: input.almacenamiento,
       estado_operativo: input.estado_operativo,

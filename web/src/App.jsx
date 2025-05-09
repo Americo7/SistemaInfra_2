@@ -13,7 +13,7 @@ const App = () => (
   <FatalErrorBoundary page={FatalErrorPage}>
     <RedwoodProvider>
       <AuthProvider>
-  
+
         <RedwoodApolloProvider useAuth={useAuth}>
           <Routes />
         </RedwoodApolloProvider>

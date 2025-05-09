@@ -13,12 +13,10 @@ import {
   DeviceHub as DeviceHubIcon,
 } from '@mui/icons-material'
 import {
-  Avatar,
   Box,
   Breadcrumbs,
   Button,
   Chip,
-  Divider,
   Grid,
   IconButton,
   Link as MuiLink,

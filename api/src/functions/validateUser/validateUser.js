@@ -1,7 +1,6 @@
 // api/src/functions/validateUser.js
 
 import fetch from 'node-fetch'
-
 import { db } from 'src/lib/db'
 
 // Configuración del servidor Keycloak
@@ -13,7 +12,6 @@ const issuer = process.env.KEYCLOAK_ISSUER
  * @returns {Object} - Respuesta HTTP con información del usuario o error
  */
 export const handler = async (event) => {
-  // Cabeceras CORS para permitir solicitudes desde el frontend
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -21,7 +19,6 @@ export const handler = async (event) => {
     'Content-Type': 'application/json',
   }
 
-  // Manejo de solicitudes OPTIONS (preflight CORS)
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 204,
@@ -31,8 +28,8 @@ export const handler = async (event) => {
   }
 
   try {
-    // Verificamos que sea una solicitud POST
     if (event.httpMethod !== 'POST') {
+      console.warn('Método no permitido:', event.httpMethod)
       return {
         statusCode: 405,
         headers,
@@ -40,11 +37,11 @@ export const handler = async (event) => {
       }
     }
 
-    // Extraemos el token del cuerpo de la solicitud
     let body
     try {
       body = JSON.parse(event.body)
     } catch (e) {
+      console.error('Error al parsear el cuerpo:', event.body)
       return {
         statusCode: 400,
         headers,
@@ -55,6 +52,7 @@ export const handler = async (event) => {
     const { token } = body
 
     if (!token) {
+      console.warn('Token no proporcionado')
       return {
         statusCode: 400,
         headers,
@@ -62,7 +60,8 @@ export const handler = async (event) => {
       }
     }
 
-    // Validamos el token con Keycloak y obtenemos la información del usuario
+    console.log('Validando token con Keycloak...')
+
     const userInfoResponse = await fetch(
       `${issuer}/protocol/openid-connect/userinfo`,
       {
@@ -87,8 +86,10 @@ export const handler = async (event) => {
     }
 
     const userInfo = await userInfoResponse.json()
+    console.log('Información de usuario recibida de Keycloak:', userInfo)
 
     if (!userInfo.email) {
+      console.error('No se recibió el email del usuario desde Keycloak')
       return {
         statusCode: 400,
         headers,
@@ -98,9 +99,15 @@ export const handler = async (event) => {
       }
     }
 
-    // Buscamos el usuario en nuestra base de datos por email
+    console.log('Buscando usuario en la base de datos con email:', userInfo.email)
+
     const usuario = await db.usuario.findFirst({
-      where: { email: userInfo.email.toLowerCase() },
+      where: {
+        email: {
+          equals: userInfo.email,
+          mode: 'insensitive',
+        },
+      },
       include: {
         usuario_roles: {
           include: {
@@ -111,9 +118,7 @@ export const handler = async (event) => {
     })
 
     if (!usuario) {
-      console.warn(
-        `Usuario con email ${userInfo.email} no encontrado en base de datos`
-      )
+      console.warn(`Usuario con email ${userInfo.email} no encontrado en base de datos`)
       return {
         statusCode: 404,
         headers,
@@ -124,7 +129,8 @@ export const handler = async (event) => {
       }
     }
 
-    // Devolvemos los datos del usuario encontrado
+    console.log('Usuario encontrado en la base de datos:', usuario)
+
     return {
       statusCode: 200,
       headers,
@@ -135,7 +141,6 @@ export const handler = async (event) => {
         apellido:
           `${usuario.primer_apellido || ''} ${usuario.segundo_apellido || ''}`.trim(),
         roles: usuario.usuario_roles.map((r) => r.roles.nombre),
-        // Información adicional de Keycloak
         keycloakId: userInfo.sub,
         keycloakPreferredUsername: userInfo.preferred_username || null,
         keycloakRoles: userInfo.realm_access?.roles || [],

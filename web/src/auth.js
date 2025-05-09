@@ -1,82 +1,38 @@
-// web/src/auth.js
-
 import Keycloak from 'keycloak-js'
-
 import { createAuthentication } from '@redwoodjs/auth'
 import { navigate } from '@redwoodjs/router'
 
-// Configuración de Keycloak para actuar como broker con Ciudadanía Digital
+// Configuración de Keycloak como broker con Ciudadanía Digital
 const keycloak = new Keycloak({
   url: process.env.KEYCLOAK_URL,
   realm: process.env.KEYCLOAK_REALM,
   clientId: process.env.KEYCLOAK_CLIENT_ID,
 })
 
-// Almacenamos el estado de redirección para volver después del login
+// Almacenamos la ruta de redirección después del login
 let redirectLocation
 
 /**
- * Inicializa la instancia de Keycloak
- * @returns {Promise<boolean>} - True si la autenticación es exitosa
- */
-async function initKeycloak() {
-  try {
-    // Inicializamos Keycloak con opciones para verificar silenciosamente si hay sesión
-    const authenticated = await keycloak.init({
-      onLoad: 'check-sso',
-      silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`,
-      checkLoginIframe: false, // Deshabilitamos para evitar problemas con iframes
-      pkceMethod: 'S256', // Mejor seguridad con PKCE
-    })
-
-    // Configuramos el refresco automático de tokens
-    setupTokenRefresh()
-
-    if (!authenticated) {
-      // Si no está autenticado, guardamos la ubicación actual y redirigimos
-      redirectLocation = window.location.pathname
-      return false
-    }
-    console.log('Token de Keycloak:', keycloak.token)
-    return authenticated
-  } catch (error) {
-    console.error('Error al inicializar Keycloak:', error)
-    return false
-  }
-}
-
-/**
- * Configura el refresco automático de tokens para mantener la sesión
+ * Refresca el token automáticamente
  */
 function setupTokenRefresh() {
-  // Refrescar token si está a punto de expirar
   if (keycloak.token) {
     setInterval(() => {
       keycloak
-        .updateToken(70) // Refrescar si queda menos del 70% del tiempo de validez
+        .updateToken(70)
         .catch(() => {
           console.warn('Error al refrescar token. Cerrando sesión.')
           keycloak.logout()
         })
-    }, 60000) // Verificar cada minuto
+    }, 60000)
   }
 }
 
 /**
- * Redirige a Ciudadanía Digital a través de Keycloak
- */
-async function loginWithCiudadaniaDigital() {
-  return keycloak.login({
-    idpHint: 'ciudadania-digital', // Identificador del proveedor en Keycloak
-  })
-}
-
-/**
- * Función para borrar las cookies relacionadas con Keycloak
+ * Elimina las cookies de sesión de Keycloak
  */
 function clearCookies() {
   const cookies = document.cookie.split(';')
-
   for (let cookie of cookies) {
     const cookieName = cookie.split('=')[0].trim()
     if (cookieName.startsWith('KEYCLOAK_')) {
@@ -85,15 +41,66 @@ function clearCookies() {
   }
 }
 
+/**
+ * Inicia sesión con Ciudadanía Digital (broker)
+ */
+async function loginWithCiudadaniaDigital() {
+  return keycloak.login({
+    idpHint: 'ciudadania-digital',
+  })
+}
+
 export const { AuthProvider, useAuth } = createAuthentication({
   type: 'custom-auth',
 
-  // Restaura el estado de autenticación al cargar la página
-  restoreAuthState: initKeycloak,
+  /**
+   * Restaurar autenticación al recargar página
+   */
+  restoreAuthState: async () => {
+    try {
+      const authenticated = await keycloak.init({
+        onLoad: 'login-required',
+        silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`,
+        checkLoginIframe: false,
+        pkceMethod: 'S256',
+      })
 
-  // Función de inicio de sesión
+      if (!authenticated) {
+        console.warn('[restoreAuthState] No autenticado al hacer check-sso')
+        return false
+      }
+
+      setupTokenRefresh()
+
+      const validateResponse = await fetch('/api/validateUser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: keycloak.token }),
+      })
+
+      if (!validateResponse.ok) {
+        console.error(`[restoreAuthState] Validación fallida con código ${validateResponse.status}`)
+        if (validateResponse.status === 404 || validateResponse.status === 403) {
+          await keycloak.logout({
+            redirectUri: `${window.location.origin}/login?error=unauthorized`,
+          })
+          clearCookies()
+        }
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('[restoreAuthState] Error al restaurar sesión:', error)
+      return false
+    }
+  },
+
+
+  /**
+   * Función de login
+   */
   login: async (options = {}) => {
-    // Guardamos la ubicación actual para redireccionar después del login
     redirectLocation = options.redirectTo || window.location.pathname
 
     if (options.provider === 'ciudadania-digital') {
@@ -103,30 +110,31 @@ export const { AuthProvider, useAuth } = createAuthentication({
     return keycloak.login(options)
   },
 
-  // Función de cierre de sesión
+  /**
+   * Función de logout
+   */
   logout: async (options = {}) => {
     const redirectUri = options.redirectTo || `${window.location.origin}/login`
-
-    // Borramos las cookies de Keycloak
     clearCookies()
-
-    // Realizamos el logout
     await keycloak.logout({ redirectUri })
   },
 
-  // Obtiene el token JWT actual
+  /**
+   * Obtener token JWT
+   */
   getToken: async () => keycloak.token || null,
 
-  // Obtiene los metadatos del usuario autenticado
+  /**
+   * Obtener metadatos del usuario
+   */
   getUserMetadata: async () => {
     if (!keycloak.tokenParsed) {
-      console.warn('No hay token disponible para obtener metadatos del usuario')
+      console.warn('[auth.js] No hay token disponible para obtener metadatos')
       return null
     }
 
     try {
-      // Validamos el usuario en nuestra base de datos
-      const response = await fetch('/.redwood/functions/validateUser', {
+      const fetchResponse = await fetch('/api/validateUser', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,30 +142,26 @@ export const { AuthProvider, useAuth } = createAuthentication({
         body: JSON.stringify({ token: keycloak.token }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error('Error al validar usuario:', errorData)
+      const contentType = fetchResponse.headers.get('content-type') || ''
+      if (!fetchResponse.ok || !contentType.includes('application/json')) {
+        const errorText = await fetchResponse.text()
+        console.error(`[auth.js] Error al validar usuario (${fetchResponse.status}):`, errorText)
 
-        if (response.status === 404) {
-          console.warn('Usuario no encontrado en la base de datos.')
-
-          // Deslogueo completo en RedwoodJS
-          await keycloak.logout()
-
-          // Borramos las cookies
+        if (fetchResponse.status === 404 || fetchResponse.status === 403) {
+          console.warn('[auth.js] Usuario no válido. Haciendo logout...')
+          await keycloak.logout({
+            redirectUri: `${window.location.origin}/login?error=unauthorized`,
+          })
           clearCookies()
-
-          // Reinicia la sesión de Keycloak
-          window.location.href = `${process.env.KEYCLOAK_URL}/realms/${process.env.KEYCLOAK_REALM}/protocol/openid-connect/logout?redirect_uri=${encodeURIComponent(window.location.origin + '/login?error=unauthorized')}`
           return null
         }
 
-        throw new Error('Error al validar usuario')
+        return null
       }
 
-      const userData = await response.json()
+      const userData = await fetchResponse.json()
+      console.log('[auth.js] Usuario validado correctamente:', userData)
 
-      // Si hay una redirección pendiente, la ejecutamos
       if (redirectLocation) {
         const location = redirectLocation
         redirectLocation = null
@@ -166,7 +170,7 @@ export const { AuthProvider, useAuth } = createAuthentication({
 
       return userData
     } catch (error) {
-      console.error('Error al obtener metadatos del usuario:', error)
+      console.error('[auth.js] Error al obtener metadatos del usuario:', error)
       return null
     }
   },
@@ -174,9 +178,9 @@ export const { AuthProvider, useAuth } = createAuthentication({
   importHook: () => import('@redwoodjs/auth'),
 })
 
-// Archivo HTML para el silent-check-sso
-// Debe existir en web/public/silent-check-sso.html con el siguiente contenido:
 /*
+Archivo requerido: web/public/silent-check-sso.html
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -184,7 +188,6 @@ export const { AuthProvider, useAuth } = createAuthentication({
     parent.postMessage(location.href, location.origin);
   </script>
 </head>
-<body>
-  </body>
+<body></body>
 </html>
 */

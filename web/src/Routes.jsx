@@ -13,11 +13,17 @@ import HomeLayout from 'src/layouts/HomeLayout'
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
 import DataCenterServidor from 'src/pages/DataCenter/DataCenterServidor/DataCenterServidor'
 import MaquinasFiltradas from 'src/pages/MaquinasFiltradas/MaquinasFiltradas'
+import { useAuth } from 'src/auth'
 
-import { useAuth } from './auth'
 const Routes = () => {
-  return (
+  const { loading } = useAuth()
 
+  if (loading) {
+
+    return <div>Cargando autenticación...</div>
+  }
+
+  return (
     <Router useAuth={useAuth}>
       <Route path="/login" page={LoginPage} name="login" />
       <PrivateSet unauthenticated="login">
