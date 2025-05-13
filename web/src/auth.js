@@ -59,7 +59,7 @@ export const { AuthProvider, useAuth } = createAuthentication({
   restoreAuthState: async () => {
     try {
       const authenticated = await keycloak.init({
-        onLoad: 'login-required',
+        onLoad: 'check-sso',
         silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`,
         checkLoginIframe: false,
         pkceMethod: 'S256',
