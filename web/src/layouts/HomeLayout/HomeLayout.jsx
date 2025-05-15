@@ -32,6 +32,7 @@ import {
   Tune as ParametersIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
   Notifications as NotificationsIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material'
 import {
   AppBar,
@@ -78,6 +79,8 @@ const HomeLayout = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0) // Nueva clave de refresco
 
   // Use Media Query hooks
   const isMobile = useMediaQuery('(max-width:1024px)')
@@ -260,12 +263,6 @@ const HomeLayout = ({ children }) => {
             route: routes.maquinas(),
           },
           {
-            id: 'login',
-            label: 'LOGIN',
-            icon: <MachinesIcon />,
-            route: routes.login(),
-          },
-          {
             id: 'clusters',
             label: 'Clusters',
             icon: <InventoryIcon />,
@@ -422,6 +419,18 @@ const HomeLayout = ({ children }) => {
     // Add your logout logic here
     handleProfileMenuClose()
   }, [handleProfileMenuClose])
+
+  // Handle refresh action - MODIFICADO para actualización interna
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true)
+    // Incrementamos la clave de refresco para forzar la recarga de componentes
+    setRefreshKey(prevKey => prevKey + 1)
+
+    // Simulamos un pequeño retraso para la animación
+    setTimeout(() => {
+      setRefreshing(false)
+    }, 1000)
+  }, [])
 
   // Fixed toggle section logic to avoid state conflicts
   const toggleSection = useCallback((sectionId) => {
@@ -958,6 +967,32 @@ const HomeLayout = ({ children }) => {
               <Box sx={{ flexGrow: 1 }} />
 
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                {/* Refresh button */}
+                <Tooltip title="Actualizar" arrow>
+                  <IconButton
+                    color="inherit"
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 1.5,
+                      mx: 0.5,
+                    }}
+                  >
+                    <RefreshIcon
+                      sx={{
+                        fontSize: '1.25rem',
+                        animation: refreshing ? 'spin 1s linear infinite' : 'none',
+                        '@keyframes spin': {
+                          '0%': { transform: 'rotate(0deg)' },
+                          '100%': { transform: 'rotate(360deg)' },
+                        },
+                      }}
+                    />
+                  </IconButton>
+                </Tooltip>
+
                 {/* Theme toggle button */}
                 <Tooltip
                   title={mode === 'dark' ? 'Modo claro' : 'Modo oscuro'}
@@ -1195,7 +1230,10 @@ const HomeLayout = ({ children }) => {
                   overflow: 'auto',
                 }}
               >
-                {children}
+                {/* Añadimos la key de refresco aquí para forzar la recarga de los componentes hijos */}
+                <React.Fragment key={refreshKey}>
+                  {children}
+                </React.Fragment>
               </Paper>
             </Container>
           </Box>

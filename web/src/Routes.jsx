@@ -16,12 +16,6 @@ import MaquinasFiltradas from 'src/pages/MaquinasFiltradas/MaquinasFiltradas'
 import { useAuth } from 'src/auth'
 
 const Routes = () => {
-  const { loading } = useAuth()
-
-  if (loading) {
-
-    return <div>Cargando autenticación...</div>
-  }
 
   return (
     <Router useAuth={useAuth}>

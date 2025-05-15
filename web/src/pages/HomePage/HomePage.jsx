@@ -462,29 +462,8 @@ const HomePage = () => {
               alignItems: 'center',
               gap: 1
             }}>
-              <Button
-                variant="outlined"
-                startIcon={<RefreshIcon />}
-                onClick={() => window.location.reload()}
-                sx={{
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
-                }}
-              >
-                Actualizar
-              </Button>
-              <Button
-                variant="contained"
-                disableElevation
-                startIcon={<FilterIcon />}
-                sx={{
-                  borderRadius: '12px',
-                  background: `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                }}
-              >
-                Filtros
-              </Button>
+
+
             </Grid>
           </Grid>
         </Box>
