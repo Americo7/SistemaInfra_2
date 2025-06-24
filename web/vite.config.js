@@ -11,6 +11,11 @@ dns.setDefaultResultOrder('verbatim')
 const viteConfig = {
 
   plugins: [redwood()],
+  server: {
+    host: true, // permite accesos externos
+    allowedHosts: ['datainfra-uit.agetic.gob.bo'], // permite tu dominio
+    port: 8910,
+  },
 }
 
 export default defineConfig(viteConfig)
