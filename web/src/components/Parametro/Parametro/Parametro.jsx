@@ -5,31 +5,9 @@ import { toast } from '@redwoodjs/web/toast'
 
 import { formatEnum, timeTag } from 'src/lib/formatters'
 
-const DELETE_PARAMETRO_MUTATION = gql`
-  mutation DeleteParametroMutation($id: Int!) {
-    deleteParametro(id: $id) {
-      id
-    }
-  }
-`
 
 const Parametro = ({ parametro }) => {
-  const [deleteParametro] = useMutation(DELETE_PARAMETRO_MUTATION, {
-    onCompleted: () => {
-      toast.success('Parametro deleted')
-      navigate(routes.parametros())
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-  })
-
-  const onDeleteClick = (id) => {
-    if (confirm('Are you sure you want to delete parametro ' + id + '?')) {
-      deleteParametro({ variables: { id } })
-    }
-  }
-
+  
   return (
     <>
       <div className="rw-segment">
@@ -90,13 +68,7 @@ const Parametro = ({ parametro }) => {
         >
           Edit
         </Link>
-        <button
-          type="button"
-          className="rw-button rw-button-red"
-          onClick={() => onDeleteClick(parametro.id)}
-        >
-          Delete
-        </button>
+        
       </nav>
     </>
   )

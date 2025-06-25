@@ -5,30 +5,9 @@ import { toast } from '@redwoodjs/web/toast'
 
 import { formatEnum, timeTag } from 'src/lib/formatters'
 
-const DELETE_DATA_CENTER_MUTATION = gql`
-  mutation DeleteDataCenterMutation($id: Int!) {
-    deleteDataCenter(id: $id) {
-      id
-    }
-  }
-`
 
 const DataCenter = ({ dataCenter }) => {
-  const [deleteDataCenter] = useMutation(DELETE_DATA_CENTER_MUTATION, {
-    onCompleted: () => {
-      toast.success('DataCenter deleted')
-      navigate(routes.dataCenters())
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-  })
-
-  const onDeleteClick = (id) => {
-    if (confirm('Are you sure you want to delete dataCenter ' + id + '?')) {
-      deleteDataCenter({ variables: { id } })
-    }
-  }
+  
 
   return (
     <>
@@ -82,13 +61,7 @@ const DataCenter = ({ dataCenter }) => {
         >
           Edit
         </Link>
-        <button
-          type="button"
-          className="rw-button rw-button-red"
-          onClick={() => onDeleteClick(dataCenter.id)}
-        >
-          Delete
-        </button>
+       
       </nav>
     </>
   )
