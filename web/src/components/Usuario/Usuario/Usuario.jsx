@@ -360,10 +360,7 @@ const Usuario = ({ usuario }) => {
                       <TableCell sx={{ fontWeight: 600 }}>Segundo Apellido</TableCell>
                       <TableCell>{usuario.segundo_apellido}</TableCell>
                     </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>ID Ciudadano Digital</TableCell>
-                      <TableCell>{usuario.id_ciudadano_digital || 'N/A'}</TableCell>
-                    </TableRow>
+                  
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Número de Documento</TableCell>
                       <TableCell>{usuario.nro_documento}</TableCell>

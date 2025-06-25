@@ -370,18 +370,7 @@ const UsuariosList = ({ usuarios = [] }) => {
           </Tooltip>
         ),
       },
-      {
-        accessorKey: 'id_ciudadano_digital',
-        header: 'ID Ciudadano',
-        size: 100,
-        visible: false,
-      },
-      {
-        accessorKey: 'contrasena',
-        header: 'Contraseña',
-        size: 100,
-        visible: false,
-      },
+    
     ],
     [usuariosMap]
   )
