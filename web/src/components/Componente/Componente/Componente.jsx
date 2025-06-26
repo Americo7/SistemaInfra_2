@@ -22,10 +22,8 @@ import {
   CardContent,
   CardHeader,
   Avatar,
-  colors,
   Tab,
   Tabs,
-  Divider,
   Stack,
   Tooltip,
   useTheme,
@@ -33,7 +31,6 @@ import {
 } from '@mui/material'
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Code as ComponentIcon,
   Storage as ServerIcon,
   Computer as MachineIcon,
@@ -56,14 +53,6 @@ import {
   OpenInNew as OpenInNewIcon,
   Code as CodeIcon,
 } from '@mui/icons-material'
-
-const DELETE_COMPONENTE_MUTATION = gql`
-  mutation DeleteComponenteMutation($id: Int!) {
-    deleteComponente(id: $id) {
-      id
-    }
-  }
-`
 
 const GET_USUARIOS_QUERY = gql`
   query FindUsuarios_fromComponenteVista {
@@ -136,15 +125,6 @@ const Componente = ({ componente }) => {
   const theme = useTheme()
   const [activeTab, setActiveTab] = useState(0)
 
-  const [deleteComponente] = useMutation(DELETE_COMPONENTE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Componente eliminado correctamente')
-      navigate(routes.componentes())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar componente: ${error.message}`)
-    },
-  })
 
   const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
   const { data: desplieguesData } = useQuery(GET_DESPLEGUES_QUERY, {
@@ -161,12 +141,6 @@ const Componente = ({ componente }) => {
     map[usuario.id] = `${usuario.nombres} ${usuario.primer_apellido}`
     return map
   }, {}) || {}
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar el componente ${componente.nombre} (ID: ${id})?`)) {
-      deleteComponente({ variables: { id } })
-    }
-  }
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue)
@@ -307,20 +281,7 @@ const Componente = ({ componente }) => {
           >
             Editar Componente
           </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(componente.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
-          </Button>
+         
         </Stack>
       </Box>
 

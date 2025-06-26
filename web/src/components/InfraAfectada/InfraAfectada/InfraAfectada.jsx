@@ -156,12 +156,6 @@ const InfraAfectada = ({ infraAfectada }) => {
     return map
   }, {}) || {}
 
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar esta infraestructura afectada (ID: ${id})?`)) {
-      deleteInfraAfectada({ variables: { id } })
-    }
-  }
-
   const getEstadoColor = (estado) => {
     return estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main
   }
@@ -215,20 +209,6 @@ const InfraAfectada = ({ infraAfectada }) => {
             }}
           >
             Editar
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(infraAfectada.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
           </Button>
         </Stack>
       </Box>

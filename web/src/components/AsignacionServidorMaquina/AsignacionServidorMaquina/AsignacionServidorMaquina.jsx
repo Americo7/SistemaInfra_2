@@ -34,7 +34,6 @@ import {
 } from '@mui/material'
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Storage as ServerIcon,
   Computer as MachineIcon,
   Dns as ClusterIcon,
@@ -48,13 +47,6 @@ import {
   OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material'
 
-const DELETE_ASIGNACION_SERVIDOR_MAQUINA_MUTATION = gql`
-  mutation DeleteAsignacionServidorMaquinaMutation($id: Int!) {
-    deleteAsignacionServidorMaquina(id: $id) {
-      id
-    }
-  }
-`
 
 const GET_SERVIDOR_QUERY = gql`
   query GetServidorQuery($id: Int!) {
@@ -116,19 +108,6 @@ const AsignacionServidorMaquina = ({ asignacionServidorMaquina }) => {
   const theme = useTheme()
   const [activeTab, setActiveTab] = useState(0)
 
-  const [deleteAsignacionServidorMaquina] = useMutation(
-    DELETE_ASIGNACION_SERVIDOR_MAQUINA_MUTATION,
-    {
-      onCompleted: () => {
-        toast.success('Asignación eliminada correctamente')
-        navigate(routes.asignacionServidorMaquinas())
-      },
-      onError: (error) => {
-        toast.error(`Error al eliminar asignación: ${error.message}`)
-      },
-    }
-  )
-
   // Consulta para el servidor principal
   const { data: servidorData, loading: loadingServidor } = useQuery(GET_SERVIDOR_QUERY, {
     variables: { id: asignacionServidorMaquina.id_servidor }
@@ -159,12 +138,6 @@ const AsignacionServidorMaquina = ({ asignacionServidorMaquina }) => {
     map[usuario.id] = `${usuario.nombres} ${usuario.primer_apellido}`
     return map
   }, {}) || {}
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar esta asignación (ID: ${id})?`)) {
-      deleteAsignacionServidorMaquina({ variables: { id } })
-    }
-  }
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue)
@@ -232,20 +205,6 @@ const AsignacionServidorMaquina = ({ asignacionServidorMaquina }) => {
             }}
           >
             Editar Asignación
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(asignacionServidorMaquina.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
           </Button>
         </Stack>
       </Box>

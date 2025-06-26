@@ -5,35 +5,8 @@ import { toast } from '@redwoodjs/web/toast'
 
 import { timeTag } from 'src/lib/formatters'
 
-const DELETE_DESPLIEGUE_BITACORA_MUTATION = gql`
-  mutation DeleteDespliegueBitacoraMutation($id: Int!) {
-    deleteDespliegueBitacora(id: $id) {
-      id
-    }
-  }
-`
 
 const DespliegueBitacora = ({ despliegueBitacora }) => {
-  const [deleteDespliegueBitacora] = useMutation(
-    DELETE_DESPLIEGUE_BITACORA_MUTATION,
-    {
-      onCompleted: () => {
-        toast.success('DespliegueBitacora deleted')
-        navigate(routes.despliegueBitacoras())
-      },
-      onError: (error) => {
-        toast.error(error.message)
-      },
-    }
-  )
-
-  const onDeleteClick = (id) => {
-    if (
-      confirm('Are you sure you want to delete despliegueBitacora ' + id + '?')
-    ) {
-      deleteDespliegueBitacora({ variables: { id } })
-    }
-  }
 
   return (
     <>

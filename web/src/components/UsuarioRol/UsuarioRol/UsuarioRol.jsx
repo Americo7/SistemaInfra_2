@@ -29,7 +29,6 @@ import {
 } from '@mui/material'
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Person as UserIcon,
   VerifiedUser as RoleIcon,
   Computer as MachineIcon,
@@ -41,13 +40,6 @@ import {
   MoreVert as MoreIcon,
 } from '@mui/icons-material'
 
-const DELETE_USUARIO_ROL_MUTATION = gql`
-  mutation DeleteUsuarioRolMutation($id: Int!) {
-    deleteUsuarioRol(id: $id) {
-      id
-    }
-  }
-`
 
 const GET_USUARIO_QUERY = gql`
   query GetUsuario($id: Int!) {
@@ -100,16 +92,6 @@ const GET_USUARIOS_QUERY = gql`
 const UsuarioRol = ({ usuarioRol }) => {
   const theme = useTheme()
 
-  const [deleteUsuarioRol] = useMutation(DELETE_USUARIO_ROL_MUTATION, {
-    onCompleted: () => {
-      toast.success('Asignación de rol eliminada correctamente')
-      navigate(routes.usuarioRols())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar: ${error.message}`)
-    },
-  })
-
   // Consultas para las asociaciones
   const { data: usuarioData } = useQuery(GET_USUARIO_QUERY, {
     variables: { id: usuarioRol.id_usuario },
@@ -139,12 +121,6 @@ const UsuarioRol = ({ usuarioRol }) => {
     map[usuario.id] = `${usuario.nombres} ${usuario.primer_apellido}`
     return map
   }, {}) || {}
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar esta asignación de rol (ID: ${id})?`)) {
-      deleteUsuarioRol({ variables: { id } })
-    }
-  }
 
   const getEstadoColor = (estado) => {
     return estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main
@@ -199,20 +175,6 @@ const UsuarioRol = ({ usuarioRol }) => {
             }}
           >
             Editar Asignación
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(usuarioRol.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
           </Button>
         </Stack>
       </Box>

@@ -33,7 +33,6 @@ import {
 } from '@mui/material'
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Dns as ClusterIcon,
   ArrowBack as BackIcon,
   Info as InfoIcon,
@@ -46,13 +45,7 @@ import {
   Person as PersonIcon,
 } from '@mui/icons-material'
 
-const DELETE_CLUSTER_MUTATION = gql`
-  mutation DeleteClusterMutation($id: Int!) {
-    deleteCluster(id: $id) {
-      id
-    }
-  }
-`
+
 
 const GET_MAQUINAS_QUERY = gql`
   query MaquinasClusterQuery($id: Int!) {
@@ -129,15 +122,7 @@ const formatDateTime = (dateString) => {
 const Cluster = ({ cluster }) => {
   const theme = useTheme()
   const [activeTab, setActiveTab] = useState(0)
-  const [deleteCluster] = useMutation(DELETE_CLUSTER_MUTATION, {
-    onCompleted: () => {
-      toast.success('Cluster eliminado correctamente')
-      navigate(routes.clusters())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar cluster: ${error.message}`)
-    },
-  })
+  
 
   const { data: maquinasData } = useQuery(GET_MAQUINAS_QUERY, {
     variables: { id: cluster.id }
@@ -169,12 +154,6 @@ const Cluster = ({ cluster }) => {
 
   const usuarioCreacionNombre = formatUserName(userCreacionData?.usuario)
   const usuarioModificacionNombre = formatUserName(userModificacionData?.usuario)
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar el cluster "${cluster.nombre}" (ID: ${id})?`)) {
-      deleteCluster({ variables: { id } })
-    }
-  }
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue)
@@ -222,20 +201,7 @@ const Cluster = ({ cluster }) => {
           >
             Editar Cluster
           </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(cluster.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
-          </Button>
+          
         </Stack>
       </Box>
 

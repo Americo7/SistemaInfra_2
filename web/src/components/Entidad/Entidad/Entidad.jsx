@@ -28,7 +28,6 @@ import {
 } from '@mui/material'
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   ArrowBack as BackIcon,
   Info as InfoIcon,
   Person as PersonIcon,
@@ -37,13 +36,6 @@ import {
   Business as EntidadIcon,
 } from '@mui/icons-material'
 
-const DELETE_ENTIDAD_MUTATION = gql`
-  mutation DeleteEntidadMutation($id: Int!) {
-    deleteEntidad(id: $id) {
-      id
-    }
-  }
-`
 
 // Consulta para obtener información de usuario por ID
 const GET_USUARIO_BY_ID = gql`
@@ -71,21 +63,6 @@ const Entidad = ({ entidad }) => {
     skip: !entidad.usuario_modificacion,
   })
 
-  const [deleteEntidad] = useMutation(DELETE_ENTIDAD_MUTATION, {
-    onCompleted: () => {
-      toast.success('Entidad eliminada correctamente')
-      navigate(routes.entidads())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar entidad: ${error.message}`)
-    },
-  })
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar la entidad ${entidad.nombre} (ID: ${id})?`)) {
-      deleteEntidad({ variables: { id } })
-    }
-  }
 
   const getEstadoColor = (estado) => {
     return estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main
@@ -147,20 +124,6 @@ const Entidad = ({ entidad }) => {
             }}
           >
             Editar Entidad
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(entidad.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
           </Button>
         </Stack>
       </Box>

@@ -33,7 +33,6 @@ import {
 } from '@mui/material'
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Event as EventIcon,
   ArrowBack as BackIcon,
   Info as InfoIcon,
@@ -43,14 +42,6 @@ import {
   MoreVert as MoreIcon,
   History as HistoryIcon,
 } from '@mui/icons-material'
-
-const DELETE_EVENTO_MUTATION = gql`
-  mutation DeleteEventoMutation($id: Int!) {
-    deleteEvento(id: $id) {
-      id
-    }
-  }
-`
 
 const GET_USUARIOS_QUERY = gql`
   query GetUsuarios_fromEventoVista {
@@ -103,16 +94,6 @@ const Evento = ({ evento }) => {
   const theme = useTheme()
   const [activeTab, setActiveTab] = useState(0)
 
-  const [deleteEvento] = useMutation(DELETE_EVENTO_MUTATION, {
-    onCompleted: () => {
-      toast.success('Evento eliminado correctamente')
-      navigate(routes.eventos())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar evento: ${error.message}`)
-    },
-  })
-
   // Consulta para todos los usuarios
   const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
 
@@ -161,11 +142,6 @@ const Evento = ({ evento }) => {
   // Datos de infraestructura afectada
   const infraAfectada = infraAfectadaData?.evento?.infra_afectada || []
 
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar el evento ${id}?`)) {
-      deleteEvento({ variables: { id } })
-    }
-  }
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue)
@@ -224,20 +200,6 @@ const Evento = ({ evento }) => {
             }}
           >
             Editar Evento
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(evento.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
           </Button>
         </Stack>
       </Box>

@@ -2,7 +2,6 @@ import { useState } from 'react'
 
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Dns as SystemIcon,
   Event as EventIcon,
   ArrowBack as BackIcon,
@@ -73,13 +72,6 @@ const COLOR_GRIS_OSCURO = [70, 70, 70]
 const COLOR_GRIS = [120, 120, 120]
 const COLOR_GRIS_CLARO = [240, 240, 240]
 
-const DELETE_SISTEMA_MUTATION = gql`
-  mutation DeleteSistemaMutation($id: Int!) {
-    deleteSistema(id: $id) {
-      id
-    }
-  }
-`
 
 const SISTEMA_REPORTE_QUERY = gql`
   query SistemaReporteQuery($id: Int!) {
@@ -164,26 +156,10 @@ const Sistema = ({ sistema }) => {
     variables: { id: sistema.id },
   })
 
-  const [deleteSistema] = useMutation(DELETE_SISTEMA_MUTATION, {
-    onCompleted: () => {
-      toast.success('Sistema eliminado correctamente')
-      navigate(routes.sistemas())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar sistema: ${error.message}`)
-    },
-  })
 
   const sistemaDetails = data?.sistema || sistema
 
   // Funciones auxiliares
-  const confirmDelete = (id) => {
-    if (
-      confirm(`¿Está seguro que desea eliminar el sistema ${sistema.nombre}?`)
-    ) {
-      deleteSistema({ variables: { id } })
-    }
-  }
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue)
@@ -1071,20 +1047,6 @@ const Sistema = ({ sistema }) => {
             }}
           >
             Editar Sistema
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => confirmDelete(sistema.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
           </Button>
           <Button
             variant="contained"

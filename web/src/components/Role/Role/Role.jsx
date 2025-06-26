@@ -33,7 +33,6 @@ import {
 } from '@mui/material'
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Badge as RoleIcon,
   ArrowBack as BackIcon,
   Info as InfoIcon,
@@ -45,13 +44,7 @@ import {
   Email as EmailIcon,
 } from '@mui/icons-material'
 
-const DELETE_ROLE_MUTATION = gql`
-  mutation DeleteRoleMutation($id: Int!) {
-    deleteRole(id: $id) {
-      id
-    }
-  }
-`
+
 
 const GET_USUARIOS_QUERY = gql`
   query UsuariosPorRolQuery($id: Int!) {
@@ -106,15 +99,6 @@ const formatDateTime = (dateString) => {
 const Role = ({ role }) => {
   const theme = useTheme()
   const [activeTab, setActiveTab] = useState(0)
-  const [deleteRole] = useMutation(DELETE_ROLE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Rol eliminado correctamente')
-      navigate(routes.roles())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar rol: ${error.message}`)
-    },
-  })
 
   const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY, {
     variables: { id: role.id }
@@ -141,12 +125,6 @@ const Role = ({ role }) => {
 
   const usuarioCreacionNombre = formatUserName(userCreacionData?.usuario)
   const usuarioModificacionNombre = formatUserName(userModificacionData?.usuario)
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar el rol "${role.nombre}" (ID: ${id})?`)) {
-      deleteRole({ variables: { id } })
-    }
-  }
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue)
@@ -193,20 +171,6 @@ const Role = ({ role }) => {
             }}
           >
             Editar Rol
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(role.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
           </Button>
         </Stack>
       </Box>

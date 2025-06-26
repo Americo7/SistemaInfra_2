@@ -33,7 +33,6 @@ import {
 } from '@mui/material'
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Storage as ServerIcon,
   Computer as MachineIcon,
   Dns as ClusterIcon,
@@ -52,13 +51,6 @@ import {
   MoreVert as MoreIcon,
 } from '@mui/icons-material'
 
-const DELETE_SERVIDOR_MUTATION = gql`
-  mutation DeleteServidorMutation($id: Int!) {
-    deleteServidor(id: $id) {
-      id
-    }
-  }
-`
 
 const GET_USUARIOS_QUERY = gql`
   query UsuariosQuery_fromServidor {
@@ -81,15 +73,6 @@ const GET_SERVIDOR_PADRE_QUERY = gql`
 const Servidor = ({ servidor }) => {
   const theme = useTheme()
   const [activeTab, setActiveTab] = useState(0)
-  const [deleteServidor] = useMutation(DELETE_SERVIDOR_MUTATION, {
-    onCompleted: () => {
-      toast.success('Servidor eliminado correctamente')
-      navigate(routes.servidors())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar servidor: ${error.message}`)
-    },
-  })
 
   const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
 
@@ -104,12 +87,6 @@ const Servidor = ({ servidor }) => {
   }, {}) || {}
 
 
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar el servidor ${servidor.nombre} (ID: ${id})?`)) {
-      deleteServidor({ variables: { id } })
-    }
-  }
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue)
@@ -184,20 +161,6 @@ const Servidor = ({ servidor }) => {
             }}
           >
             Editar Servidor
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(servidor.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
           </Button>
         </Stack>
       </Box>

@@ -33,7 +33,6 @@ import {
 } from '@mui/material'
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
   Computer as MachineIcon,
   Dns as ClusterIcon,
   Event as EventIcon,
@@ -55,13 +54,6 @@ import {
   People as UsersIcon,
 } from '@mui/icons-material'
 
-const DELETE_MAQUINA_MUTATION = gql`
-  mutation DeleteMaquinaMutation($id: Int!) {
-    deleteMaquina(id: $id) {
-      id
-    }
-  }
-`
 
 const GET_SERVIDOR_QUERY = gql`
   query ServidorQuery($id: Int!) {
@@ -211,15 +203,6 @@ const formatDateTime = (dateString) => {
 const Maquina = ({ maquina }) => {
   const theme = useTheme()
   const [activeTab, setActiveTab] = useState(0)
-  const [deleteMaquina] = useMutation(DELETE_MAQUINA_MUTATION, {
-    onCompleted: () => {
-      toast.success('Máquina eliminada correctamente')
-      navigate(routes.maquinas())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar máquina: ${error.message}`)
-    },
-  })
 
   const { data: servidorData } = useQuery(GET_SERVIDOR_QUERY, {
     variables: { id: maquina.id }
@@ -303,12 +286,6 @@ const Maquina = ({ maquina }) => {
     }
   }
 
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar la máquina ${maquina.nombre} (ID: ${id})?`)) {
-      deleteMaquina({ variables: { id } })
-    }
-  }
-
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue)
   }
@@ -364,20 +341,6 @@ const Maquina = ({ maquina }) => {
             }}
           >
             Editar Máquina
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(maquina.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
           </Button>
         </Stack>
       </Box>
