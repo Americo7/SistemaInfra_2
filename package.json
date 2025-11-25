@@ -1,0 +1,56 @@
+{
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "api",
+      "web"
+    ]
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.5.0",
+    "@redwoodjs/core": "8.6.1",
+    "@redwoodjs/project-config": "8.6.1",
+    "prettier-plugin-tailwindcss": "0.4.1",
+    "prisma": "^6.5.0"
+  },
+  "eslintConfig": {
+    "extends": "@redwoodjs/eslint-config",
+    "root": true
+  },
+  "engines": {
+    "node": "=20.x"
+  },
+  "prisma": {
+    "seed": "yarn rw exec seed"
+  },
+  "packageManager": "yarn@4.6.0",
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@headlessui/react": "^2.2.1",
+    "@hookform/resolvers": "^5.0.1",
+    "@mui/icons-material": "^7.0.2",
+    "@mui/lab": "^7.0.0-beta.11",
+    "@mui/material": "^7.0.2",
+    "@mui/x-date-pickers": "^7.28.3",
+    "@types/yup": "^0.32.0",
+    "apexcharts": "^4.5.0",
+    "axios": "^1.13.2",
+    "date-fns": "2.29.3",
+    "dayjs": "^1.11.13",
+    "formik": "^2.4.6",
+    "html2pdf.js": "^0.10.3",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
+    "lucide-react": "^0.487.0",
+    "material-react-table": "^3.2.1",
+    "notistack": "^3.0.2",
+    "react-apexcharts": "^1.7.0",
+    "react-helmet-async": "^2.0.5",
+    "react-select": "^5.10.1",
+    "react-to-print": "^3.0.5",
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0",
+    "yup": "^1.6.1"
+  }
+}

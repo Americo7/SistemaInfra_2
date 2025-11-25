@@ -1,0 +1,34 @@
+.idea
+.DS_Store
+.env*
+!.env.defaults
+.netlify
+.redwood/*
+dev.db*
+dist
+dist-babel
+node_modules
+yarn-error.log
+web/public/mockServiceWorker.js
+web/types/graphql.d.ts
+api/types/graphql.d.ts
+api/src/lib/generateGraphiQLHeader.*
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+# Logs de NPM (por si alguien usa npm install por error en lugar de yarn)
+npm-debug.log*
+
+# Configuración local de VS Code (opcional, si cada dev tiene su gusto)
+.vscode/
+
+# Archivos de reporte de Tests (si corres tests en el futuro)
+coverage/
+junit.xml
+
+# Archivos de sistema operativo extra (Mac/Windows)
+Thumbs.db

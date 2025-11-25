@@ -1,0 +1,20 @@
+# redwood.toml
+
+[web]
+  title = "Redwood App"
+  # Lee la variable WEB_PORT del .env, si no existe usa 8910
+  port = "${WEB_PORT:8910}"
+  apiUrl = "/api"
+  includeEnvironmentVariables = [
+    "API_URL"
+  ]
+
+[api]
+  # Lee la variable API_PORT del .env, si no existe usa 8911
+  port = "${API_PORT:8911}"
+
+[browser]
+  open = true
+
+[notifications]
+  versionUpdates = ["latest"]

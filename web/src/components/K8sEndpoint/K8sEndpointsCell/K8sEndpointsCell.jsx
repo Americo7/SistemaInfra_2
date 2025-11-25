@@ -1,0 +1,53 @@
+import { Link, routes } from '@redwoodjs/router'
+import K8sEndpoints from 'src/components/K8sEndpoint/K8sEndpoints'
+
+export const QUERY = gql`
+  query FindK8sEndpoints {
+    k8SEndpoints {
+      id
+      nombre
+      url_api
+      token_bearer
+      descripcion
+      fecha_ultima_sync
+      estado
+      fecha_creacion
+      usuario_creacion
+      fecha_modificacion
+      usuario_modificacion
+      # Traemos info básica de clusters para mostrar contadores o tooltips
+      clusters {
+        id
+        nombre
+      }
+    }
+    # Agregamos usuarios para pasarlos a la tabla
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
+    }
+  }
+`
+
+export const Loading = () => <div>Loading...</div>
+
+export const Empty = () => {
+  return (
+    <div className="rw-text-center">
+      No hay Endpoints de Kubernetes registrados.{' '}
+      <Link to={routes.newK8sEndpoint()} className="rw-link">
+        ¿Crear uno?
+      </Link>
+    </div>
+  )
+}
+
+export const Failure = ({ error }) => (
+  <div className="rw-cell-error">{error?.message}</div>
+)
+
+export const Success = ({ k8SEndpoints, usuarios }) => {
+  return <K8sEndpoints k8SEndpoints={k8SEndpoints} usuarios={usuarios} />
+}

@@ -1,0 +1,103 @@
+/* Scaffold Layout Styles */
+
+.rw-scaffold {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.rw-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  margin: 0 0 2rem 0;
+  border-bottom: none;
+  background: transparent;
+}
+
+.rw-heading {
+  margin: 0;
+  padding: 0;
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.rw-heading-primary {
+  color: inherit;
+}
+
+.rw-link {
+  text-decoration: none;
+  color: inherit;
+  transition: color 0.2s;
+}
+
+.rw-link:hover {
+  color: var(--color-primary, #2196f3);
+}
+
+.rw-main {
+  flex: 1;
+  padding: 0;
+  margin: 0;
+}
+
+.rw-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.5rem;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: #4caf50;
+  color: white;
+}
+
+.rw-button:hover {
+  background-color: #45a049;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.rw-button-green {
+  background-color: #4caf50;
+  color: white;
+}
+
+.rw-button-green:hover {
+  background-color: #45a049;
+}
+
+.rw-button-icon {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+/* Toast Styles */
+.rw-toast {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .rw-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+
+  .rw-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .rw-heading {
+    font-size: 1.5rem;
+  }
+}
