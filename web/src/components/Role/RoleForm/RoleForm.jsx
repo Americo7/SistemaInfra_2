@@ -1,24 +1,42 @@
-import { useState } from 'react'
-import Select from 'react-select'
-import { Form, FormError, FieldError, Label, TextField } from '@redwoodjs/forms'
-import { useQuery } from '@redwoodjs/web'
+import React, { useMemo } from 'react'
+import { useQuery, gql } from '@redwoodjs/web'
+import { useForm, Controller } from 'react-hook-form'
+import { navigate, routes } from '@redwoodjs/router'
+
 import {
   Box,
   Card,
   CardContent,
-  Divider,
-  Grid,
+  CardHeader,
   Typography,
+  TextField,
+  FormControl,
+  FormLabel,
+  Autocomplete,
+  Stack,
+  Avatar,
+  Button,
   useTheme,
+  Paper,
+  CircularProgress
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
+
+// Iconos
 import {
-  CheckCircleOutline,
-  Description,
-  Category,
-  Title,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  AddCircle as AddIcon,
+  Edit as EditIcon,
+  ErrorOutline as ErrorIcon,
+  Badge as RoleIcon,
+  Category as CategoryIcon,
+  Description as DescriptionIcon
 } from '@mui/icons-material'
 
+/* ---------------------------------------------
+ * 1. QUERIES
+ * --------------------------------------------- */
 const GET_PARAMETROS = gql`
   query GetParametrosRoles {
     parametros {
@@ -30,282 +48,271 @@ const GET_PARAMETROS = gql`
   }
 `
 
+/* ---------------------------------------------
+ * 2. COMPONENTE HELPER: SectionCard
+ * --------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* ---------------------------------------------
+ * 3. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
 const RoleForm = (props) => {
   const theme = useTheme()
+  const isEdit = Boolean(props.role?.id)
+
+  // Carga de datos
   const { data: parametrosData, loading: parametrosLoading } = useQuery(GET_PARAMETROS)
 
-  const [selectedTipoRol, setSelectedTipoRol] = useState(props.role?.cod_tipo_rol || null)
+  // Opciones de Tipo de Rol
+  const tipoRolOptions = useMemo(() => {
+    if (!parametrosData?.parametros) return []
+    return parametrosData.parametros
+      .filter((p) => p.grupo === 'TIPO_ROL')
+      .map((p) => ({
+        value: p.codigo,
+        label: p.nombre,
+      }))
+  }, [parametrosData])
 
-  const parametrosDeEntorno = parametrosData?.parametros?.filter((param) => {
-    return param.grupo === 'TIPO_ROL'
-  }) || []
+  // Configuración del Formulario
+  const formMethods = useForm({
+    defaultValues: {
+      nombre: props.role?.nombre || '',
+      cod_tipo_rol: props.role?.cod_tipo_rol || '',
+      descripcion: props.role?.descripcion || '',
+    },
+  })
 
-  const tipoRolOptions = parametrosDeEntorno.map((tipoRol) => ({
-    value: tipoRol.codigo,
-    label: tipoRol.nombre,
-  }))
+  const { control, handleSubmit, formState: { errors } } = formMethods
 
   const onSubmit = (data) => {
     const formData = {
       ...data,
-      cod_tipo_rol: selectedTipoRol,
-      estado: props.role?.id ? data.estado : 'ACTIVO',
+      estado: props.role?.id ? props.role.estado : 'ACTIVO',
       usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_creacion: isEdit ? undefined : 3,
     }
     props.onSave(formData, props?.role?.id)
   }
 
-  const customSelectStyles = {
-    control: (base, state) => ({
-      ...base,
-      minHeight: '50px',
-      borderRadius: '8px',
-      borderColor: state.isFocused ? theme.palette.primary.main : theme.palette.divider,
-      boxShadow: state.isFocused ? `0 0 0 1px ${theme.palette.primary.main}` : 'none',
-      '&:hover': {
-        borderColor: theme.palette.primary.main,
-      },
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isSelected
-        ? theme.palette.primary.light
-        : state.isFocused
-        ? theme.palette.action.hover
-        : 'transparent',
-      color: state.isSelected
-        ? theme.palette.primary.contrastText
-        : theme.palette.text.primary,
-    }),
-    menu: (base) => ({
-      ...base,
-      zIndex: 9999,
-    }),
-  }
-
   if (parametrosLoading) {
-    return (
-      <Box sx={{ textAlign: 'center', p: 4 }}>
-        <Typography>Cargando...</Typography>
-      </Box>
-    )
+    return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box>
   }
 
   return (
-    <Card
-      sx={{
-        maxWidth: '900px',
-        margin: 'auto',
-        boxShadow: theme.shadows[6],
-        borderRadius: '12px',
-        overflow: 'visible',
-      }}
-    >
-      <Box
-        sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
-          p: 3,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-          marginTop: '-1px',
-        }}
-      >
-        <Typography variant="h5" fontWeight="600">
-          {props.role?.id ? 'Editar Rol' : 'Nuevo Rol'}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          {props.role?.id ? 'Actualice la información del rol' : 'Complete la información para crear un nuevo rol'}
-        </Typography>
-      </Box>
+    <Box sx={{ width: '100%', maxWidth: 1000, mx: 'auto', p: 2 }}>
+      
+      {/* CONTENEDOR PRINCIPAL */}
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        
+        {/* HEADER */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                }}>
+              {isEdit ? <EditIcon /> : <AddIcon />}
+            </Avatar>
+            
+            <Box>
+              <Typography variant="h5" fontWeight={800} sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>
+                {isEdit ? 'Editar Rol' : 'Nuevo Rol'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isEdit ? 'Actualice la información del rol' : 'Complete la información para crear un nuevo rol'}
+              </Typography>
+            </Box>
+        </Box>
 
-      <CardContent sx={{ p: 4 }}>
-        <Form onSubmit={onSubmit} error={props.error}>
-          <FormError
-            error={props.error}
-            wrapperStyle={{
-              backgroundColor: theme.palette.error.light,
-              color: theme.palette.error.contrastText,
-              padding: '16px',
-              marginBottom: '24px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-            titleStyle={{
-              fontWeight: '600',
-              marginBottom: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-            listStyle={{
-              listStyleType: 'none',
-              padding: 0,
-              margin: 0,
-            }}
-          />
+        {/* CONTENIDO */}
+        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          
+          <form onSubmit={handleSubmit(onSubmit)}>
+            
+            {/* Mensaje de Error */}
+            {props.error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorOutlineIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+              </Paper>
+            )}
 
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={6}>
-              <Label
-                name="nombre"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
+            {/* GRID LAYOUT DE 2 COLUMNAS */}
+            <Box sx={{ 
+              display: 'grid', 
+              gap: 3, 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+              alignItems: 'start'
+            }}>
+              
+              {/* --- CARD 1: IDENTIFICACIÓN --- */}
+              <SectionCard 
+                icon={<RoleIcon sx={{ fontSize: 20 }} />} 
+                title="Identificación del Rol"
+                bgcolor={theme.palette.primary.main}
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* Nombre */}
+                  <FormControl fullWidth error={!!errors.nombre}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre del Rol *</FormLabel>
+                    <Controller
+                      name="nombre"
+                      control={control}
+                      rules={{ required: 'El nombre es requerido' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. Administrador de Sistemas" 
+                          error={!!errors.nombre}
+                          helperText={errors.nombre?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
+
+                  {/* Tipo de Rol */}
+                  <FormControl fullWidth error={!!errors.cod_tipo_rol}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Tipo de Rol *</FormLabel>
+                    <Controller
+                      name="cod_tipo_rol"
+                      control={control}
+                      rules={{ required: 'Seleccione un tipo' }}
+                      render={({ field: { onChange, value } }) => (
+                        <Autocomplete
+                          options={tipoRolOptions}
+                          getOptionLabel={(option) => option.label}
+                          value={tipoRolOptions.find(opt => opt.value === value) || null}
+                          onChange={(_, newValue) => onChange(newValue ? newValue.value : '')}
+                          renderInput={(params) => (
+                            <TextField 
+                              {...params} 
+                              size="small" 
+                              placeholder="Seleccionar tipo..." 
+                              error={!!errors.cod_tipo_rol}
+                              helperText={errors.cod_tipo_rol?.message}
+                              InputProps={{
+                                ...params.InputProps,
+                                startAdornment: (
+                                  <>
+                                    <CategoryIcon color="action" fontSize="small" sx={{ mr: 1 }} />
+                                    {params.InputProps.startAdornment}
+                                  </>
+                                )
+                              }}
+                            />
+                          )}
+                        />
+                      )}
+                    />
+                  </FormControl>
+
+                </Stack>
+              </SectionCard>
+
+              {/* --- CARD 2: DETALLES --- */}
+              <SectionCard 
+                icon={<DescriptionIcon sx={{ fontSize: 20 }} />} 
+                title="Descripción y Permisos"
+                bgcolor={theme.palette.secondary.main}
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* Descripción */}
+                  <FormControl fullWidth error={!!errors.descripcion}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción Detallada *</FormLabel>
+                    <Controller
+                      name="descripcion"
+                      control={control}
+                      rules={{ required: 'La descripción es requerida' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          multiline
+                          rows={4}
+                          size="small" 
+                          placeholder="Describa las responsabilidades y alcance de este rol..." 
+                          error={!!errors.descripcion}
+                          helperText={errors.descripcion?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
+
+                </Stack>
+              </SectionCard>
+
+            </Box>
+
+            {/* BOTONES */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.roles())} // Asumiendo ruta
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+              >
+                Cancelar
+              </Button>
+
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={props.loading}
+                startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
+                  boxShadow: 4, 
+                  px: 4, 
+                  minWidth: 160, 
+                  borderRadius: 2, 
+                  textTransform: 'none', 
+                  fontWeight: 700 
                 }}
               >
-                <Title fontSize="small" sx={{ mr: 1 }} />
-                Nombre
-              </Label>
-              <TextField
-                name="nombre"
-                defaultValue={props.role?.nombre || ''}
-                validation={{ required: true }}
-                style={{
-                  minHeight: '50px',
-                  borderRadius: '8px',
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  fontSize: '0.9375rem',
-                }}
-                errorStyle={{
-                  border: `1px solid ${theme.palette.error.main}`,
-                  backgroundColor: theme.palette.error.light,
-                }}
-              />
-              <FieldError
-                name="nombre"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                }}
-              />
-            </Grid>
+                {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar Rol')}
+              </LoadingButton>
+            </Box>
 
-            <Grid item xs={12} md={6}>
-              <Label
-                name="cod_tipo_rol"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Category fontSize="small" sx={{ mr: 1 }} />
-                Tipo de Rol
-              </Label>
-              <Select
-                name="cod_tipo_rol"
-                value={tipoRolOptions.find((option) => option.value === selectedTipoRol) || null}
-                options={tipoRolOptions}
-                onChange={(selectedOption) => setSelectedTipoRol(selectedOption?.value || null)}
-                styles={customSelectStyles}
-                classNamePrefix="select"
-                isClearable
-                placeholder="Seleccionar tipo de rol..."
-                noOptionsMessage={() => 'No hay tipos de rol disponibles'}
-              />
-              <FieldError
-                name="cod_tipo_rol"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                }}
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <Label
-                name="descripcion"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Description fontSize="small" sx={{ mr: 1 }} />
-                Descripción
-              </Label>
-              <TextField
-                name="descripcion"
-                defaultValue={props.role?.descripcion || ''}
-                validation={{ required: true }}
-                style={{
-                  minHeight: '50px',
-                  borderRadius: '8px',
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  fontSize: '0.9375rem',
-                }}
-                errorStyle={{
-                  border: `1px solid ${theme.palette.error.main}`,
-                  backgroundColor: theme.palette.error.light,
-                }}
-              />
-              <FieldError
-                name="descripcion"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                }}
-              />
-            </Grid>
-          </Grid>
-
-          <Divider sx={{ my: 4, borderColor: theme.palette.divider }} />
-
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 2,
-            }}
-          >
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              color="primary"
-              loading={props.loading}
-              loadingPosition="start"
-              startIcon={props.loading ? null : <CheckCircleOutline fontSize="small" />}
-              sx={{
-                px: 5,
-                py: 1.5,
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '600',
-                fontSize: '0.9375rem',
-                boxShadow: theme.shadows[2],
-                '&:hover': {
-                  boxShadow: theme.shadows[4],
-                  backgroundColor: theme.palette.primary.dark,
-                },
-              }}
-            >
-              {props.loading ? 'Guardando...' : 'Guardar Rol'}
-            </LoadingButton>
-          </Box>
-        </Form>
-      </CardContent>
-    </Card>
+          </form>
+        </Box>
+      </Card>
+    </Box>
   )
 }
 

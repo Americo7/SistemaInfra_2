@@ -13,7 +13,7 @@ export const QUERY = gql`
       servidorId
       rol
       estado
-      k8s_uid
+      identity_key
       fecha_creacion
       usuario_creacion
       fecha_modificacion

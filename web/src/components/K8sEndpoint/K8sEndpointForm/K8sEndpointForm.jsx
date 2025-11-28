@@ -1,260 +1,322 @@
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { navigate, routes } from '@redwoodjs/router'
 
 import {
   Box,
-  Paper,
+  Card,
+  CardContent,
+  CardHeader,
   Typography,
   TextField,
-  Select,
-  MenuItem,
   FormControl,
   FormLabel,
-  FormHelperText,
   InputAdornment,
   IconButton,
+  Stack,
+  Avatar,
   Button,
-  Grid,
-  Card,
-  CardHeader,
-  CardContent,
-  Divider,
+  useTheme,
+  Paper
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 
+// Iconos
 import {
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  AddCircle as AddIcon,
+  Edit as EditIcon,
+  ErrorOutline as ErrorIcon,
   Cloud as CloudIcon,
-  CheckCircleOutline as CheckCircleOutlineIcon,
   Visibility,
   VisibilityOff,
-  Cancel as CancelIcon,
-  Save as SaveIcon,
+  RestartAlt as ResetIcon,
+  Key as TokenIcon,
 } from '@mui/icons-material'
 
+/* ---------------------------------------------
+ * 1. COMPONENTE HELPER: SectionCard
+ * --------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* ---------------------------------------------
+ * 2. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
 const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
+  const theme = useTheme()
   const isEdit = Boolean(k8SEndpoint?.id)
   const [showToken, setShowToken] = useState(false)
 
-  // Configuración del formulario con React Hook Form
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm({
+  // Configuración del Formulario
+  const formMethods = useForm({
     defaultValues: {
       nombre: k8SEndpoint?.nombre || '',
       url_api: k8SEndpoint?.url_api || '',
-      token_bearer: k8SEndpoint?.token_bearer || '',
       descripcion: k8SEndpoint?.descripcion || '',
       estado: k8SEndpoint?.estado || 'ACTIVO',
+      token_bearer: k8SEndpoint?.token_bearer || '',
     },
   })
 
+  const { control, handleSubmit, reset, formState: { errors } } = formMethods
+
+  useEffect(() => {
+    if (k8SEndpoint) {
+      reset({
+        nombre: k8SEndpoint.nombre,
+        url_api: k8SEndpoint.url_api,
+        descripcion: k8SEndpoint.descripcion,
+        estado: k8SEndpoint.estado,
+        token_bearer: k8SEndpoint.token_bearer,
+      })
+    }
+  }, [k8SEndpoint, reset])
+
   const onSubmit = (data) => {
-    // Preparar payload
-    const payload = {
+    const formData = {
       ...data,
-      // TODO: Usar contexto de autenticación real
-      usuario_creacion: isEdit ? undefined : 1,
+      usuario_creacion: isEdit ? undefined : 1, 
       usuario_modificacion: isEdit ? 1 : undefined,
     }
+    onSave(formData, k8SEndpoint?.id)
+  }
 
-    // Enviar al componente padre
-    onSave(payload, k8SEndpoint?.id)
+  const handleReset = () => {
+    reset({
+      nombre: '',
+      url_api: '',
+      descripcion: '',
+      estado: 'ACTIVO',
+      token_bearer: '',
+    })
   }
 
   return (
-    <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ maxWidth: 900, mx: 'auto' }}>
-
-      {/* Mensaje de error general del servidor */}
-      {error && (
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 2,
-            mb: 3,
-            borderColor: 'error.main',
-            bgcolor: '#FFF5F5',
-            color: 'error.main',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1
-          }}
-        >
-          <Typography variant="body2" fontWeight="bold">Error:</Typography>
-          <Typography variant="body2">{error.message}</Typography>
-        </Paper>
-      )}
-
-      <Card sx={{ borderRadius: 2, boxShadow: 3 }}>
-        <CardHeader
-          avatar={<CloudIcon color="primary" fontSize="large" />}
-          title={
-            <Typography variant="h6" fontWeight={700}>
-              {isEdit ? 'Editar Endpoint Kubernetes' : 'Nuevo Endpoint Kubernetes'}
-            </Typography>
-          }
-          subheader="Configure la conexión al clúster K8s"
-          sx={{ bgcolor: 'grey.50', borderBottom: '1px solid #e0e0e0' }}
-        />
-
-        <CardContent sx={{ p: 4 }}>
-          <Grid container spacing={3}>
-
-            {/* SECCIÓN 1: IDENTIFICACIÓN */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle2" color="primary" fontWeight="bold" sx={{ mb: 1 }}>
-                DATOS DE CONEXIÓN
+    <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
+      
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        
+        {/* HEADER */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                }}>
+              {isEdit ? <EditIcon /> : <AddIcon />}
+            </Avatar>
+            
+            <Box>
+              <Typography variant="h5" fontWeight={800} sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>
+                {isEdit ? 'Editar Endpoint K8s' : 'Nuevo Endpoint K8s'}
               </Typography>
-            </Grid>
+              <Typography variant="body2" color="text.secondary">
+                Configure la conexión al clúster Kubernetes
+              </Typography>
+            </Box>
+        </Box>
 
-            {/* NOMBRE */}
-            <Grid item xs={12} md={6}>
-              <Controller
-                name="nombre"
-                control={control}
-                rules={{ required: 'El nombre es obligatorio' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Nombre del Endpoint *"
-                    placeholder="Ej: Cluster Producción"
-                    fullWidth
-                    error={!!errors.nombre}
-                    helperText={errors.nombre?.message}
+        {/* CONTENIDO */}
+        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          
+          <form onSubmit={handleSubmit(onSubmit)}>
+            
+            {/* Mensaje de Error */}
+            {error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorOutlineIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{error.message}</Typography>
+              </Paper>
+            )}
+
+            <Stack spacing={3}>
+              
+              {/* --- CARD 1: INFORMACIÓN DEL CLUSTER --- */}
+              <SectionCard 
+                icon={<CloudIcon sx={{ fontSize: 20 }} />} 
+                title="Información del Cluster"
+                bgcolor={theme.palette.primary.main}
+              >
+                 {/* GRID: 3 COLUMNAS EN UNA FILA */}
+                 <Box sx={{ 
+                   display: 'grid', 
+                   gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                   gap: 2 
+                 }}>
+                    
+                    {/* 1. Nombre */}
+                    <FormControl fullWidth error={!!errors.nombre}>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre del Cluster *</FormLabel>
+                      <Controller
+                        name="nombre"
+                        control={control}
+                        rules={{ required: 'El nombre es obligatorio' }}
+                        render={({ field }) => (
+                          <TextField 
+                            {...field} 
+                            size="small" 
+                            placeholder="Ej. K8s-Prod-01" 
+                            error={!!errors.nombre}
+                            helperText={errors.nombre?.message}
+                          />
+                        )}
+                      />
+                    </FormControl>
+
+                    {/* 2. URL API */}
+                    <FormControl fullWidth error={!!errors.url_api}>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>URL API Kubernetes *</FormLabel>
+                      <Controller
+                        name="url_api"
+                        control={control}
+                        rules={{ 
+                          required: 'La URL es obligatoria',
+                          pattern: { value: /^https?:\/\/.+/i, message: 'Debe comenzar con http:// o https://' }
+                        }}
+                        render={({ field }) => (
+                          <TextField 
+                            {...field} 
+                            size="small" 
+                            placeholder="https://192.168.1.100:6443" 
+                            error={!!errors.url_api}
+                            helperText={errors.url_api?.message}
+                          />
+                        )}
+                      />
+                    </FormControl>
+
+                    {/* 3. Descripción (Ahora en la misma fila) */}
+                    <FormControl fullWidth>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
+                      <Controller
+                        name="descripcion"
+                        control={control}
+                        render={({ field }) => (
+                          <TextField 
+                            {...field} 
+                            size="small" 
+                            placeholder="Detalles adicionales..." 
+                            // Eliminado multiline para que la altura sea igual a los otros inputs
+                          />
+                        )}
+                      />
+                    </FormControl>
+
+                  </Box>
+              </SectionCard>
+
+              {/* --- CARD 2: TOKEN --- */}
+              <SectionCard 
+                icon={<TokenIcon sx={{ fontSize: 20 }} />} 
+                title="Autenticación (Service Account Token)"
+                bgcolor="#2e7d32"
+              >
+                <FormControl fullWidth error={!!errors.token_bearer}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Token Bearer *</FormLabel>
+                  <Controller
+                    name="token_bearer"
+                    control={control}
+                    rules={{ required: 'El token es obligatorio' }}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        multiline
+                        rows={5}
+                        placeholder="Pegue aquí el token completo del Service Account..."
+                        type={showToken ? 'text' : 'password'}
+                        error={!!errors.token_bearer}
+                        helperText={errors.token_bearer?.message}
+                        InputProps={{
+                          sx: { fontFamily: 'monospace', fontSize: '0.85rem' },
+                          endAdornment: (
+                            <InputAdornment position="end" sx={{ alignSelf: 'flex-start', mt: 1 }}>
+                              <IconButton onClick={() => setShowToken(!showToken)} edge="end">
+                                {showToken ? <VisibilityOff /> : <Visibility />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    )}
                   />
-                )}
-              />
-            </Grid>
+                </FormControl>
+              </SectionCard>
 
-            {/* URL API */}
-            <Grid item xs={12} md={6}>
-              <Controller
-                name="url_api"
-                control={control}
-                rules={{
-                  required: 'La URL es obligatoria',
-                  pattern: {
-                    value: /^https?:\/\/.+/i,
-                    message: 'Debe ser una URL válida (http/https)',
-                  },
+            </Stack>
+
+            {/* BOTONES */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.k8SEndpoints())}
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                variant="outlined" color="warning" startIcon={<ResetIcon />}
+                onClick={handleReset}
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none' }}
+              >
+                Reset
+              </Button>
+
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={loading}
+                startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
+                  boxShadow: 4, 
+                  px: 4, 
+                  minWidth: 160, 
+                  borderRadius: 2, 
+                  textTransform: 'none', 
+                  fontWeight: 700 
                 }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="URL API *"
-                    placeholder="https://192.168.1.10:6443"
-                    fullWidth
-                    error={!!errors.url_api}
-                    helperText={errors.url_api?.message}
-                  />
-                )}
-              />
-            </Grid>
+              >
+                {isEdit ? 'Guardar Cambios' : 'Guardar Endpoint'}
+              </LoadingButton>
+            </Box>
 
-            {/* TOKEN BEARER */}
-            <Grid item xs={12}>
-              <Controller
-                name="token_bearer"
-                control={control}
-                rules={{ required: 'El Token Bearer es obligatorio' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Token Bearer (Service Account) *"
-                    fullWidth
-                    type={showToken ? 'text' : 'password'}
-                    multiline={showToken} // Si se muestra, permitir ver múltiples líneas
-                    rows={showToken ? 4 : 1}
-                    error={!!errors.token_bearer}
-                    helperText={errors.token_bearer?.message || "Token de autenticación para la API de K8s"}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={() => setShowToken(!showToken)}
-                            edge="end"
-                          >
-                            {showToken ? <VisibilityOff /> : <Visibility />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <Divider sx={{ my: 1 }} />
-            </Grid>
-
-            {/* SECCIÓN 2: METADATOS */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle2" color="primary" fontWeight="bold" sx={{ mb: 1 }}>
-                DETALLES Y ESTADO
-              </Typography>
-            </Grid>
-
-            {/* DESCRIPCIÓN */}
-            <Grid item xs={12} md={8}>
-              <Controller
-                name="descripcion"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    label="Descripción"
-                    placeholder="Detalles adicionales sobre este clúster..."
-                    multiline
-                    rows={2}
-                    fullWidth
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* ESTADO */}
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth>
-                <FormLabel sx={{ mb: 0.5, fontSize: '0.875rem' }}>Estado</FormLabel>
-                <Controller
-                  name="estado"
-                  control={control}
-                  render={({ field }) => (
-                    <Select {...field} fullWidth size="medium">
-                      <MenuItem value="ACTIVO">ACTIVO</MenuItem>
-                      <MenuItem value="INACTIVO">INACTIVO</MenuItem>
-                    </Select>
-                  )}
-                />
-              </FormControl>
-            </Grid>
-
-          </Grid>
-        </CardContent>
-
-        {/* ACTIONS */}
-        <Divider />
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', gap: 2, bgcolor: 'grey.50' }}>
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={<CancelIcon />}
-            onClick={() => navigate(routes.k8SEndpoints())}
-          >
-            Cancelar
-          </Button>
-          <LoadingButton
-            type="submit"
-            variant="contained"
-            color="primary"
-            startIcon={<SaveIcon />}
-            loading={loading}
-          >
-            {loading ? 'Guardando...' : 'Guardar'}
-          </LoadingButton>
+          </form>
         </Box>
       </Card>
     </Box>

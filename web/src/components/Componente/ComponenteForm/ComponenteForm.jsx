@@ -1,41 +1,52 @@
-import React, { useState } from 'react'
-import { useForm } from '@redwoodjs/forms'
-import { useQuery } from '@redwoodjs/web'
+import React, { useState, useEffect, useMemo } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { useQuery, gql } from '@redwoodjs/web'
+import { navigate, routes } from '@redwoodjs/router'
+
 import {
   Box,
   Card,
   CardContent,
-  Divider,
-  Grid,
+  CardHeader,
   Typography,
-  useTheme,
-  IconButton,
   TextField,
   FormControl,
-  InputLabel,
+  FormLabel,
+  Autocomplete,
   Select,
   MenuItem,
-  FormGroup,
-  FormControlLabel,
   Checkbox,
+  FormControlLabel,
+  FormGroup,
+  Stack,
+  Avatar,
+  Button,
+  IconButton,
+  Tooltip,
+  useTheme,
+  CircularProgress,
+  Paper
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
+
+// Iconos
 import {
-  CheckCircleOutline,
-  ErrorOutline,
-  HelpOutline,
   Save as SaveIcon,
   Cancel as CancelIcon,
-  Code,
-  Storage,
-  Web,
-  FolderShared,
-  Link,
-  Category,
-  Info,
-  Apps,
+  Apps as SystemIcon,       // Para Identificación
+  Category as CategoryIcon, // Para Clasificación
+  Code as CodeIcon,         // Para Tecnologías
+  Description as DescIcon,  // Para Detalles
+  AddCircle as AddIcon,
+  Edit as EditIcon,
+  ArrowBack as BackIcon,
+  ErrorOutline as ErrorIcon,
+  Storage as EntornoIcon
 } from '@mui/icons-material'
 
+/* ---------------------------------------------
+ * 1. QUERIES
+ * --------------------------------------------- */
 const OBTENER_SISTEMAS = gql`
   query ObtenerSistemas2 {
     sistemas {
@@ -57,80 +68,162 @@ const GET_PARAMETROS = gql`
   }
 `
 
+/* ---------------------------------------------
+ * 2. COMPONENTE HELPER: SectionCard
+ * --------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* ---------------------------------------------
+ * 3. SUBCOMPONENTE: Selector de Tecnologías
+ * --------------------------------------------- */
 const TecnologiasSelector = ({ tecnologias, value, onChange }) => {
   const theme = useTheme()
-  const [selectedTechs, setSelectedTechs] = useState(value ? JSON.parse(value) : [])
+  // Parseamos el JSON inicial o usamos array vacío
+  const [selectedTechs, setSelectedTechs] = useState(() => {
+    try {
+      return value ? JSON.parse(value) : []
+    } catch {
+      return []
+    }
+  })
 
-  const handleTechChange = (tech, isChecked) => {
-    const newTechs = isChecked
-      ? [...selectedTechs, { codigo: tech.codigo, nombre: tech.nombre, version: '' }]
-      : selectedTechs.filter(t => t.codigo !== tech.codigo)
-
+  // Actualizar estado interno y propagar al padre cuando cambia
+  const updateTechs = (newTechs) => {
     setSelectedTechs(newTechs)
     onChange(JSON.stringify(newTechs))
   }
 
+  const handleTechChange = (tech, isChecked) => {
+    if (isChecked) {
+      updateTechs([...selectedTechs, { codigo: tech.codigo, nombre: tech.nombre, version: '' }])
+    } else {
+      updateTechs(selectedTechs.filter(t => t.codigo !== tech.codigo))
+    }
+  }
+
   const handleVersionChange = (codigo, version) => {
-    const updatedTechs = selectedTechs.map(t =>
+    const updated = selectedTechs.map(t =>
       t.codigo === codigo ? { ...t, version } : t
     )
-    setSelectedTechs(updatedTechs)
-    onChange(JSON.stringify(updatedTechs))
+    updateTechs(updated)
   }
 
   return (
-    <Box sx={{ mt: 3, mb: 2 }}>
-      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-        <Code sx={{ mr: 1, color: theme.palette.text.secondary }} />
-        Tecnologías asociadas
+    <Box sx={{ mt: 1, p: 2, border: `1px dashed ${theme.palette.divider}`, borderRadius: 2, bgcolor: '#fafafa' }}>
+      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1, display: 'block' }}>
+        Seleccione las tecnologías:
       </Typography>
       <FormGroup>
-        <Grid container spacing={2}>
-          {tecnologias?.map(tech => (
-            <Grid item xs={12} sm={6} key={tech.codigo}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Stack spacing={1}>
+          {tecnologias?.map(tech => {
+            const isSelected = selectedTechs.some(t => t.codigo === tech.codigo)
+            return (
+              <Box key={tech.codigo} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <FormControlLabel
                   control={
                     <Checkbox
-                      checked={selectedTechs.some(t => t.codigo === tech.codigo)}
+                      size="small"
+                      checked={isSelected}
                       onChange={e => handleTechChange(tech, e.target.checked)}
-                      color="primary"
                     />
                   }
-                  label={tech.nombre}
+                  label={<Typography variant="body2">{tech.nombre}</Typography>}
                 />
-                {selectedTechs.some(t => t.codigo === tech.codigo) && (
+                {isSelected && (
                   <TextField
                     size="small"
-                    placeholder="Versión (ej: 1.0.0)"
+                    placeholder="Ver."
                     value={selectedTechs.find(t => t.codigo === tech.codigo)?.version || ''}
                     onChange={e => handleVersionChange(tech.codigo, e.target.value)}
-                    sx={{ ml: 2, width: 150 }}
-                    variant="outlined"
+                    sx={{ width: 80, bgcolor: 'white' }}
                   />
                 )}
               </Box>
-            </Grid>
-          ))}
-        </Grid>
+            )
+          })}
+          {tecnologias?.length === 0 && (
+            <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+              Seleccione una categoría para ver opciones.
+            </Typography>
+          )}
+        </Stack>
       </FormGroup>
     </Box>
   )
 }
 
+/* ---------------------------------------------
+ * 4. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
 const ComponenteForm = (props) => {
   const theme = useTheme()
-  const { register, formState: { errors }, handleSubmit } = useForm()
-  const { data: sistemasData } = useQuery(OBTENER_SISTEMAS)
-  const { data: parametrosData } = useQuery(GET_PARAMETROS)
-  const [selectedSistema, setSelectedSistema] = useState(props.componente?.id_sistema || null)
-  const [selectedCategoria, setSelectedCategoria] = useState(props.componente?.cod_categoria || '')
-  const [tecnologiaJson, setTecnologiaJson] = useState(props.componente?.tecnologia || '[]')
+  const isEdit = Boolean(props.componente?.id)
 
-  const sistemasOptions = sistemasData?.sistemas
-    ?.filter(s => s.estado === 'ACTIVO')
-    ?.map(s => ({ value: s.id, label: s.nombre })) || []
+  // Queries
+  const { data: sistemasData, loading: loadingSistemas } = useQuery(OBTENER_SISTEMAS)
+  const { data: parametrosData, loading: loadingParams } = useQuery(GET_PARAMETROS)
 
+  const loadingData = loadingSistemas || loadingParams
+
+  // Listas
+  const sistemasOptions = useMemo(() => 
+    sistemasData?.sistemas?.filter(s => s.estado === 'ACTIVO') || [], 
+  [sistemasData])
+
+  const categorias = useMemo(() => 
+    parametrosData?.parametros?.filter(p => p.grupo === 'CATEGORIA') || [], 
+  [parametrosData])
+
+  const entornos = useMemo(() => 
+    parametrosData?.parametros?.filter(p => p.grupo === 'ENTORNO') || [], 
+  [parametrosData])
+
+  // React Hook Form
+  const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
+    defaultValues: {
+      id_sistema: props.componente?.id_sistema || '',
+      nombre: props.componente?.nombre || '',
+      dominio: props.componente?.dominio || '',
+      cod_entorno: props.componente?.cod_entorno || '',
+      cod_categoria: props.componente?.cod_categoria || '',
+      tecnologia: props.componente?.tecnologia || '[]',
+      gitlab_repo: props.componente?.gitlab_repo || '',
+      gitlab_rama: props.componente?.gitlab_rama || '',
+      descripcion: props.componente?.descripcion || '',
+    }
+  })
+
+  // Lógica de Tecnologías según Categoría
+  const watchedCategoria = watch('cod_categoria')
+  
   const CATEGORY_PREFIXES = {
     BACKEND: 'BACKEND_',
     DATABASE: 'BD_',
@@ -140,250 +233,288 @@ const ComponenteForm = (props) => {
     OTHER: 'OTHER_'
   }
 
-  const categorias = parametrosData?.parametros?.filter(p => p.grupo === 'CATEGORIA') || []
-  const entornos = parametrosData?.parametros?.filter(p => p.grupo === 'ENTORNO') || []
-  const tecnologias = parametrosData?.parametros?.filter(p =>
-    p.grupo === 'COMP_TECH' &&
-    p.codigo.startsWith(CATEGORY_PREFIXES[selectedCategoria] || '')
-  ) || []
+  const tecnologiasDisponibles = useMemo(() => {
+    if (!watchedCategoria || !parametrosData?.parametros) return []
+    const prefix = CATEGORY_PREFIXES[watchedCategoria]
+    if (!prefix) return []
+    
+    return parametrosData.parametros.filter(p => 
+      p.grupo === 'COMP_TECH' && p.codigo.startsWith(prefix)
+    )
+  }, [watchedCategoria, parametrosData])
 
-  const handleCategoriaChange = (e) => {
-    setSelectedCategoria(e.target.value)
-    setTecnologiaJson('[]')
-  }
+  // Limpiar tecnologías si cambia la categoría (opcional, depende de requerimiento de negocio)
+  // useEffect(() => {
+  //   setValue('tecnologia', '[]') 
+  // }, [watchedCategoria, setValue])
 
   const onSubmit = (data) => {
     const formData = {
       ...data,
-      id_sistema: selectedSistema,
-      cod_categoria: selectedCategoria,
-      tecnologia: tecnologiaJson,
       estado: 'ACTIVO',
-      usuario_creacion: 3,
+      usuario_creacion: isEdit ? undefined : 3, // Ajustar IDs reales
       usuario_modificacion: 2
     }
     props.onSave(formData, props?.componente?.id)
   }
 
+  if (loadingData) {
+    return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box>
+  }
+
   return (
-    <Card
-      sx={{
-        maxWidth: '1200px',
-        margin: 'auto',
-        boxShadow: theme.shadows[6],
-        borderRadius: '12px',
-        overflow: 'visible',
-      }}
-    >
-      <Box
-        sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
-          p: 3,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-          marginTop: '-1px',
-        }}
-      >
-        <Typography variant="h5" fontWeight="600">
-          {props.componente?.id ? 'Editar Componente' : 'Nuevo Componente'}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          {props.componente?.id ? 'Actualice los datos del componente' : 'Complete los datos del nuevo componente'}
-        </Typography>
-      </Box>
+    <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
+      
+      {/* CONTENEDOR PRINCIPAL */}
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        
+        {/* HEADER */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                }}>
+              {isEdit ? <EditIcon /> : <AddIcon />}
+            </Avatar>
+            
+            <Box>
+              <Typography variant="h5" fontWeight={800} sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>
+                {isEdit ? 'Editar Componente' : 'Nuevo Componente'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isEdit ? 'Actualizar datos del componente' : 'Registrar nuevo componente de software'}
+              </Typography>
+            </Box>
+        </Box>
 
-      <CardContent sx={{ p: 4 }}>
-        <form onSubmit={handleSubmit(onSubmit)}>
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth sx={{ mb: 3 }} variant="outlined">
-                <InputLabel id="sistema-label" sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Apps sx={{ mr: 1, fontSize: '1rem' }} />
-                  Sistema
-                </InputLabel>
-                <Select
-                  labelId="sistema-label"
-                  value={selectedSistema || ''}
-                  label="Sistema"
-                  onChange={(e) => setSelectedSistema(e.target.value)}
-                  error={!selectedSistema && errors.id_sistema}
-                >
-                  {sistemasOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+        {/* CONTENIDO */}
+        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          
+          <form onSubmit={handleSubmit(onSubmit)}>
+            
+            {/* Mensaje de error general si viene de props */}
+            {props.error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+              </Paper>
+            )}
 
-              <TextField
-                fullWidth
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Info sx={{ mr: 1, fontSize: '1rem' }} />
-                    Nombre
+            {/* GRID DE 3 COLUMNAS */}
+            <Box sx={{ 
+              display: 'grid', 
+              gap: 3, 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+              alignItems: 'start'
+            }}>
+              
+              {/* --- CARD 1: IDENTIFICACIÓN --- */}
+              <SectionCard 
+                icon={<SystemIcon sx={{ fontSize: 20 }} />} 
+                title="Identificación"
+                bgcolor={theme.palette.primary.main}
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* Sistema */}
+                  <FormControl fullWidth error={!!errors.id_sistema}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Sistema Asociado *</FormLabel>
+                    <Controller
+                      name="id_sistema"
+                      control={control}
+                      rules={{ required: 'Sistema requerido' }}
+                      render={({ field: { onChange, value } }) => (
+                        <Autocomplete
+                          options={sistemasOptions}
+                          getOptionLabel={(option) => option.nombre}
+                          value={sistemasOptions.find(s => s.id === value) || null}
+                          onChange={(_, newValue) => onChange(newValue ? newValue.id : '')}
+                          renderInput={(params) => (
+                            <TextField {...params} size="small" placeholder="Buscar sistema..." error={!!errors.id_sistema} />
+                          )}
+                        />
+                      )}
+                    />
+                  </FormControl>
+
+                  {/* Nombre */}
+                  <FormControl fullWidth error={!!errors.nombre}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre del Componente *</FormLabel>
+                    <Controller
+                      name="nombre"
+                      control={control}
+                      rules={{ required: 'Nombre requerido' }}
+                      render={({ field }) => (
+                        <TextField {...field} size="small" placeholder="Ej. API Gateway" error={!!errors.nombre} />
+                      )}
+                    />
+                  </FormControl>
+
+                  {/* Dominio */}
+                  <FormControl fullWidth error={!!errors.dominio}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Dominio *</FormLabel>
+                    <Controller
+                      name="dominio"
+                      control={control}
+                      rules={{ required: 'Dominio requerido' }}
+                      render={({ field }) => (
+                        <TextField {...field} size="small" placeholder="Ej. api.miempresa.com" error={!!errors.dominio} />
+                      )}
+                    />
+                  </FormControl>
+
+                </Stack>
+              </SectionCard>
+
+              {/* --- CARD 2: CLASIFICACIÓN Y TECNOLOGÍAS --- */}
+              <SectionCard 
+                icon={<CategoryIcon sx={{ fontSize: 20 }} />} 
+                title="Clasificación"
+                bgcolor={theme.palette.secondary.main}
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* Entorno */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Entorno de Despliegue</FormLabel>
+                    <Controller
+                      name="cod_entorno"
+                      control={control}
+                      render={({ field }) => (
+                        <Select {...field} size="small" displayEmpty>
+                          <MenuItem value=""><em>Seleccionar...</em></MenuItem>
+                          {entornos.map(e => (
+                            <MenuItem key={e.codigo} value={e.codigo}>{e.nombre}</MenuItem>
+                          ))}
+                        </Select>
+                      )}
+                    />
+                  </FormControl>
+
+                  {/* Categoría */}
+                  <FormControl fullWidth error={!!errors.cod_categoria}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Categoría del Componente</FormLabel>
+                    <Controller
+                      name="cod_categoria"
+                      control={control}
+                      render={({ field }) => (
+                        <Select {...field} size="small" displayEmpty>
+                          <MenuItem value=""><em>Seleccionar...</em></MenuItem>
+                          {categorias.map(c => (
+                            <MenuItem key={c.codigo} value={c.codigo}>{c.nombre}</MenuItem>
+                          ))}
+                        </Select>
+                      )}
+                    />
+                  </FormControl>
+
+                  {/* Selector de Tecnologías (Componente Custom) */}
+                  <Box>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CodeIcon fontSize="small" color="action" /> Tecnologías
+                    </FormLabel>
+                    <Controller
+                      name="tecnologia"
+                      control={control}
+                      render={({ field: { value, onChange } }) => (
+                        <TecnologiasSelector 
+                          tecnologias={tecnologiasDisponibles} 
+                          value={value} 
+                          onChange={onChange} 
+                        />
+                      )}
+                    />
                   </Box>
-                }
-                defaultValue={props.componente?.nombre}
-                {...register('nombre', { required: true })}
-                error={Boolean(errors.nombre)}
-                helperText={errors.nombre && 'Nombre es requerido'}
-                sx={{ mb: 3 }}
-                variant="outlined"
-              />
 
-              <TextField
-                fullWidth
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Link sx={{ mr: 1, fontSize: '1rem' }} />
-                    Dominio
-                  </Box>
-                }
-                defaultValue={props.componente?.dominio}
-                {...register('dominio', { required: true })}
-                error={Boolean(errors.dominio)}
-                helperText={errors.dominio && 'Dominio es requerido'}
-                sx={{ mb: 3 }}
-                variant="outlined"
-              />
+                </Stack>
+              </SectionCard>
 
-              <TextField
-                fullWidth
-                label="Descripción"
-                multiline
-                rows={3}
-                defaultValue={props.componente?.descripcion}
-                {...register('descripcion')}
-                sx={{ mb: 3 }}
-                variant="outlined"
-              />
-            </Grid>
+              {/* --- CARD 3: DETALLES TÉCNICOS --- */}
+              <SectionCard 
+                icon={<DescIcon sx={{ fontSize: 20 }} />} 
+                title="Detalles Técnicos"
+                bgcolor="#2e7d32"
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* Repositorio */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Repositorio GitLab</FormLabel>
+                    <Controller
+                      name="gitlab_repo"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField {...field} size="small" placeholder="URL del repositorio" />
+                      )}
+                    />
+                  </FormControl>
 
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth sx={{ mb: 3 }} variant="outlined">
-                <InputLabel id="entorno-label" sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Storage sx={{ mr: 1, fontSize: '1rem' }} />
-                  Entorno
-                </InputLabel>
-                <Select
-                  labelId="entorno-label"
-                  defaultValue={props.componente?.cod_entorno || ''}
-                  label="Entorno"
-                  {...register('cod_entorno')}
-                >
-                  {entornos.map(entorno => (
-                    <MenuItem key={entorno.codigo} value={entorno.codigo}>
-                      {entorno.nombre}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  {/* Rama */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Rama Principal</FormLabel>
+                    <Controller
+                      name="gitlab_rama"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField {...field} size="small" placeholder="Ej. main / master" />
+                      )}
+                    />
+                  </FormControl>
 
-              <FormControl fullWidth sx={{ mb: 3 }} variant="outlined">
-                <InputLabel id="categoria-label" sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Category sx={{ mr: 1, fontSize: '1rem' }} />
-                  Categoría
-                </InputLabel>
-                <Select
-                  labelId="categoria-label"
-                  value={selectedCategoria}
-                  onChange={handleCategoriaChange}
-                  label="Categoría"
-                  error={!selectedCategoria && errors.cod_categoria}
-                >
-                  {categorias.map(cat => (
-                    <MenuItem key={cat.codigo} value={cat.codigo}>
-                      {cat.nombre}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  {/* Descripción (Más grande) */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
+                    <Controller
+                      name="descripcion"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          multiline 
+                          rows={4} 
+                          size="small" 
+                          placeholder="Detalles adicionales del componente..." 
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-              {selectedCategoria && (
-                <TecnologiasSelector
-                  tecnologias={tecnologias}
-                  value={tecnologiaJson}
-                  onChange={setTecnologiaJson}
-                />
-              )}
+                </Stack>
+              </SectionCard>
 
-              <TextField
-                fullWidth
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Web sx={{ mr: 1, fontSize: '1rem' }} />
-                    Repositorio GitLab
-                  </Box>
-                }
-                defaultValue={props.componente?.gitlab_repo}
-                {...register('gitlab_repo')}
-                sx={{ mb: 3 }}
-                variant="outlined"
-              />
+            </Box>
 
-              <TextField
-                fullWidth
-                label={
-                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <FolderShared sx={{ mr: 1, fontSize: '1rem' }} />
-                    Rama GitLab
-                  </Box>
-                }
-                defaultValue={props.componente?.gitlab_rama}
-                {...register('gitlab_rama')}
-                sx={{ mb: 3 }}
-                variant="outlined"
-              />
-            </Grid>
-          </Grid>
+            {/* BOTONES */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                onClick={props.onCancel} // Usando prop onCancel original
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+              >
+                Cancelar
+              </Button>
 
-          <Divider sx={{ my: 4, borderColor: theme.palette.divider }} />
+              <LoadingButton
+                type="submit" variant="contained" loading={props.loading} startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
+                }}
+              >
+                {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar')}
+              </LoadingButton>
+            </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-            <LoadingButton
-              variant="outlined"
-              color="error"
-              startIcon={<CancelIcon />}
-              onClick={props.onCancel}
-              sx={{
-                px: 4,
-                py: 1.5,
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '600',
-                fontSize: '0.9375rem',
-              }}
-            >
-              Cancelar
-            </LoadingButton>
-
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              loading={props.loading}
-              loadingPosition="start"
-              startIcon={props.loading ? null : <SaveIcon />}
-              sx={{
-                px: 4,
-                py: 1.5,
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '600',
-                fontSize: '0.9375rem',
-                backgroundColor: theme.palette.primary.main,
-                '&:hover': {
-                  backgroundColor: theme.palette.primary.dark,
-                },
-              }}
-            >
-              {props.loading ? 'Guardando...' : (props.componente?.id ? 'Actualizar' : 'Guardar')}
-            </LoadingButton>
-          </Box>
-        </form>
-      </CardContent>
-    </Card>
+          </form>
+        </Box>
+      </Card>
+    </Box>
   )
 }
 

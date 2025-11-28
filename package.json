@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@prisma/client": "^6.5.0",
+    "@redwoodjs/auth-custom-setup": "8.6.1",
     "@redwoodjs/core": "8.6.1",
     "@redwoodjs/project-config": "8.6.1",
     "prettier-plugin-tailwindcss": "0.4.1",
@@ -39,7 +40,9 @@
     "date-fns": "2.29.3",
     "dayjs": "^1.11.13",
     "formik": "^2.4.6",
+    "framer-motion": "^12.23.24",
     "html2pdf.js": "^0.10.3",
+    "ioredis": "^5.8.2",
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.487.0",

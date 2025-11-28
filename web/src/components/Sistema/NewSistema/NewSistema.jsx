@@ -32,9 +32,6 @@ const NewSistema = () => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">New Sistema</h2>
-      </header>
       <div className="rw-segment-main">
         <SistemaForm onSave={onSave} loading={loading} error={error} />
       </div>

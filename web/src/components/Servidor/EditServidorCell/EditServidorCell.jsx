@@ -1,30 +1,8 @@
 import { navigate, routes } from '@redwoodjs/router'
-import { useMutation, useQuery } from '@redwoodjs/web'
+import { useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import ServidorForm from 'src/components/Servidor/ServidorForm'
-
-// --- CONSULTAS ADICIONALES PARA DROPDOWNS ---
-
-const GET_DATA_CENTERS = gql`
-  query GetDataCentersForEditServidor {
-    dataCenters {
-      id
-      nombre
-    }
-  }
-`
-
-const GET_SERVIDORS = gql`
-  query GetServidorsForEditServidor {
-    servidores {
-      id
-      nombre
-    }
-  }
-`
-// ---------------------------------------------
-
 
 export const QUERY = gql`
   query EditServidorById($id: Int!) {
@@ -46,9 +24,9 @@ export const QUERY = gql`
       cod_tipo_servidor
       marca
       modelo
-      # -- CAMPOS NUEVOS --
-      ip_primaria       # <- AGREGADO
-      sistema_operativo # <- AGREGADO
+      ip_primaria
+      sistema_operativo
+      identity_key
     }
   }
 `
@@ -71,30 +49,25 @@ const UPDATE_SERVIDOR_MUTATION = gql`
       cod_tipo_servidor
       marca
       modelo
-      # -- CAMPOS NUEVOS --
       ip_primaria
       sistema_operativo
+      identity_key
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando...</div>
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
 export const Success = ({ servidor }) => {
-  // ✔ HOOKS DE CONSULTA PARA DROPDOWNS
-  const { data: dataCentersData } = useQuery(GET_DATA_CENTERS)
-  const { data: servidorsData } = useQuery(GET_SERVIDORS)
-
-
   const [updateServidor, { loading, error }] = useMutation(
     UPDATE_SERVIDOR_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Servidor updated')
+        toast.success('Servidor actualizado correctamente')
         navigate(routes.servidors())
       },
       onError: (error) => {
@@ -104,27 +77,26 @@ export const Success = ({ servidor }) => {
   )
 
   const onSave = (input, id) => {
-    // Nota: Aquí, la función onSave en el formulario debe asegurarse de enviar
-    // usuario_modificacion y fecha_modificacion al input.
-    updateServidor({ variables: { id, input } })
+    // Conversión de tipos para asegurar que no enviamos strings vacíos a campos Int
+    const inputLimpio = {
+      ...input,
+      id_padre: input.id_padre ? parseInt(input.id_padre) : null,
+      id_data_center: input.id_data_center ? parseInt(input.id_data_center) : null,
+      ram: input.ram ? parseInt(input.ram) : null,
+      almacenamiento: input.almacenamiento ? parseInt(input.almacenamiento) : null,
+    }
+    
+    updateServidor({ variables: { id, input: inputLimpio } })
   }
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Edit Servidor {servidor?.id}
-        </h2>
-      </header>
       <div className="rw-segment-main">
         <ServidorForm
           servidor={servidor}
           onSave={onSave}
           error={error}
           loading={loading}
-          // ✔ PROPS ADICIONALES PARA DROPDOWNS
-          dataCenters={dataCentersData?.dataCenters || []}
-          servidors={servidorsData?.servidores || []}
         />
       </div>
     </div>

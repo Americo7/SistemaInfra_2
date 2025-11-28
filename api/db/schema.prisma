@@ -220,7 +220,7 @@ model Parametro {
 
 model DataCenter {
   id                   Int             @id(map: "data_centers_pk") @default(autoincrement())
-  nombre               String          @db.VarChar(15)
+  nombre               String          @db.VarChar(50)
   ubicacion            String
   estado               estado          @default(ACTIVO) @map("_estado")
   fecha_creacion       DateTime        @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
@@ -299,27 +299,27 @@ model InfraAfectada {
 model Maquina {
   id                   Int       @id(map: "maquina_pk") @default(autoincrement())
   nombre               String    @db.VarChar(50)
-  uuid                 String?   @unique @db.VarChar(100) // Identidad única global
-  proxmox_vmid         Int? // Identidad en Proxmox
-  mac_address          String?   @unique @db.VarChar(50) // Identidad de red
+  uuid                 String?   @db.VarChar(100) // Identidad única global
+  proxmox_vmid         Int?
   ip                   String?   @db.Inet
-  so                   String    @db.VarChar(25) // Sistema Operativo
-  cod_plataforma       String    @db.VarChar(20) // Arquitectura (x86, arm64)
+  so                   String?   @db.VarChar(100) // Sistema Operativo
+  cod_plataforma       String?   @db.VarChar(20)
   ram                  Int       @db.SmallInt
   cpu                  Int       @db.SmallInt
   almacenamiento       Json      @db.Json
+  estado_operativo     String?   @db.VarChar(20)
   estado               estado    @map("_estado")
   fecha_creacion       DateTime  @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
   usuario_creacion     Int       @map("_usuario_creacion")
   fecha_modificacion   DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?      @map("_usuario_modificacion")
-  id_servidor          Int? // Host Físico donde corre
+  id_servidor          Int?
   servidores           Servidor? @relation(fields: [id_servidor], references: [id])
-
-  despliegue     Despliegue[]
-  infra_afectada InfraAfectada[]
-  cluster_nodos  ClusterNodo[]
-  usuario_roles  UsuarioRol[]
+  identity_key         String @unique @db.VarChar(200)
+  despliegue           Despliegue[]
+  infra_afectada       InfraAfectada[]
+  cluster_nodos        ClusterNodo[]
+  usuario_roles        UsuarioRol[]
 
   @@index([proxmox_vmid])
   @@index([ip])
@@ -330,14 +330,14 @@ model Maquina {
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model Servidor {
   id                    Int       @id(map: "servidor_pk") @default(autoincrement())
-  id_data_center        Int
+  id_data_center        Int?
   id_padre              Int?
   nombre                String    @db.VarChar(30)
-  cod_inventario_agetic String    @db.VarChar(10)
-  cod_tipo_servidor     String    @db.VarChar(20) // Ej: "RACK", "BLADE", "TORRE"
-  serie                 String    @db.VarChar(30)
-  marca                 String    @db.VarChar(30)
-  modelo                String    @db.VarChar(50)
+  cod_inventario_agetic String?    @db.VarChar(10)
+  cod_tipo_servidor     String?    @db.VarChar(20) // Ej: "RACK", "BLADE", "TORRE"
+  serie                 String?    @db.VarChar(30)
+  marca                 String?    @db.VarChar(30)
+  modelo                String?    @db.VarChar(50)
   ram                   Int?      @db.SmallInt
   almacenamiento        Int?      @db.SmallInt
   ip_primaria           String?    @db.Inet
@@ -348,8 +348,10 @@ model Servidor {
   usuario_creacion      Int       @map("_usuario_creacion")
   fecha_modificacion    DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion  Int?      @map("_usuario_modificacion")
+  identity_key          String    @unique @db.VarChar(200)
 
-  data_centers     DataCenter      @relation(fields: [id_data_center], references: [id])
+  @@index([nombre])
+  data_centers     DataCenter?      @relation(fields: [id_data_center], references: [id])
   servidores_padre Servidor?       @relation("servidoresToservidores", fields: [id_padre], references: [id])
   servidores_hijos Servidor[]      @relation("servidoresToservidores")
   maquinas         Maquina[] // VMs que corren sobre este "hierro"
@@ -374,11 +376,12 @@ model ClusterNodo {
   usuario_creacion     Int       @map("_usuario_creacion")
   fecha_modificacion   DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?      @map("_usuario_modificacion")
-  k8s_uid              String?   @unique @db.VarChar(100)
+  identity_key         String    @unique @db.VarChar(200)
   cluster              Cluster   @relation(fields: [clusterId], references: [id])
   maquina              Maquina?  @relation(fields: [maquinaId], references: [id])
   servidor             Servidor? @relation(fields: [servidorId], references: [id])
 
+  @@index([nombre])
   @@map("cluster_nodos")
   @@schema("registro")
 }
@@ -393,6 +396,7 @@ model Cluster {
   usuario_creacion     Int              @map("_usuario_creacion")
   fecha_modificacion   DateTime?        @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?             @map("_usuario_modificacion")
+  identity_key         String           @unique @db.VarChar(200)
   id_proxmox_endpoint  Int?
   proxmox_endpoint     ProxmoxEndpoint? @relation(fields: [id_proxmox_endpoint], references: [id])
   id_k8s_endpoint      Int?
@@ -433,7 +437,7 @@ model K8sEndpoint {
   id                   Int       @id @default(autoincrement())
   nombre               String    @db.VarChar(30)
   url_api              String    @db.VarChar(200)
-  token_bearer         String    @db.VarChar(500)
+  token_bearer         String    @db.Text
   descripcion          String?
   fecha_ultima_sync    DateTime?
   estado               estado    @map("_estado")

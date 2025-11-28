@@ -33,9 +33,6 @@ const NewClusterNodo = () => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">New ClusterNodo</h2>
-      </header>
       <div className="rw-segment-main">
         <ClusterNodoForm onSave={onSave} loading={loading} error={error} />
       </div>

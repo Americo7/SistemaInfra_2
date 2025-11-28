@@ -1,31 +1,36 @@
-import {
-  Form,
-  FormError,
-  FieldError,
-  Label,
-  TextField,
-} from '@redwoodjs/forms'
-import { useQuery } from '@redwoodjs/web'
+import React, { useState, useEffect } from 'react'
 import {
   Box,
   Card,
   CardContent,
-  Divider,
-  Grid,
+  CardHeader,
   Typography,
+  TextField,
+  Button,
+  Stack,
+  Avatar,
+  Paper,
   useTheme,
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
-import {
-  CheckCircleOutline,
-  Category,
-  Title,
-  Description,
-  Dns,
-} from '@mui/icons-material'
 import Select from 'react-select'
-import React, { useState, useEffect } from 'react'
+import { navigate, routes } from '@redwoodjs/router'
+import {
+  Info as InfoIcon,
+  Dns as ClusterIcon,
+  Description as DescIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  AddCircle as AddIcon,
+  Edit as EditIcon,
+  ErrorOutline as ErrorIcon,
+} from '@mui/icons-material'
+import { useQuery } from '@redwoodjs/web'
+import { gql } from 'graphql-tag'
 
+/* --------------------------------------------------------
+ * QUERY
+ * -------------------------------------------------------- */
 const GET_PARAMETROS = gql`
   query GetParametrosCluster {
     parametros {
@@ -37,131 +42,142 @@ const GET_PARAMETROS = gql`
   }
 `
 
-const ClusterForm = (props) => {
+/* --------------------------------------------------------
+ * SectionCard (Card interno - Estilo preservado)
+ * -------------------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>{icon}</Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: (t) => `1px solid ${t.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 3 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* --------------------------------------------------------
+ * ClusterForm
+ * -------------------------------------------------------- */
+const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [], onSave, loading, error }) => {
+  const theme = useTheme()
+  const isEdit = Boolean(cluster?.id)
+
   const { data: parametrosData, loading: loadingParametros } = useQuery(GET_PARAMETROS)
 
-  // Valores iniciales
+  // form state
+  const [form, setForm] = useState({
+    nombre: '',
+    descripcion: '',
+    cod_tipo_cluster: null,
+    id_proxmox_endpoint: null,
+    id_k8s_endpoint: null,
+  })
+
+  // select states
   const [selectedTipoCluster, setSelectedTipoCluster] = useState(null)
   const [selectedProxmoxEndpoint, setSelectedProxmoxEndpoint] = useState(null)
   const [selectedK8sEndpoint, setSelectedK8sEndpoint] = useState(null)
 
-  /* ------------------------------------------
-   * CARGAR VALORES INICIALES DEL CLUSTER
-   * ------------------------------------------ */
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
+
   useEffect(() => {
-    if (!loadingParametros && props.cluster) {
-      // Tipo cluster
-      if (props.cluster.cod_tipo_cluster) {
-        const match = parametrosData?.parametros?.find(
-          (p) =>
-            p.grupo === 'TIPO_CLUSTER' &&
-            p.codigo === props.cluster.cod_tipo_cluster
+    if (!loadingParametros && cluster) {
+      setForm((prev) => ({
+        ...prev,
+        nombre: cluster.nombre ?? '',
+        descripcion: cluster.descripcion ?? '',
+        cod_tipo_cluster: cluster.cod_tipo_cluster ?? null,
+        id_proxmox_endpoint: cluster.id_proxmox_endpoint ?? null,
+        id_k8s_endpoint: cluster.id_k8s_endpoint ?? null,
+      }))
+
+      if (cluster.cod_tipo_cluster && parametrosData?.parametros) {
+        const match = parametrosData.parametros.find(
+          (p) => p.grupo === 'TIPO_CLUSTER' && p.codigo === cluster.cod_tipo_cluster
         )
-        if (match) {
-          setSelectedTipoCluster({ value: match.codigo, label: match.nombre })
-        }
+        if (match) setSelectedTipoCluster({ value: match.codigo, label: match.nombre })
       }
 
-      // Proxmox endpoint
-      if (props.cluster.id_proxmox_endpoint) {
-        const match = props.proxmoxEndpoints?.find(
-          (p) => p.id === props.cluster.id_proxmox_endpoint
-        )
-        if (match) {
-          setSelectedProxmoxEndpoint({
-            value: match.id,
-            label: match.nombre,
-          })
-        }
+      if (cluster.id_proxmox_endpoint && proxmoxEndpoints) {
+        const m = proxmoxEndpoints.find((p) => p.id === cluster.id_proxmox_endpoint)
+        if (m) setSelectedProxmoxEndpoint({ value: m.id, label: `${m.nombre} (${m.ip || m.dominio})` })
       }
 
-      // K8s endpoint
-      if (props.cluster.id_k8s_endpoint) {
-        const match = props.k8sEndpoints?.find(
-          (k) => k.id === props.cluster.id_k8s_endpoint
-        )
-        if (match) {
-          setSelectedK8sEndpoint({
-            value: match.id,
-            label: match.nombre,
-          })
-        }
+      if (cluster.id_k8s_endpoint && k8sEndpoints) {
+        const k = k8sEndpoints.find((k) => k.id === cluster.id_k8s_endpoint)
+        if (k) setSelectedK8sEndpoint({ value: k.id, label: k.nombre })
       }
     }
-  }, [loadingParametros, props.cluster, parametrosData])
+  }, [loadingParametros, parametrosData, cluster, proxmoxEndpoints, k8sEndpoints])
 
-  /* ------------------------------------------
-   * PARÁMETROS DE TIPO CLUSTER
-   * ------------------------------------------ */
-  const parametrosDeCluster =
-    parametrosData?.parametros?.filter((p) => p.grupo === 'TIPO_CLUSTER') || []
+  const tipoClusterOptions =
+    parametrosData?.parametros?.filter((p) => p.grupo === 'TIPO_CLUSTER')?.map((p) => ({ value: p.codigo, label: p.nombre })) || []
 
-  const tipoClusterOptions = parametrosDeCluster.map((p) => ({
-    value: p.codigo,
-    label: p.nombre,
-  }))
+  const proxmoxOptions = proxmoxEndpoints?.map((p) => ({ value: p.id, label: `${p.nombre} (${p.ip || p.dominio})` })) || []
+  const k8sOptions = k8sEndpoints?.map((k) => ({ value: k.id, label: k.nombre })) || []
 
-  /* ------------------------------------------
-   * OPCIONES ENDPOINTS
-   * ------------------------------------------ */
-  const proxmoxOptions =
-    props.proxmoxEndpoints?.map((p) => ({
-      value: p.id,
-      label: `${p.nombre} (${p.ip || p.dominio})`,
-    })) || []
-
-  const k8sOptions =
-    props.k8sEndpoints?.map((k) => ({
-      value: k.id,
-      label: `${k.nombre}`,
-    })) || []
-
-  /* ------------------------------------------
-   * SUBMIT
-   * ------------------------------------------ */
-  const onSubmit = (data) => {
-    const payload = {
-      ...data,
-      cod_tipo_cluster: selectedTipoCluster?.value || null,
-
-      id_proxmox_endpoint:
-        selectedTipoCluster?.value === 'PX'
-          ? selectedProxmoxEndpoint?.value || null
-          : null,
-
-      id_k8s_endpoint:
-        selectedTipoCluster?.value === 'K8S'
-          ? selectedK8sEndpoint?.value || null
-          : null,
-
-      estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: 3,
-    }
-
-    props.onSave(payload, props?.cluster?.id)
-  }
-
-  /* ------------------------------------------
-   * ESTILOS SELECT
-   * ------------------------------------------ */
   const customSelectStyles = {
     control: (base, state) => ({
       ...base,
-      minHeight: '50px',
-      borderRadius: '8px',
-      borderColor: state.isFocused
-        ? theme.palette.primary.main
-        : theme.palette.divider,
-      boxShadow: state.isFocused
-        ? `0 0 0 1px ${theme.palette.primary.main}`
-        : 'none',
+      minHeight: 50,
+      borderRadius: 8,
+      borderColor: state.isFocused ? theme.palette.primary.main : theme.palette.divider,
+      boxShadow: state.isFocused ? `0 0 0 1px ${theme.palette.primary.main}` : 'none',
+      '&:hover': { borderColor: theme.palette.primary.main },
     }),
-    menu: (base) => ({
-      ...base,
-      zIndex: 9999,
-    }),
+    menu: (base) => ({ ...base, zIndex: 9999 }),
+  }
+
+  const handleChange = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }))
+  }
+
+  const validate = () => {
+    const e = {}
+    if (!form.nombre?.trim()) e.nombre = 'El nombre es obligatorio'
+    if (!selectedTipoCluster?.value) e.cod_tipo_cluster = 'Selecciona el tipo de cluster'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (submitting) return
+    if (!validate()) return
+    setSubmitting(true)
+
+    const payload = {
+      nombre: form.nombre,
+      descripcion: form.descripcion,
+      cod_tipo_cluster: selectedTipoCluster?.value || null,
+      id_proxmox_endpoint: selectedTipoCluster?.value === 'PX' ? selectedProxmoxEndpoint?.value || null : null,
+      id_k8s_endpoint: selectedTipoCluster?.value === 'K8S' ? selectedK8sEndpoint?.value || null : null,
+      estado: 'ACTIVO',
+    }
+
+    try {
+      await onSave(payload, cluster?.id)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (loadingParametros) {
@@ -173,132 +189,199 @@ const ClusterForm = (props) => {
   }
 
   return (
-    <Card
-      sx={{
-        maxWidth: '900px',
-        margin: 'auto',
-        boxShadow: theme.shadows[6],
-        borderRadius: '12px',
-      }}
-    >
-      <Box
-        sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
-          p: 3,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
+    <Box sx={{ width: '100%', maxWidth: 900, mx: 'auto', p: 2 }}>
+      
+      {/* CARD PRINCIPAL */}
+      <Card 
+        elevation={3} 
+        sx={{ 
+          borderRadius: 4, // Bordes más redondeados
+          overflow: 'hidden' // Asegura que el contenido respete los bordes redondeados
         }}
       >
-        <Typography variant="h5" fontWeight="600">
-          {props.cluster?.id ? 'Editar Cluster' : 'Nuevo Cluster'}
-        </Typography>
-      </Box>
+        
+        {/* HEADER MODIFICADO: Fondo blanco y sin línea */}
+        <Box sx={{
+          px: 4,
+          py: 4,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          bgcolor: '#fff', // Fondo blanco
+          // Sin borderBottom
+        }}>
+          <Avatar sx={{ 
+            width: 48, 
+            height: 48, 
+            background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', 
+            color: 'white', 
+            boxShadow: 3 
+          }}>
+            {isEdit ? <EditIcon /> : <AddIcon />}
+          </Avatar>
 
-      <CardContent sx={{ p: 4 }}>
-        <Form onSubmit={onSubmit} error={props.error}>
-          <FormError
-            error={props.error}
-            wrapperStyle={{
-              backgroundColor: theme.palette.error.light,
-              padding: '12px',
-              borderRadius: '8px',
-              marginBottom: '20px',
-            }}
-          />
-
-          <Grid container spacing={4}>
-            {/* NOMBRE */}
-            <Grid item xs={12}>
-              <Label name="nombre">Nombre*</Label>
-              <TextField
-                name="nombre"
-                defaultValue={props.cluster?.nombre}
-                validation={{ required: true }}
-                className="rw-input"
-                style={{ width: '100%', minHeight: '50px' }}
-              />
-              <FieldError name="nombre" />
-            </Grid>
-
-            {/* TIPO CLUSTER */}
-            <Grid item xs={12}>
-              <Label name="cod_tipo_cluster">Tipo de Cluster*</Label>
-              <Select
-                value={selectedTipoCluster}
-                onChange={setSelectedTipoCluster}
-                options={tipoClusterOptions}
-                styles={customSelectStyles}
-                placeholder="Seleccionar tipo..."
-              />
-              <FieldError name="cod_tipo_cluster" />
-            </Grid>
-
-            {/* DESCRIPCIÓN */}
-            <Grid item xs={12}>
-              <Label name="descripcion">Descripción*</Label>
-              <TextField
-                name="descripcion"
-                defaultValue={props.cluster?.descripcion}
-                validation={{ required: true }}
-                className="rw-input"
-                style={{ width: '100%' }}
-              />
-              <FieldError name="descripcion" />
-            </Grid>
-
-            {/* ------------------------------------------
-                ENDPOINT PROXMOX SOLO SI PX
-            ------------------------------------------ */}
-            {selectedTipoCluster?.value === 'PX' && (
-              <Grid item xs={12}>
-                <Label name="id_proxmox_endpoint">
-                  Endpoint de Proxmox*
-                </Label>
-                <Select
-                  value={selectedProxmoxEndpoint}
-                  onChange={setSelectedProxmoxEndpoint}
-                  options={proxmoxOptions}
-                  styles={customSelectStyles}
-                  placeholder="Seleccionar endpoint Proxmox..."
-                  isClearable
-                />
-              </Grid>
-            )}
-
-            {/* ------------------------------------------
-                ENDPOINT K8S SOLO SI K8S
-            ------------------------------------------ */}
-            {selectedTipoCluster?.value === 'K8S' && (
-              <Grid item xs={12}>
-                <Label name="id_k8s_endpoint">Endpoint de Kubernetes*</Label>
-                <Select
-                  value={selectedK8sEndpoint}
-                  onChange={setSelectedK8sEndpoint}
-                  options={k8sOptions}
-                  styles={customSelectStyles}
-                  placeholder="Seleccionar API K8s..."
-                  isClearable
-                />
-              </Grid>
-            )}
-          </Grid>
-
-          <Divider sx={{ my: 4 }} />
-
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              loading={props.loading}
-              startIcon={<CheckCircleOutline />}
-            >
-              {props.loading ? 'Guardando...' : 'Guardar Cluster'}
-            </LoadingButton>
+          <Box>
+            <Typography variant="h5" fontWeight={800} sx={{
+              lineHeight: 1.2,
+              background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 0.5
+            }}>
+              {isEdit ? 'Editar Cluster' : 'Registro de Cluster'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Gestión de clústeres de infraestructura
+            </Typography>
           </Box>
-        </Form>
-      </CardContent>
-    </Card>
+        </Box>
+
+        <CardContent sx={{ px: 5, pb: 5, pt: 0, bgcolor: '#fff' }}>
+          
+          {/* Mensaje de Error */}
+          {error && (
+            <Paper sx={{
+              p: 2, mb: 3, bgcolor: '#fff4f4', borderColor: '#ffcdd2',
+              color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2
+            }}>
+              <ErrorIcon color="error" />
+              <Typography variant="body2" fontWeight={600}>{error?.message || 'Error al guardar el registro'}</Typography>
+            </Paper>
+          )}
+
+          <Box component="form" onSubmit={handleSubmit} noValidate>
+            
+            {/* SectionCard Único con Stack vertical */}
+            <SectionCard icon={<InfoIcon />} title="Información" bgcolor={theme.palette.primary.main}>
+              <Stack spacing={3}>
+                
+                {/* Nombre */}
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
+                    Nombre del Cluster *
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    placeholder="Ej. cluster-production"
+                    value={form.nombre}
+                    onChange={(ev) => handleChange('nombre', ev.target.value)}
+                    error={!!errors.nombre}
+                    helperText={errors.nombre}
+                    InputProps={{ startAdornment: <ClusterIcon color="action" sx={{ mr: 1, opacity: 0.7 }} /> }}
+                  />
+                </Box>
+
+                {/* Tipo */}
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
+                    Tipo de Cluster *
+                  </Typography>
+                  <Select
+                    value={selectedTipoCluster}
+                    onChange={(v) => {
+                      setSelectedTipoCluster(v)
+                      setSelectedProxmoxEndpoint(null)
+                      setSelectedK8sEndpoint(null)
+                    }}
+                    options={tipoClusterOptions}
+                    styles={customSelectStyles}
+                    placeholder="Seleccionar tipo..."
+                  />
+                  {errors.cod_tipo_cluster && <Typography color="error" variant="caption" sx={{ ml: 1, mt: 0.5, display: 'block' }}>{errors.cod_tipo_cluster}</Typography>}
+                </Box>
+
+                {/* Descripción */}
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
+                    Descripción
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    placeholder="Descripción breve del cluster"
+                    value={form.descripcion}
+                    onChange={(ev) => handleChange('descripcion', ev.target.value)}
+                    error={!!errors.descripcion}
+                    helperText={errors.descripcion}
+                    InputProps={{ startAdornment: <DescIcon color="action" sx={{ mr: 1, opacity: 0.7 }} /> }}
+                  />
+                </Box>
+
+                {/* Endpoint Proxmox (Condicional) */}
+                {selectedTipoCluster?.value === 'PX' && (
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
+                      Endpoint Proxmox
+                    </Typography>
+                    <Select
+                      value={selectedProxmoxEndpoint}
+                      onChange={setSelectedProxmoxEndpoint}
+                      options={proxmoxOptions}
+                      styles={customSelectStyles}
+                      placeholder="Seleccionar endpoint Proxmox..."
+                      isClearable
+                    />
+                    {errors.id_proxmox_endpoint && <Typography color="error" variant="caption" sx={{ ml: 1, mt: 0.5, display: 'block' }}>{errors.id_proxmox_endpoint}</Typography>}
+                  </Box>
+                )}
+
+                {/* Endpoint K8s (Condicional) */}
+                {selectedTipoCluster?.value === 'K8S' && (
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
+                      Endpoint Kubernetes
+                    </Typography>
+                    <Select
+                      value={selectedK8sEndpoint}
+                      onChange={setSelectedK8sEndpoint}
+                      options={k8sOptions}
+                      styles={customSelectStyles}
+                      placeholder="Seleccionar API K8s..."
+                      isClearable
+                    />
+                    {errors.id_k8s_endpoint && <Typography color="error" variant="caption" sx={{ ml: 1, mt: 0.5, display: 'block' }}>{errors.id_k8s_endpoint}</Typography>}
+                  </Box>
+                )}
+              </Stack>
+            </SectionCard>
+
+            {/* Botones de Acción */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined"
+                color="inherit"
+                startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.clusters())}
+                sx={{ 
+                  minWidth: 140, 
+                  borderRadius: 2, 
+                  textTransform: 'none',
+                  borderColor: 'rgba(0, 0, 0, 0.23)' 
+                }}
+              >
+                Cancelar
+              </Button>
+
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={loading || submitting}
+                startIcon={<SaveIcon />}
+                sx={{
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
+                  boxShadow: 4,
+                  minWidth: 160,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 700
+                }}
+              >
+                {isEdit ? 'Guardar Cambios' : 'Guardar Cluster'}
+              </LoadingButton>
+            </Box>
+          </Box>
+        </CardContent>
+      </Card>
+    </Box>
   )
 }
 

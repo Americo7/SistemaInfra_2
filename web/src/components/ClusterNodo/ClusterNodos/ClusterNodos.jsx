@@ -203,8 +203,8 @@ const ClusterNodosList = ({ clusterNodos = [] }) => {
     { accessorKey: 'rol', header: 'Rol' },
 
     {
-      accessorKey: 'k8s_uid',
-      header: 'K8s UID',
+      accessorKey: 'identity_key',
+      header: 'Identificador',
       Cell: ({ cell }) => {
         const val = cell.getValue()
         return val ? <Tooltip title={val}><span>{truncate(val, 15)}</span></Tooltip> : '-'
@@ -263,7 +263,7 @@ const ClusterNodosList = ({ clusterNodos = [] }) => {
       showGlobalFilter: true,
       columnVisibility: {
         id: false,
-        k8s_uid: false,
+        identity_key: false,
         fecha_creacion: false,
         fecha_modificacion: false,
       },

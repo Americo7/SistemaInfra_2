@@ -1,33 +1,34 @@
 import Servidor from 'src/components/Servidor/Servidor'
 
+// QUERY DE DETALLE: Profunda.
+// Aquí pedimos TODO porque estamos viendo un solo registro.
 export const QUERY = gql`
   query FindServidorById($id: Int!) {
-    servidor: servidor(id: $id) {
-      # --- CAMPOS SCALARES PRINCIPALES ---
+    servidor(id: $id) {
       id
       nombre
+      cod_inventario_agetic
+      cod_tipo_servidor
+      serie
+      marca
+      modelo
       ram
       almacenamiento
-      estado_operativo
-      estado
       ip_primaria
       sistema_operativo
-      cod_inventario_agetic # String!
-      cod_tipo_servidor     # String!
-      serie                 # String!
-      marca                 # String!
-      modelo                # String!
+      estado_operativo
+      estado
       usuario_creacion
       fecha_creacion
       usuario_modificacion
       fecha_modificacion
-
       id_data_center
+      identity_key
       data_centers {
         id
         nombre
       }
-      id_padre
+
       servidores_padre {
         id
         nombre
@@ -39,9 +40,13 @@ export const QUERY = gql`
       maquinas {
         id
         nombre
+        proxmox_vmid
         ip
         so
-        estado
+        ram
+        cpu
+        almacenamiento
+        estado_operativo
       }
 
       despliegue {
@@ -58,26 +63,21 @@ export const QUERY = gql`
         nodoTipo
         rol
         estado
-        fecha_creacion
         cluster {
           id
           nombre
           cod_tipo_cluster
-          descripcion
-          estado
         }
       }
 
       infra_afectada {
         id
-        estado
         eventos {
           id
           cod_tipo_evento
           descripcion
           fecha_evento
           estado_evento
-          fecha_creacion
           solicitante
         }
       }

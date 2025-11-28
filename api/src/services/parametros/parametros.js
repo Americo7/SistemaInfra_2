@@ -1,6 +1,5 @@
 import { db } from 'src/lib/db'
 
-// ✔ CORREGIDO: Recibe 'grupo' como array y filtra el listado principal
 export const parametros = ({ grupo }) => {
   let where = { estado: 'ACTIVO' }
 
@@ -61,6 +60,3 @@ export const parametroByCodigo = ({ codigo }) => {
     where: { codigo, estado: 'ACTIVO' },
   })
 }
-
-// ❌ ELIMINADA: La lógica de 'parametroByGrupo' está en la función principal 'parametros'
-// export const parametroByGrupo = ({ grupo }) => { /* ... */ }

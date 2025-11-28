@@ -1,9 +1,10 @@
 import { navigate, routes } from '@redwoodjs/router'
-
 import { useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
+import { Box, CircularProgress, Alert } from '@mui/material'
 
 import ParametroForm from 'src/components/Parametro/ParametroForm'
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
 
 export const QUERY = gql`
   query EditParametroById($id: Int!) {
@@ -39,10 +40,20 @@ const UPDATE_PARAMETRO_MUTATION = gql`
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+// 1. Loading con estilo MUI
+export const Loading = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+    <CircularProgress />
+  </Box>
+)
 
+// 2. Failure con Alerta MUI
 export const Failure = ({ error }) => (
-  <div className="rw-cell-error">{error?.message}</div>
+  <Box sx={{ maxWidth: 1000, mx: 'auto', mt: 4, p: 2 }}>
+    <Alert severity="error">
+      Error al cargar el registro: {error?.message}
+    </Alert>
+  </Box>
 )
 
 export const Success = ({ parametro }) => {
@@ -50,11 +61,13 @@ export const Success = ({ parametro }) => {
     UPDATE_PARAMETRO_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Parametro updated')
+        toast.success('Parámetro actualizado correctamente')
         navigate(routes.parametros())
       },
       onError: (error) => {
-        toast.error(error.message)
+        // Opcional: El formulario ya muestra el error visualmente, 
+        // pero puedes dejar esto por si es un error de red.
+        // toast.error(error.message)
       },
     }
   )
@@ -63,21 +76,24 @@ export const Success = ({ parametro }) => {
     updateParametro({ variables: { id, input } })
   }
 
+  // 3. Estructura con ScaffoldLayout
   return (
-    <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Edit Parametro {parametro?.id}
-        </h2>
-      </header>
-      <div className="rw-segment-main">
-        <ParametroForm
-          parametro={parametro}
-          onSave={onSave}
-          error={error}
-          loading={loading}
-        />
-      </div>
-    </div>
+    <ScaffoldLayout
+      title="Editar Parámetro"
+      titleTo="parametros"
+      breadcrumbItems={[
+        { label: 'Parámetros', link: routes.parametros() },
+        // Mostramos el nombre o código del item actual en el breadcrumb
+        { label: parametro.nombre || parametro.codigo }, 
+        { label: 'Editar' }
+      ]}
+    >
+      <ParametroForm
+        parametro={parametro}
+        onSave={onSave}
+        error={error}
+        loading={loading}
+      />
+    </ScaffoldLayout>
   )
 }

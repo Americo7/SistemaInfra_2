@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react'
 import { Link, routes } from '@redwoodjs/router'
 import { useQuery, useMutation } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
-
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -53,9 +52,6 @@ const UPDATE_SERVIDOR_MUTATION = gql`
   }
 `
 
-// ❌ ELIMINADAS: GET_SERVIDORES_PADRES y GET_DATA_CENTERS.
-// La data se trae en el Cell.
-
 const GET_USUARIOS_QUERY = gql`
   query GetUsuariosForServidoresList {
     usuarios {
@@ -67,7 +63,6 @@ const GET_USUARIOS_QUERY = gql`
   }
 `
 
-// ✔ NUEVA CONSULTA: Trae todos los parámetros necesarios en una sola llamada
 const GET_PARAMETROS = gql`
   query GetParametrosInventario {
     parametros(grupo: ["AGETIC_INV", "TIPO_SERV"]) {
@@ -95,6 +90,7 @@ const formatDateTime = (dateString) => {
 const getEstadoColor = (estadoOperativo) => {
   switch (estadoOperativo) {
     case 'OPERATIVO': return '#4caf50'
+    case 'online': return '#4caf50'
     case 'MANTENIMIENTO': return '#ff9800'
     case 'DISPONIBLE': return '#2196f3'
     case 'FALLA': return '#f44336'
@@ -115,11 +111,8 @@ const ServidorsList = ({ servidores = [] }) => {
   const [estadoDialog, setEstadoDialog] = useState({ open: false, id: null, estado: 'ACTIVO' })
   const [actionMenu, setActionMenu] = useState({ anchorEl: null, row: null })
 
-  // ✔ HOOKS DE CONSULTA EFICIENTE
   const { data: parametrosData } = useQuery(GET_PARAMETROS)
   const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
-
-  // ❌ ELIMINADOS los hooks useQuery(GET_SERVIDORES_PADRES) y useQuery(GET_DATA_CENTERS)
 
   const [updateServidor] = useMutation(UPDATE_SERVIDOR_MUTATION, {
     onCompleted: () => {
@@ -132,33 +125,23 @@ const ServidorsList = ({ servidores = [] }) => {
   })
 
   const helpers = {
-    // ✔ OPTIMIZADO: Usa la relación "servidores_padre" traída por el Cell
-    getNombreServidorPadre: (servidor) => {
-      if (servidor.servidores_padre?.nombre) {
-        return servidor.servidores_padre.nombre
-      }
-      return servidor.id_padre ? `ID: ${servidor.id_padre}` : '-'
+    getNombreServidorPadre: (sv) => {
+      if (sv.servidores_padre?.nombre) return sv.servidores_padre.nombre
+      return sv.id_padre ? `ID: ${sv.id_padre}` : '-'
     },
-    // ✔ OPTIMIZADO: Usa la relación "data_centers" traída por el Cell
-    getNombreDataCenter: (servidor) => {
-      if (servidor.data_centers?.nombre) {
-        return servidor.data_centers.nombre
-      }
-      return servidor.id_data_center ? `ID: ${servidor.id_data_center}` : '-'
+    getNombreDataCenter: (sv) => {
+      if (sv.data_centers?.nombre) return sv.data_centers.nombre
+      return sv.id_data_center ? `ID: ${sv.id_data_center}` : '-'
     },
-    // ✔ NUEVO HELPER: Mapea códigos a nombres usando la consulta de Parámetros
     getNombreParametro: (codigo) => {
       if (!codigo || !parametrosData?.parametros) return codigo || '-'
-      const parametro = parametrosData.parametros.find(
-        (p) => p.codigo === codigo
-      )
-      return parametro ? parametro.nombre : codigo
+      const p = parametrosData.parametros.find((pp) => pp.codigo === codigo)
+      return p ? p.nombre : codigo
     },
-    getNombreUsuario: (userId) => {
-      if (!userId) return '-'
-      const usuario = usuariosData?.usuarios?.find((u) => u.id === userId)
-      if (!usuario) return `ID: ${userId}`
-      return `${usuario.nombres} ${usuario.primer_apellido}`.trim()
+    getNombreUsuario: (id) => {
+      if (!id) return '-'
+      const u = usuariosData?.usuarios?.find((uu) => uu.id === id)
+      return u ? `${u.nombres} ${u.primer_apellido}` : `ID: ${id}`
     },
   }
 
@@ -174,16 +157,14 @@ const ServidorsList = ({ servidores = [] }) => {
       { accessorKey: 'id', header: 'ID', size: 50, enableHiding: false },
       { accessorKey: 'nombre', header: 'Nombre Host', size: 150 },
 
-      // ✔ NUEVAS COLUMNAS DE INFRA
       { accessorKey: 'ip_primaria', header: 'IP Primaria', size: 120 },
       { accessorKey: 'sistema_operativo', header: 'OS', size: 150 },
 
-      // ✔ MUESTRA NOMBRE DE PARAMETRO (cod_inventario_agetic)
       {
         accessorKey: 'cod_inventario_agetic',
         header: 'Código Inventario',
         size: 150,
-        Cell: ({ cell }) => helpers.getNombreParametro(cell.getValue())
+        Cell: ({ cell }) => helpers.getNombreParametro(cell.getValue()),
       },
 
       { accessorKey: 'serie', header: 'Serie', size: 120 },
@@ -203,7 +184,6 @@ const ServidorsList = ({ servidores = [] }) => {
         Cell: ({ cell }) => `${cell.getValue()} GB`,
       },
 
-      // ✔ MUESTRA NOMBRE DEL DATA CENTER (Aprovecha la relación del Cell)
       {
         accessorKey: 'data_centers.nombre',
         header: 'Data Center',
@@ -211,15 +191,13 @@ const ServidorsList = ({ servidores = [] }) => {
         Cell: ({ row }) => helpers.getNombreDataCenter(row.original),
       },
 
-      // ✔ MUESTRA NOMBRE DE PARAMETRO (cod_tipo_servidor)
       {
         accessorKey: 'cod_tipo_servidor',
         header: 'Tipo Servidor',
         size: 120,
-        Cell: ({ cell }) => helpers.getNombreParametro(cell.getValue())
+        Cell: ({ cell }) => helpers.getNombreParametro(cell.getValue()),
       },
 
-      // ✔ MUESTRA NOMBRE DEL SERVIDOR PADRE (Aprovecha la relación del Cell)
       {
         accessorKey: 'servidores_padre.nombre',
         header: 'Servidor Padre',
@@ -257,6 +235,7 @@ const ServidorsList = ({ servidores = [] }) => {
         ),
       },
 
+      /* ========== AUDITORÍA (OCULTA POR DEFECTO) ========== */
       {
         accessorKey: 'fecha_creacion',
         header: 'Fecha Creación',
@@ -282,21 +261,25 @@ const ServidorsList = ({ servidores = [] }) => {
         Cell: ({ cell }) => helpers.getNombreUsuario(cell.getValue()),
       },
     ],
-
-    // ✔ DEPENDENCIAS CORRECTAS: Ahora solo dependemos de los diccionarios (Parámetros, Usuarios)
     [parametrosData, usuariosData]
   )
 
   const table = useMaterialReactTable({
     columns,
     data: filteredServidores,
+
     enableRowActions: true,
     enableRowSelection: true,
+
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
+
       columnVisibility: {
         id: false,
+        cod_inventario_agetic:false,
+        serie: false,
+        estado: false,
         fecha_creacion: false,
         usuario_creacion: false,
         fecha_modificacion: false,
@@ -329,13 +312,12 @@ const ServidorsList = ({ servidores = [] }) => {
             }
           />
 
-          {/* Exportación */}
           <Button
             variant="contained"
             size="small"
             startIcon={<FileDownloadIcon />}
             onClick={(e) => setExportMenu({ ...exportMenu, all: e.currentTarget })}
-            sx={{ backgroundColor: '#0F284D', '&:hover': { backgroundColor: '#1A3D6D' } }}
+            sx={{ backgroundColor: '#0F284D' }}
           >
             Exportar Todos
           </Button>

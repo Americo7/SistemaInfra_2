@@ -1,48 +1,47 @@
-// React
-import React, { useState, useEffect } from 'react'
-
-// React Hook Form
-import { useForm, Controller } from 'react-hook-form'
-
-// RedwoodJS
-import { Form, FormError, Label } from '@redwoodjs/forms'
-import { useQuery } from '@redwoodjs/web'
-
-// Material UI
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Box,
   Card,
+  CardHeader,
   CardContent,
   Typography,
+  TextField,
+  MenuItem,
+  FormControl,
+  FormLabel,
+  FormHelperText,
+  InputAdornment,
+  Avatar,
+  Button,
+  Stack,
   Divider,
-  Grid,
-  TextField
+  Paper,
+  useTheme,
+  CircularProgress,
 } from '@mui/material'
+import { LoadingButton } from '@mui/lab'
+import { useQuery, gql } from '@redwoodjs/web'
+import { navigate, routes } from '@redwoodjs/router'
 
-import LoadingButton from '@mui/lab/LoadingButton'
+// Iconos
+import DnsIcon from '@mui/icons-material/Dns'
+import StorageIcon from '@mui/icons-material/Storage'
+import SettingsEthernetIcon from '@mui/icons-material/SettingsEthernet'
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
+import SaveIcon from '@mui/icons-material/Save'
+import CancelIcon from '@mui/icons-material/Cancel'
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
+import EditIcon from '@mui/icons-material/Edit'
+import QrCodeIcon from '@mui/icons-material/QrCode'
+import BusinessIcon from '@mui/icons-material/Business'
+import MemoryIcon from '@mui/icons-material/Memory'
+import LanIcon from '@mui/icons-material/Lan'
+import ComputerIcon from '@mui/icons-material/Computer'
 
-// React Select
-import Select from 'react-select'
-
-// Icons
-import Dashboard from '@mui/icons-material/Dashboard'
-import Hub from '@mui/icons-material/Hub'
-import Computer from '@mui/icons-material/Computer'
-import SerialNumber from '@mui/icons-material/ConfirmationNumber'
-import Inventory from '@mui/icons-material/Inventory2'
-import Storage from '@mui/icons-material/Storage'
-import Architecture from '@mui/icons-material/Architecture'
-import DataObject from '@mui/icons-material/DataObject'
-import IpIcon from '@mui/icons-material/Router'
-import OSIcon from '@mui/icons-material/Terminal'
-import Memory from '@mui/icons-material/Memory'
-import DataArray from '@mui/icons-material/DataArray'
-import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline'
-// GraphQL (lo que realmente funciona)
-import { gql } from '@redwoodjs/web'
-
-// Consulta: Data Centers
-export const GET_DATA_CENTERS = gql`
+/* ---------------------------------------------
+ * 1. DEFINICIÓN DE QUERIES
+ * --------------------------------------------- */
+const GET_DATA_CENTERS = gql`
   query GetDataCenters {
     dataCenters {
       id
@@ -51,8 +50,7 @@ export const GET_DATA_CENTERS = gql`
   }
 `
 
-// Consulta: Servidores
-export const GET_SERVIDORES = gql`
+const GET_SERVIDORES = gql`
   query GetServidores {
     servidores {
       id
@@ -67,8 +65,7 @@ export const GET_SERVIDORES = gql`
   }
 `
 
-// Consulta: Parámetros
-export const GET_PARAMETROS = gql`
+const GET_PARAMETROS = gql`
   query GetParametros {
     parametros {
       id
@@ -79,878 +76,448 @@ export const GET_PARAMETROS = gql`
   }
 `
 
+/* ---------------------------------------------
+ * 2. VALORES POR DEFECTO
+ * --------------------------------------------- */
+const getDefaultValues = () => ({
+  nombre: '',
+  cod_inventario_agetic: '',
+  serie: '',
+  marca: '',
+  modelo: '',
+  ip_primaria: '',
+  sistema_operativo: '',
+  ram: '',
+  almacenamiento: '',
+  cod_tipo_servidor: '',
+  estado_operativo: '',
+  id_data_center: '',
+  id_padre: '',
+  estado: 'ACTIVO',
+})
 
-const ServidorForm = (props) => {
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    watch,
-  } = useForm({
-    defaultValues: {
-      ...props.servidor,
-      // Los campos numéricos deben ir como String para los inputs de texto
-      ram: props.servidor?.ram?.toString() || '',
-      almacenamiento: props.servidor?.almacenamiento?.toString() || '',
-
-      // Asignación de valores predeterminados (para crear) o existentes
-      estado: props.servidor?.estado || 'ACTIVO',
-      usuario_creacion: props.servidor?.usuario_creacion || 2, // Valor por defecto
-
-      // Inicializar campos que pueden ser null en la BD para evitar undefined en el formulario
-      ip_primaria: props.servidor?.ip_primaria || '',
-      sistema_operativo: props.servidor?.sistema_operativo || '',
-    },
-  })
-
-  const { data: dataCentersData, loading: dataCentersLoading } = useQuery(GET_DATA_CENTERS)
-  const { data: servidoresData, loading: servidoresLoading } = useQuery(GET_SERVIDORES)
-  const { data: parametrosData, loading: parametrosLoading } = useQuery(GET_PARAMETROS)
-
-  const [tipoServidorPadre, setTipoServidorPadre] = useState('')
-  const idPadre = watch('id_padre')
-  const idDataCenter = watch('id_data_center')
-  const tipoServidor = watch('cod_tipo_servidor')
-
-  const loading = dataCentersLoading || servidoresLoading || parametrosLoading || props.loading
-
-  useEffect(() => {
-    if (idPadre) {
-      const padreSeleccionado = servidoresData?.servidores?.find(
-        (serv) => serv.id === idPadre
-      )
-      if (padreSeleccionado) {
-        // Mapea el código del servidor padre a su nombre
-        const tipo = parametrosData?.parametros?.find(
-          (param) => param.codigo === padreSeleccionado.cod_tipo_servidor
-        )?.nombre
-        setTipoServidorPadre(tipo || padreSeleccionado.cod_tipo_servidor || '')
-      }
-    } else {
-      setTipoServidorPadre('')
-    }
-  }, [idPadre, servidoresData, parametrosData])
-
-  // --- LÓGICA DE FILTRADO DE PARÁMETROS ---
-
-  const parametrosDeEstadoOperativo = parametrosData?.parametros?.filter(
-    (param) => param.grupo === 'ESTADO_OPERATIVO'
-  )
-
-  const parametrosTipoServidor = parametrosData?.parametros?.filter(
-    (param) => param.grupo === 'TIPO_SERVIDOR'
-  )
-
-  // ----------------------------------------
-
-  const dataCenterOptions =
-    dataCentersData?.dataCenters?.map((dc) => ({
-      value: dc.id,
-      label: dc.nombre,
-    })) || []
-
-  // Mapeo para Select: Usar el código del parámetro como valor (value)
-  const tipoServidorOptions = parametrosTipoServidor?.map((param) => ({
-    value: param.codigo,
-    label: param.nombre
-  })) || []
-
-
-  // Filtrar servidores por data center seleccionado y excluir el servidor actual
-  const servidoresFiltrados = servidoresData?.servidores?.filter(
-    (serv) => serv.id !== props.servidor?.id &&
-            serv.estado === 'ACTIVO' &&
-            (idDataCenter ? serv.id_data_center === idDataCenter : true)
-  ) || []
-
-  const servidoresChasis = servidoresFiltrados.filter(
-    (serv) => serv.cod_tipo_servidor === 'CHASIS'
-  )
-
-  const servidoresNoChasis = servidoresFiltrados.filter(
-    (serv) => serv.cod_tipo_servidor !== 'CHASIS'
-  )
-
-  // Combinamos ambos arrays para que los CHASIS aparezcan primero
-  const servidorPadreOptions = [
-    ...(servidoresChasis.map((serv) => ({
-      value: serv.id,
-      label: `${serv.nombre} | ${serv.marca} ${serv.modelo} (${serv.serie})`,
-      servidor: serv,
-      isChasis: true
-    }))),
-    ...(servidoresNoChasis.map((serv) => ({
-      value: serv.id,
-      label: `${serv.nombre} | ${serv.marca} ${serv.modelo} (${serv.serie})`,
-      servidor: serv,
-      isChasis: false
-    })))
-  ]
-
-  const formatOptionLabel = ({ label, servidor, isChasis }) => (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: isChasis ? 'rgba(25, 118, 210, 0.08)' : 'transparent',
-      padding: '4px',
-      borderRadius: '4px'
-    }}>
-      <div>
-        <strong>{servidor?.nombre || 'Sin nombre'}</strong>
-        {isChasis && <span style={{ marginLeft: '8px', color: '#1976d2', fontWeight: 'bold' }}>(CHASIS)</span>}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <span>{servidor?.marca} {servidor?.modelo}</span>
-        <span style={{ color: '#666' }}>{servidor?.serie}</span>
-      </div>
-    </div>
-  )
-
-  const customSelectStyles = {
-    control: (base, state) => ({
-      ...base,
-      minHeight: '50px',
-      borderRadius: '8px',
-      borderColor: state.isFocused ? '#1976d2' : '#e0e0e0',
-      boxShadow: state.isFocused ? '0 0 0 1px #1976d2' : 'none',
-      '&:hover': {
-        borderColor: '#1976d2',
-      },
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isSelected
-        ? '#e3f2fd'
-        : state.isFocused
-        ? '#f5f5f5'
-        : 'transparent',
-      color: state.isSelected
-        ? '#1976d2'
-        : '#333',
-      padding: '8px 16px',
-    }),
-    menu: (base) => ({
-      ...base,
-      zIndex: 9999,
-    }),
-    group: (base) => ({
-      ...base,
-      paddingTop: 8,
-      paddingBottom: 8,
-    }),
-  }
-
-  const onSubmit = (data) => {
-    // ✔ LIMPIEZA DE DATOS
-    const cleanData = {
-      cod_inventario_agetic: data.cod_inventario_agetic,
-      nombre: data.nombre,
-      serie: data.serie,
-      marca: data.marca,
-      modelo: data.modelo,
-      cod_tipo_servidor: data.cod_tipo_servidor, // Viene el código string del Select
-      id_data_center: data.id_data_center,
-      id_padre: data.id_padre,
-
-      // ✔ CAMPOS DE SINCRONIZACIÓN
-      ip_primaria: data.ip_primaria, // String
-      sistema_operativo: data.sistema_operativo || null, // String (o null si vacío)
-
-      // Conversión a Int o null
-      ram: data.ram ? parseInt(data.ram) : null,
-      almacenamiento: data.almacenamiento ? parseInt(data.almacenamiento) : null,
-
-      estado_operativo: data.estado_operativo, // Viene el código string del Select
-      estado: data.estado,
-
-      usuario_creacion: data.usuario_creacion,
-      usuario_modificacion: props.servidor?.id ? 2 : undefined
-    }
-
-    props.onSave(cleanData, props?.servidor?.id)
-  }
-
-  if (loading && !props.servidor) {
-    return (
-      <Box sx={{ textAlign: 'center', p: 4 }}>
-        <Typography>Cargando...</Typography>
-      </Box>
-    )
-  }
+/* ---------------------------------------------
+ * 3. COMPONENTE UI AUXILIAR (SectionCard)
+ * --------------------------------------------- */
+const SectionCard = ({ title, icon, children, color }) => {
+  const theme = useTheme()
+  const activeColor = color || theme.palette.primary.main
 
   return (
     <Card
+      variant="outlined"
       sx={{
-        maxWidth: '1000px',
-        margin: 'auto',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-        borderRadius: '12px',
-        overflow: 'visible',
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
       }}
     >
-      <Box
-        sx={{
-          backgroundColor: '#1976d2',
-          color: '#fff',
-          p: 3,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-          marginTop: '-1px',
-        }}
-      >
-        <Typography variant="h5" fontWeight="600">
-          {props.servidor?.id ? 'Editar Servidor' : 'Nuevo Servidor'}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          {props.servidor?.id
-            ? 'Actualice la información del servidor'
-            : 'Complete la información para crear un nuevo servidor'}
-        </Typography>
-      </Box>
-
-      <CardContent sx={{ p: 4 }}>
-        <Form onSubmit={handleSubmit(onSubmit)} error={props.error}>
-          <FormError
-            error={props.error}
-            wrapperStyle={{
-              backgroundColor: '#ffebee',
-              color: '#c62828',
-              padding: '16px',
-              marginBottom: '24px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-            titleStyle={{
-              fontWeight: '600',
-              marginBottom: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-            listStyle={{
-              listStyleType: 'none',
-              padding: 0,
-              margin: 0,
-            }}
-          />
-
-          <Grid container spacing={3}>
-            {/* 1. DATA CENTER Y SERVIDOR PADRE (Relaciones) */}
-            <Grid item xs={12} md={6}>
-              <Label
-                className="input-label"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Dashboard fontSize="small" sx={{ mr: 1 }} />
-                Data Center*
-              </Label>
-              <Controller
-                name="id_data_center"
-                control={control}
-                rules={{ required: 'Data Center es requerido' }}
-                render={({ field }) => (
-                  <Select
-                    {...field}
-                    options={dataCenterOptions}
-                    value={dataCenterOptions.find((opt) => opt.value === field.value) || null}
-                    onChange={(selected) => {
-                      field.onChange(selected?.value)
-                      setValue('id_data_center', selected?.value, { shouldValidate: true })
-                      // Limpiar el servidor padre cuando cambia el data center
-                      setValue('id_padre', null)
-                    }}
-                    styles={customSelectStyles}
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder="Seleccionar Data Center..."
-                    isSearchable
-                    isDisabled={loading}
-                  />
-                )}
-              />
-              {errors.id_data_center && (
-                <span style={{ color: '#d32f2f', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                  {errors.id_data_center.message}
-                </span>
-              )}
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Label
-                className="input-label"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Hub fontSize="small" sx={{ mr: 1 }} />
-                Servidor Padre (Opcional)
-              </Label>
-              <Controller
-                name="id_padre"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    {...field}
-                    options={servidorPadreOptions}
-                    value={servidorPadreOptions.find((opt) => opt.value === field.value) || null}
-                    onChange={(selected) => {
-                      field.onChange(selected?.value || null)
-                      setValue('id_padre', selected?.value || null, { shouldValidate: true })
-                    }}
-                    styles={customSelectStyles}
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder={idDataCenter ? "Seleccionar servidor padre..." : "Primero seleccione un Data Center"}
-                    isClearable
-                    isSearchable
-                    formatOptionLabel={formatOptionLabel}
-                    isDisabled={loading || !idDataCenter}
-                    noOptionsMessage={() => idDataCenter ? "No hay servidores disponibles" : "Seleccione un Data Center primero"}
-                  />
-                )}
-              />
-              {tipoServidorPadre && (
-                <Box sx={{ mt: 1, p: 1, backgroundColor: '#f5f5f5', borderRadius: '4px', fontSize: '0.75rem' }}>
-                  <Typography variant="caption" style={{ display: 'flex', alignItems: 'center' }}>
-                    <Computer fontSize="small" sx={{ mr: 1, fontSize: '14px' }} />
-                    Tipo del servidor padre: <strong style={{ marginLeft: '4px' }}>{tipoServidorPadre}</strong>
-                  </Typography>
-                </Box>
-              )}
-            </Grid>
-
-            {/* 2. IDENTIFICACIÓN E INVENTARIO */}
-            <Grid item xs={12} md={4}>
-              <Label
-                name="nombre"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Computer fontSize="small" sx={{ mr: 1 }} />
-                Nombre del Servidor*
-              </Label>
-              <Controller
-                name="nombre"
-                control={control}
-                rules={{ required: 'El nombre es requerido' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    className="rw-input"
-                    errorClassName="rw-input rw-input-error"
-                    style={{
-                      minHeight: '50px',
-                      borderRadius: '8px',
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: errors.nombre ? '1px solid #d32f2f' : '1px solid #e0e0e0',
-                      fontSize: '0.9375rem',
-                    }}
-                  />
-                )}
-              />
-              {errors.nombre && (
-                <span style={{ color: '#d32f2f', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                  {errors.nombre.message}
-                </span>
-              )}
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Label
-                name="serie"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <SerialNumber fontSize="small" sx={{ mr: 1 }} />
-                Serie*
-              </Label>
-              <Controller
-                name="serie"
-                control={control}
-                rules={{ required: 'Serie es requerida' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    className="rw-input"
-                    errorClassName="rw-input rw-input-error"
-                    style={{
-                      minHeight: '50px',
-                      borderRadius: '8px',
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: errors.serie ? '1px solid #d32f2f' : '1px solid #e0e0e0',
-                      fontSize: '0.9375rem',
-                    }}
-                  />
-                )}
-              />
-              {errors.serie && (
-                <span style={{ color: '#d32f2f', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                  {errors.serie.message}
-                </span>
-              )}
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Label
-                name="cod_inventario_agetic"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Inventory fontSize="small" sx={{ mr: 1 }} />
-                Código Inventario AGETIC*
-              </Label>
-              <Controller
-                name="cod_inventario_agetic"
-                control={control}
-                rules={{
-                  required: 'Código de inventario es requerido',
-                  maxLength: { value: 10, message: 'Máximo 10 caracteres' },
-                }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    className="rw-input"
-                    errorClassName="rw-input rw-input-error"
-                    style={{
-                      minHeight: '50px',
-                      borderRadius: '8px',
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: errors.cod_inventario_agetic ? '1px solid #d32f2f' : '1px solid #e0e0e0',
-                      fontSize: '0.9375rem',
-                    }}
-                  />
-                )}
-              />
-              {errors.cod_inventario_agetic && (
-                <span style={{ color: '#d32f2f', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                  {errors.cod_inventario_agetic.message}
-                </span>
-              )}
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Label
-                name="marca"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Storage fontSize="small" sx={{ mr: 1 }} />
-                Marca*
-              </Label>
-              <Controller
-                name="marca"
-                control={control}
-                rules={{ required: 'Marca es requerida' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    className="rw-input"
-                    errorClassName="rw-input rw-input-error"
-                    style={{
-                      minHeight: '50px',
-                      borderRadius: '8px',
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: errors.marca ? '1px solid #d32f2f' : '1px solid #e0e0e0',
-                      fontSize: '0.9375rem',
-                    }}
-                  />
-                )}
-              />
-              {errors.marca && (
-                <span style={{ color: '#d32f2f', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                  {errors.marca.message}
-                </span>
-              )}
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Label
-                name="modelo"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Architecture fontSize="small" sx={{ mr: 1 }} />
-                Modelo*
-              </Label>
-              <Controller
-                name="modelo"
-                control={control}
-                rules={{ required: 'Modelo es requerido' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    className="rw-input"
-                    errorClassName="rw-input rw-input-error"
-                    style={{
-                      minHeight: '50px',
-                      borderRadius: '8px',
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: errors.modelo ? '1px solid #d32f2f' : '1px solid #e0e0e0',
-                      fontSize: '0.9375rem',
-                    }}
-                  />
-                )}
-              />
-              {errors.modelo && (
-                <span style={{ color: '#d32f2f', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                  {errors.modelo.message}
-                </span>
-              )}
-            </Grid>
-
-            {/* 3. TIPO DE SERVIDOR Y RAM/ALMACENAMIENTO */}
-            <Grid item xs={12} md={4}>
-              <Label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <DataObject fontSize="small" sx={{ mr: 1 }} />
-                Tipo de Servidor*
-              </Label>
-              <Controller
-                name="cod_tipo_servidor"
-                control={control}
-                rules={{ required: 'Tipo de servidor es requerido' }}
-                render={({ field }) => (
-                  <Select
-                    {...field}
-                    options={tipoServidorOptions}
-                    value={tipoServidorOptions.find((opt) => opt.value === field.value) || null}
-                    onChange={(selected) => {
-                      field.onChange(selected?.value)
-                      setValue('cod_tipo_servidor', selected?.value, { shouldValidate: true })
-                    }}
-                    styles={customSelectStyles}
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder="Seleccionar tipo de servidor..."
-                    isSearchable
-                    isDisabled={loading}
-                  />
-                )}
-              />
-              {errors.cod_tipo_servidor && (
-                <span style={{ color: '#d32f2f', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                  {errors.cod_tipo_servidor.message}
-                </span>
-              )}
-            </Grid>
-
-            {/* 4. IP y SISTEMA OPERATIVO (NUEVOS CAMPOS DE SYNC) */}
-            <Grid item xs={12} md={4}>
-              <Label
-                name="ip_primaria"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <IpIcon fontSize="small" sx={{ mr: 1 }} />
-                IP Primaria*
-              </Label>
-              <Controller
-                name="ip_primaria"
-                control={control}
-                rules={{ required: 'IP Primaria es requerida' }}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    className="rw-input"
-                    errorClassName="rw-input rw-input-error"
-                    style={{
-                      minHeight: '50px',
-                      borderRadius: '8px',
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: errors.ip_primaria ? '1px solid #d32f2f' : '1px solid #e0e0e0',
-                      fontSize: '0.9375rem',
-                    }}
-                  />
-                )}
-              />
-              {errors.ip_primaria && (
-                <span style={{ color: '#d32f2f', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                  {errors.ip_primaria.message}
-                </span>
-              )}
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Label
-                name="sistema_operativo"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <OSIcon fontSize="small" sx={{ mr: 1 }} />
-                Sistema Operativo
-              </Label>
-              <Controller
-                name="sistema_operativo"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    className="rw-input"
-                    errorClassName="rw-input rw-input-error"
-                    style={{
-                      minHeight: '50px',
-                      borderRadius: '8px',
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: '1px solid #e0e0e0',
-                      fontSize: '0.9375rem',
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-
-
-            {tipoServidor !== 'CHASIS' && (
-              <>
-                <Grid item xs={12} md={4}>
-                  <Label
-                    name="ram"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      marginBottom: '8px',
-                      fontWeight: '500',
-                      color: '#333',
-                      fontSize: '0.875rem',
-                    }}
-                  >
-                    <Memory fontSize="small" sx={{ mr: 1 }} />
-                    RAM (GB)
-                  </Label>
-                  <Controller
-                    name="ram"
-                    control={control}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        className="rw-input"
-                        type="number"
-                        min="0"
-                        style={{
-                          minHeight: '50px',
-                          borderRadius: '8px',
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: '1px solid #e0e0e0',
-                          fontSize: '0.9375rem',
-                        }}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          field.onChange(value === '' ? null : value)
-                        }}
-                      />
-                    )}
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                  <Label
-                    name="almacenamiento"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      marginBottom: '8px',
-                      fontWeight: '500',
-                      color: '#333',
-                      fontSize: '0.875rem',
-                    }}
-                  >
-                    <DataArray fontSize="small" sx={{ mr: 1 }} />
-                    Almacenamiento (GB)
-                  </Label>
-                  <Controller
-                    name="almacenamiento"
-                    control={control}
-                    render={({ field }) => (
-                      <TextField
-                        {...field}
-                        className="rw-input"
-                        type="number"
-                        min="0"
-                        style={{
-                          minHeight: '50px',
-                          borderRadius: '8px',
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: '1px solid #e0e0e0',
-                          fontSize: '0.9375rem',
-                        }}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          field.onChange(value === '' ? null : value)
-                        }}
-                      />
-                    )}
-                  />
-                </Grid>
-              </>
-            )}
-
-            <Grid item xs={12}>
-              <Label
-                className="input-label"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: '#333',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <CheckCircleOutline fontSize="small" sx={{ mr: 1 }} />
-                Estado Operativo*
-              </Label>
-              <Controller
-                name="estado_operativo"
-                control={control}
-                rules={{ required: 'Estado operativo es requerido' }}
-                render={({ field }) => (
-                  <select
-                    {...field}
-                    disabled={!parametrosDeEstadoOperativo?.length || loading}
-                    style={{
-                      minHeight: '50px',
-                      borderRadius: '8px',
-                      width: '100%',
-                      padding: '12px 16px',
-                      border: errors.estado_operativo ? '1px solid #d32f2f' : '1px solid #e0e0e0',
-                      fontSize: '0.9375rem',
-                      backgroundColor: 'white',
-                    }}
-                  >
-                    <option value="">Seleccionar estado...</option>
-                    {parametrosDeEstadoOperativo?.map((param) => (
-                      <option key={param.id} value={param.codigo}>
-                        {param.nombre}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              />
-              {errors.estado_operativo && (
-                <span style={{ color: '#d32f2f', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
-                  {errors.estado_operativo.message}
-                </span>
-              )}
-            </Grid>
-          </Grid>
-
-          <Divider sx={{ my: 4, borderColor: '#e0e0e0' }} />
-
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 2,
-            }}
-          >
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              color="primary"
-              loading={props.loading}
-              loadingPosition="start"
-              startIcon={props.loading ? null : <CheckCircleOutline fontSize="small" />}
-              sx={{
-                px: 5,
-                py: 1.5,
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '600',
-                fontSize: '0.9375rem',
-                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
-                backgroundColor: '#1976d2',
-                '&:hover': {
-                  boxShadow: '0 4px 15px rgba(0, 0, 0, 0.15)',
-                  backgroundColor: '#1565c0',
-                },
-              }}
-            >
-              {props.loading
-                ? 'Guardando...'
-                : props.servidor?.id
-                  ? 'Actualizar Servidor'
-                  : 'Guardar Servidor'
-              }
-            </LoadingButton>
-          </Box>
-        </Form>
-      </CardContent>
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
+            {title}
+          </Typography>
+        }
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5 }}>{children}</CardContent>
     </Card>
   )
 }
 
-export default ServidorForm
+/* ---------------------------------------------
+ * 4. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
+export default function ServidorForm({ servidor, onSave, loading, error }) {
+  const theme = useTheme()
+  const isEdit = Boolean(servidor?.id)
+  
+  // --- ESTADOS ---
+  const [form, setForm] = useState(getDefaultValues())
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
+
+  // --- CARGA DE DATOS ---
+  const { data: dcData, loading: dcLoading } = useQuery(GET_DATA_CENTERS)
+  const { data: srvData, loading: srvLoading } = useQuery(GET_SERVIDORES)
+  const { data: paramData, loading: paramLoading } = useQuery(GET_PARAMETROS)
+
+  const isLoadingData = dcLoading || srvLoading || paramLoading
+
+  // --- EFECTO: CARGAR DATOS EN EDICIÓN ---
+  useEffect(() => {
+    if (isEdit && servidor) {
+      setForm({
+        nombre: servidor.nombre ?? '',
+        cod_inventario_agetic: servidor.cod_inventario_agetic ?? '',
+        serie: servidor.serie ?? '',
+        marca: servidor.marca ?? '',
+        modelo: servidor.modelo ?? '',
+        ip_primaria: servidor.ip_primaria ?? '',
+        sistema_operativo: servidor.sistema_operativo ?? '',
+        ram: servidor.ram ?? '',
+        almacenamiento: servidor.almacenamiento ?? '',
+        cod_tipo_servidor: servidor.cod_tipo_servidor ?? '',
+        estado_operativo: servidor.estado_operativo ?? '',
+        id_data_center: servidor.id_data_center ?? '',
+        id_padre: servidor.id_padre ?? '',
+        estado: servidor.estado ?? 'ACTIVO',
+      })
+    }
+  }, [servidor, isEdit])
+
+  // --- PREPARACIÓN DE LISTAS ---
+  const listDataCenters = dcData?.dataCenters || []
+  const listParametros = paramData?.parametros || []
+  
+  const opcionesTipoServidor = listParametros.filter(p => p.grupo === 'TIPO_SERVIDOR')
+  const opcionesEstadoOperativo = listParametros.filter(p => p.grupo === 'ESTADO_OPERATIVO')
+
+  // Filtrar servidores padre
+  const opcionesPadre = useMemo(() => {
+    if (!form.id_data_center || !srvData?.servidores) return []
+    return srvData.servidores.filter(s => 
+      s.id !== servidor?.id && 
+      s.estado === 'ACTIVO' &&
+      s.id_data_center === parseInt(form.id_data_center)
+    )
+  }, [srvData, form.id_data_center, servidor])
+
+
+  // --- MANEJADORES ---
+  const handleChange = (field, value) => {
+    setForm(prev => {
+      const newState = { ...prev, [field]: value }
+      if (field === 'id_data_center') {
+        newState.id_padre = ''
+      }
+      return newState
+    })
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }))
+  }
+
+  const validate = () => {
+    const e = {}
+    if (!form.id_data_center) e.id_data_center = 'Seleccione un Data Center'
+    if (!form.nombre.trim()) e.nombre = 'El nombre es obligatorio'
+    if (!form.cod_tipo_servidor) e.cod_tipo_servidor = 'El tipo es obligatorio'
+    if (!form.ip_primaria.trim()) e.ip_primaria = 'La IP es obligatoria'
+    if (!form.estado_operativo) e.estado_operativo = 'El estado es obligatorio'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (submitting) return
+    if (!validate()) return
+    setSubmitting(true)
+    
+    const payload = {
+      ...form,
+      id_data_center: parseInt(form.id_data_center),
+      id_padre: form.id_padre ? parseInt(form.id_padre) : null,
+      ram: form.ram ? parseInt(form.ram) : null,
+      almacenamiento: form.almacenamiento ? parseInt(form.almacenamiento) : null,
+      usuario_modificacion: isEdit ? 1 : undefined,
+      usuario_creacion: isEdit ? undefined : 1,
+    }
+
+    try {
+      await onSave(payload, servidor?.id)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // --- RENDERIZADO ---
+  if (isLoadingData && !servidor) {
+    return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box>
+  }
+
+  return (
+    <Box sx={{ width: '100%', maxWidth: 1400, margin: '0 auto', p: 2 }}>
+      
+      {/* CARD PRINCIPAL */}
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+
+        {/* 1. Header Unificado */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar
+              sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
+                  color: 'white', boxShadow: 3
+                }}
+              >
+              {isEdit ? <EditIcon /> : <AddCircleOutlineIcon />}
+            </Avatar>
+            <Box>
+              <Typography
+                variant="h5"
+                fontWeight={800}
+                sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  mb: 0.5
+                }}
+              >
+                {isEdit ? 'Editar Servidor' : 'Registrar Nuevo Servidor'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isEdit ? 'Modificar datos del equipo físico' : 'Ingreso de nuevo hardware al inventario'}
+              </Typography>
+            </Box>
+        </Box>
+
+        {/* 2. Contenido del Formulario */}
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+
+          {/* Mensaje de Error */}
+          {error && (
+            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+              <ErrorOutlineIcon color="error" />
+              <Typography variant="body2" fontWeight={600}>{error?.message || 'Ocurrió un error al guardar'}</Typography>
+            </Paper>
+          )}
+
+          {/* Grid de 3 Columnas */}
+          <Box sx={{ 
+            display: 'grid', 
+            gap: 3, 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            alignItems: 'start' // Alineación superior para evitar estiramientos raros
+          }}>
+
+            {/* --- CARD 1: Ubicación y Jerarquía --- */}
+            <SectionCard title="Ubicación y Jerarquía" icon={<DnsIcon />} color={theme.palette.primary.main}>
+              <Stack spacing={2.5}>
+                
+                {/* 1. Data Center */}
+                <FormControl fullWidth error={!!errors.id_data_center}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Data Center *</FormLabel>
+                  <TextField
+                    select
+                    size="small"
+                    value={form.id_data_center}
+                    onChange={(e) => handleChange('id_data_center', e.target.value)}
+                  >
+                    <MenuItem value=""><em>Seleccione...</em></MenuItem>
+                    {listDataCenters.map(dc => (
+                      <MenuItem key={dc.id} value={dc.id}>{dc.nombre}</MenuItem>
+                    ))}
+                  </TextField>
+                  {errors.id_data_center && <FormHelperText>{errors.id_data_center}</FormHelperText>}
+                </FormControl>
+
+                {/* 2. Nombre del Servidor (Movido arriba) */}
+                <FormControl fullWidth error={!!errors.nombre}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre del Servidor *</FormLabel>
+                  <TextField
+                    size="small"
+                    value={form.nombre}
+                    onChange={(e) => handleChange('nombre', e.target.value)}
+                    placeholder="Ej. SRV-PROD-01"
+                    InputProps={{ startAdornment: <InputAdornment position="start"><ComputerIcon fontSize="small" /></InputAdornment> }}
+                  />
+                  {errors.nombre && <FormHelperText>{errors.nombre}</FormHelperText>}
+                </FormControl>
+                {/* 3. Fila: Tipo de Servidor + Servidor Padre */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    
+                    {/* Movido desde Card 3 */}
+                    <FormControl fullWidth error={!!errors.cod_tipo_servidor}>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Tipo de Servidor *</FormLabel>
+                        <TextField
+                            select
+                            size="small"
+                            value={form.cod_tipo_servidor}
+                            onChange={(e) => handleChange('cod_tipo_servidor', e.target.value)}
+                        >
+                            <MenuItem value=""><em>Seleccione...</em></MenuItem>
+                            {opcionesTipoServidor.map(op => (
+                            <MenuItem key={op.id} value={op.codigo}>{op.nombre}</MenuItem>
+                            ))}
+                        </TextField>
+                        {errors.cod_tipo_servidor && <FormHelperText>{errors.cod_tipo_servidor}</FormHelperText>}
+                    </FormControl>
+
+                    <FormControl fullWidth>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Servidor Padre (Op)</FormLabel>
+                        <TextField
+                            select
+                            size="small"
+                            value={form.id_padre}
+                            onChange={(e) => handleChange('id_padre', e.target.value)}
+                            disabled={!form.id_data_center || opcionesPadre.length === 0}
+                            helperText={!form.id_data_center ? "Elija DC primero" : ""}
+                        >
+                            <MenuItem value=""><em>Ninguno (Raíz)</em></MenuItem>
+                            {opcionesPadre.map(s => (
+                            <MenuItem key={s.id} value={s.id}>
+                                {s.nombre}
+                            </MenuItem>
+                            ))}
+                        </TextField>
+                    </FormControl>
+                </Box>
+
+              </Stack>
+            </SectionCard>
+
+
+            {/* --- CARD 2: Identificación Física --- */}
+            <SectionCard title="Identificación Física" icon={<BusinessIcon />} color={theme.palette.secondary.main}>
+              <Stack spacing={2.5}>
+                
+                {/* Marca / Modelo */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Marca</FormLabel>
+                    <TextField size="small" value={form.marca} onChange={(e) => handleChange('marca', e.target.value)} />
+                  </FormControl>
+                  
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Modelo</FormLabel>
+                    <TextField size="small" value={form.modelo} onChange={(e) => handleChange('modelo', e.target.value)} />
+                  </FormControl>
+                </Box>
+
+                {/* Serie */}
+                <FormControl fullWidth>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Número de Serie</FormLabel>
+                  <TextField 
+                    size="small" 
+                    value={form.serie} 
+                    onChange={(e) => handleChange('serie', e.target.value)}
+                    InputProps={{ startAdornment: <InputAdornment position="start"><QrCodeIcon fontSize="small" /></InputAdornment> }}
+                  />
+                </FormControl>
+
+                {/* Fila: Cod Inventario + Estado Operativo */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <FormControl fullWidth>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Código Inventario</FormLabel>
+                        <TextField size="small" value={form.cod_inventario_agetic} onChange={(e) => handleChange('cod_inventario_agetic', e.target.value)} />
+                    </FormControl>
+
+                    <FormControl fullWidth error={!!errors.estado_operativo}>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Estado Operativo *</FormLabel>
+                        <TextField
+                            select
+                            size="small"
+                            value={form.estado_operativo}
+                            onChange={(e) => handleChange('estado_operativo', e.target.value)}
+                        >
+                            <MenuItem value=""><em>Seleccione...</em></MenuItem>
+                            {opcionesEstadoOperativo.map(op => (
+                            <MenuItem key={op.id} value={op.codigo}>{op.nombre}</MenuItem>
+                            ))}
+                        </TextField>
+                        {errors.estado_operativo && <FormHelperText>{errors.estado_operativo}</FormHelperText>}
+                    </FormControl>
+                </Box>
+
+              </Stack>
+            </SectionCard>
+
+
+            {/* --- CARD 3: Red y Recursos --- */}
+            <SectionCard title="Red y Recursos" icon={<SettingsEthernetIcon />} color="#2e7d32">
+              <Stack spacing={2.5}>
+                
+                {/* Tipo de Servidor se movió al Card 1 */}
+
+                <FormControl fullWidth error={!!errors.ip_primaria}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>IP Primaria *</FormLabel>
+                  <TextField
+                    size="small"
+                    value={form.ip_primaria}
+                    onChange={(e) => handleChange('ip_primaria', e.target.value)}
+                    placeholder="192.168.x.x"
+                    InputProps={{ startAdornment: <InputAdornment position="start"><LanIcon fontSize="small" /></InputAdornment> }}
+                  />
+                  {errors.ip_primaria && <FormHelperText>{errors.ip_primaria}</FormHelperText>}
+                </FormControl>
+
+                <FormControl fullWidth>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Sistema Operativo</FormLabel>
+                  <TextField size="small" value={form.sistema_operativo} onChange={(e) => handleChange('sistema_operativo', e.target.value)} />
+                </FormControl>
+
+                {/* Ocultar RAM/Storage si es CHASIS */}
+                {form.cod_tipo_servidor !== 'CHASIS' && (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <FormControl fullWidth>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>RAM (GB)</FormLabel>
+                      <TextField 
+                        type="number" 
+                        size="small" 
+                        value={form.ram} 
+                        onChange={(e) => handleChange('ram', e.target.value)} 
+                        InputProps={{ startAdornment: <InputAdornment position="start"><MemoryIcon fontSize="small" /></InputAdornment> }}
+                      />
+                    </FormControl>
+
+                    <FormControl fullWidth>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Storage (GB)</FormLabel>
+                      <TextField 
+                        type="number" 
+                        size="small" 
+                        value={form.almacenamiento} 
+                        onChange={(e) => handleChange('almacenamiento', e.target.value)} 
+                        InputProps={{ startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" /></InputAdornment> }}
+                      />
+                    </FormControl>
+                  </Box>
+                )}
+              </Stack>
+            </SectionCard>
+
+          </Box>
+
+          {/* 4. Botones de Acción */}
+          <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              startIcon={<CancelIcon />}
+              onClick={() => navigate(routes.servidors())}
+              sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+            >
+              Cancelar
+            </Button>
+
+            <LoadingButton
+              type="submit"
+              variant="contained"
+              startIcon={<SaveIcon />}
+              loading={loading || submitting}
+              sx={{ 
+                background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700 
+              }}
+            >
+              {isEdit ? 'Guardar Cambios' : 'Guardar Servidor'}
+            </LoadingButton>
+          </Box>
+
+        </Box>
+      </Card>
+    </Box>
+  )
+}

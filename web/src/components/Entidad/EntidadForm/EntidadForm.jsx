@@ -1,270 +1,246 @@
-import React from 'react';
+import React from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { navigate, routes } from '@redwoodjs/router'
+import { Form } from '@redwoodjs/forms'
+
 import {
   Box,
   Card,
   CardContent,
-  Divider,
-  Grid,
+  CardHeader,
   Typography,
+  TextField,
+  FormControl,
+  FormLabel,
+  Stack,
+  Avatar,
+  Button,
   useTheme,
-  InputAdornment,
-  IconButton,
-} from '@mui/material';
-import { LoadingButton } from '@mui/lab';
-import {
-  Form,
-  FormError,
-  FieldError,
-  Label,
-  TextField as RedwoodTextField,
-} from '@redwoodjs/forms';
-import { CheckCircleOutline, ErrorOutline } from '@mui/icons-material';
+  Paper
+} from '@mui/material'
+import { LoadingButton } from '@mui/lab'
 
+// Iconos
+import {
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  AddCircle as AddIcon,
+  Edit as EditIcon,
+  ErrorOutline as ErrorIcon,
+  Business as EntityIcon,
+} from '@mui/icons-material'
+
+/* ---------------------------------------------
+ * 1. COMPONENTE HELPER: SectionCard
+ * --------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 3, flexGrow: 1 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* ---------------------------------------------
+ * 2. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
 const EntidadForm = (props) => {
-  const theme = useTheme();
+  const theme = useTheme()
+  const isEdit = Boolean(props.entidad?.id)
+
+  // Configuración del Formulario
+  const formMethods = useForm({
+    defaultValues: {
+      codigo: props.entidad?.codigo || '',
+      sigla: props.entidad?.sigla || '',
+      nombre: props.entidad?.nombre || '',
+    },
+  })
+
+  const { control, handleSubmit, formState: { errors } } = formMethods
 
   const onSubmit = (data) => {
     const formData = {
       ...data,
       estado: 'ACTIVO',
       usuario_modificacion: 2,
-      usuario_creacion: 3,
-    };
-    props.onSave(formData, props?.entidad?.id);
-  };
+      usuario_creacion: isEdit ? undefined : 3,
+    }
+    props.onSave(formData, props?.entidad?.id)
+  }
 
   return (
-    <Card
-      sx={{
-        maxWidth: '900px',
-        margin: 'auto',
-        boxShadow: theme.shadows[6],
-        borderRadius: '12px',
-        overflow: 'visible',
-      }}
-    >
-      <Box
-        sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
-          p: 3,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-          marginTop: '-1px',
-        }}
-      >
-        <Typography variant="h5" fontWeight="600">
-          {props.entidad?.id ? 'Editar Entidad' : 'Nueva Entidad'}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          Complete todos los campos requeridos
-        </Typography>
-      </Box>
+    <Box sx={{ width: '100%', maxWidth: 800, mx: 'auto', p: 2 }}>
+      
+      {/* CONTENEDOR PRINCIPAL */}
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        
+        {/* HEADER */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                }}>
+              {isEdit ? <EditIcon /> : <AddIcon />}
+            </Avatar>
+            
+            <Box>
+              <Typography variant="h5" fontWeight={800} sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>
+                {isEdit ? 'Editar Entidad' : 'Nueva Entidad'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isEdit ? 'Modificar datos de la institución' : 'Registrar nueva institución en el sistema'}
+              </Typography>
+            </Box>
+        </Box>
 
-      <CardContent sx={{ p: 4 }}>
-        <Form onSubmit={onSubmit} error={props.error}>
-          <FormError
-            error={props.error}
-            wrapperStyle={{
-              backgroundColor: theme.palette.error.light,
-              color: theme.palette.error.contrastText,
-              padding: '16px',
-              marginBottom: '24px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-            titleStyle={{
-              fontWeight: '600',
-              marginBottom: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-            listStyle={{
-              listStyleType: 'none',
-              padding: 0,
-              margin: 0,
-            }}
-          />
+        {/* CONTENIDO */}
+        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          
+          <Form onSubmit={handleSubmit(onSubmit)} error={props.error}>
+            
+            {/* Mensaje de Error */}
+            {props.error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorOutlineIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+              </Paper>
+            )}
 
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={4}>
-              <Label
-                name="codigo"
-                style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                Código
-              </Label>
-              <RedwoodTextField
-                name="codigo"
-                defaultValue={props.entidad?.codigo}
-                validation={{ required: 'El código es requerido' }}
-                style={{
-                  width: '100%',
-                  padding: '14px 16px',
-                  borderRadius: '8px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  fontSize: '0.9375rem',
-                  transition: 'all 0.2s ease',
-                  '&:focus': {
-                    borderColor: theme.palette.primary.main,
-                    boxShadow: `0 0 0 2px ${theme.palette.primary.light}`,
-                  },
-                }}
-                errorStyle={{
-                  borderColor: theme.palette.error.main,
-                  backgroundColor: theme.palette.error.lighter,
-                }}
-              />
-              <FieldError
-                name="codigo"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Label
-                name="sigla"
-                style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                Sigla
-              </Label>
-              <RedwoodTextField
-                name="sigla"
-                defaultValue={props.entidad?.sigla}
-                validation={{ required: 'La sigla es requerida' }}
-                style={{
-                  width: '100%',
-                  padding: '14px 16px',
-                  borderRadius: '8px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  fontSize: '0.9375rem',
-                  transition: 'all 0.2s ease',
-                }}
-                errorStyle={{
-                  borderColor: theme.palette.error.main,
-                  backgroundColor: theme.palette.error.lighter,
-                }}
-              />
-              <FieldError
-                name="sigla"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <Label
-                name="nombre"
-                style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                Nombre completo
-              </Label>
-              <RedwoodTextField
-                name="nombre"
-                defaultValue={props.entidad?.nombre}
-                validation={{ required: 'El nombre es requerido' }}
-                style={{
-                  width: '100%',
-                  padding: '14px 16px',
-                  borderRadius: '8px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  fontSize: '0.9375rem',
-                  transition: 'all 0.2s ease',
-                }}
-                errorStyle={{
-                  borderColor: theme.palette.error.main,
-                  backgroundColor: theme.palette.error.lighter,
-                }}
-              />
-              <FieldError
-                name="nombre"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              />
-            </Grid>
-          </Grid>
-
-          <Divider sx={{ my: 4, borderColor: theme.palette.divider }} />
-
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 2,
-            }}
-          >
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              color="primary"
-              loading={props.loading}
-              loadingPosition="start"
-              startIcon={
-                props.loading ? null : (
-                  <CheckCircleOutline fontSize="small" />
-                )
-              }
-              sx={{
-                px: 5,
-                py: 1.5,
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '600',
-                fontSize: '0.9375rem',
-                boxShadow: theme.shadows[2],
-                '&:hover': {
-                  boxShadow: theme.shadows[4],
-                  backgroundColor: theme.palette.primary.dark,
-                },
-              }}
+            {/* UN SOLO CARD SECUNDARIO (Campos Verticales) */}
+            <SectionCard 
+              icon={<EntityIcon sx={{ fontSize: 20 }} />} 
+              title="Información de la Entidad"
+              bgcolor={theme.palette.primary.main}
             >
-              {props.loading ? 'Guardando...' : 'Guardar Entidad'}
-            </LoadingButton>
-          </Box>
-        </Form>
-      </CardContent>
-    </Card>
-  );
-};
+              <Stack spacing={3}>
+                
+                {/* Nombre */}
+                <FormControl fullWidth error={!!errors.nombre}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre Completo *</FormLabel>
+                  <Controller
+                    name="nombre"
+                    control={control}
+                    rules={{ required: 'El nombre es requerido' }}
+                    render={({ field }) => (
+                      <TextField 
+                        {...field} 
+                        size="small" 
+                        fullWidth 
+                        placeholder="Ej. Agencia de Gobierno Electrónico y Tecnologías de Información y Comunicación" 
+                        error={!!errors.nombre}
+                        helperText={errors.nombre?.message}
+                        multiline
+                        rows={2}
+                      />
+                    )}
+                  />
+                </FormControl>
 
-export default EntidadForm;
+                {/* Código */}
+                <FormControl fullWidth error={!!errors.codigo}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Código Institucional *</FormLabel>
+                  <Controller
+                    name="codigo"
+                    control={control}
+                    rules={{ required: 'El código es requerido' }}
+                    render={({ field }) => (
+                      <TextField 
+                        {...field} 
+                        size="small" 
+                        placeholder="Ej. ENT-001" 
+                        error={!!errors.codigo}
+                        helperText={errors.codigo?.message}
+                      />
+                    )}
+                  />
+                </FormControl>
+
+                {/* Sigla */}
+                <FormControl fullWidth error={!!errors.sigla}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Sigla *</FormLabel>
+                  <Controller
+                    name="sigla"
+                    control={control}
+                    rules={{ required: 'La sigla es requerida' }}
+                    render={({ field }) => (
+                      <TextField 
+                        {...field} 
+                        size="small" 
+                        placeholder="Ej. AGETIC" 
+                        error={!!errors.sigla} 
+                        helperText={errors.sigla?.message}
+                      />
+                    )}
+                  />
+                </FormControl>
+
+              </Stack>
+            </SectionCard>
+
+            {/* BOTONES */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.entidades())}
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+              >
+                Cancelar
+              </Button>
+
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={props.loading}
+                startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
+                  boxShadow: 4, 
+                  px: 4, 
+                  minWidth: 160, 
+                  borderRadius: 2, 
+                  textTransform: 'none', 
+                  fontWeight: 700 
+                }}
+              >
+                {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar Entidad')}
+              </LoadingButton>
+            </Box>
+
+          </Form>
+        </Box>
+      </Card>
+    </Box>
+  )
+}
+
+export default EntidadForm

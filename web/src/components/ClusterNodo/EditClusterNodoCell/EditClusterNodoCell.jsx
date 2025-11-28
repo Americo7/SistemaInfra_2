@@ -16,7 +16,7 @@ export const QUERY = gql`
       servidorId
       rol
       estado
-      k8s_uid
+      identity_key
       fecha_creacion
       usuario_creacion
       fecha_modificacion
@@ -39,7 +39,7 @@ const UPDATE_CLUSTER_NODO_MUTATION = gql`
       servidorId
       rol
       estado
-      k8s_uid
+      identity_key
       fecha_creacion
       usuario_creacion
       fecha_modificacion
@@ -74,11 +74,6 @@ export const Success = ({ clusterNodo }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Edit ClusterNodo {clusterNodo?.id}
-        </h2>
-      </header>
       <div className="rw-segment-main">
         <ClusterNodoForm
           clusterNodo={clusterNodo}

@@ -10,11 +10,12 @@ export const QUERY = gql`
       nombre
       uuid
       proxmox_vmid
-      mac_address
+      identity_key
       ip
       so
       ram
       almacenamiento
+      estado_operativo
       cpu
       estado
       fecha_creacion
@@ -56,8 +57,6 @@ export const QUERY = gql`
           descripcion
           estado
         }
-        # Nota: La relación con 'servidor' aquí es correcta.
-        # Este es el host físico del clúster K8s, si aplica.
         servidor {
           id
           nombre

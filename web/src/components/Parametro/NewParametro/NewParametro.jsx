@@ -1,8 +1,9 @@
 import { navigate, routes } from '@redwoodjs/router'
 import { useMutation } from '@redwoodjs/web'
-
 import { toast } from '@redwoodjs/web/toast'
 
+// 1. IMPORTA TU LAYOUT
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout' 
 import ParametroForm from 'src/components/Parametro/ParametroForm'
 
 const CREATE_PARAMETRO_MUTATION = gql`
@@ -13,16 +14,17 @@ const CREATE_PARAMETRO_MUTATION = gql`
   }
 `
 
-const NewParametro = () => {
+const NewParametroPage = () => {
   const [createParametro, { loading, error }] = useMutation(
     CREATE_PARAMETRO_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Parametro created')
+        toast.success('Parámetro creado correctamente')
         navigate(routes.parametros())
       },
       onError: (error) => {
-        toast.error(error.message)
+        // Opcional: toast.error(error.message)
+        // El formulario ya maneja el error visualmente, así que no es estrictamente necesario aquí
       },
     }
   )
@@ -31,16 +33,24 @@ const NewParametro = () => {
     createParametro({ variables: { input } })
   }
 
+  // 2. USA EL SCAFFOLD LAYOUT AQUÍ
   return (
-    <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">New Parametro</h2>
-      </header>
-      <div className="rw-segment-main">
-        <ParametroForm onSave={onSave} loading={loading} error={error} />
-      </div>
-    </div>
+    <ScaffoldLayout
+      title="Nuevo Parámetro"
+      titleTo="parametros"
+      // Configuramos los breadcrumbs para que se vea bonito en tu header
+      breadcrumbItems={[
+        { label: 'Parámetros', link: routes.parametros() },
+        { label: 'Nuevo Registro' } // El último sin link es la página actual
+      ]}
+    >
+      <ParametroForm 
+        onSave={onSave} 
+        loading={loading} 
+        error={error} 
+      />
+    </ScaffoldLayout>
   )
 }
 
-export default NewParametro
+export default NewParametroPage

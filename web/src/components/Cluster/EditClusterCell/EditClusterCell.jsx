@@ -100,12 +100,6 @@ export const Success = ({ cluster, proxmoxEndpoints, k8sEndpoints }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Editar Cluster {cluster?.id}
-        </h2>
-      </header>
-
       <div className="rw-segment-main">
         <ClusterForm
           cluster={cluster}

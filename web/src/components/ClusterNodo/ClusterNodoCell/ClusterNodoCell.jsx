@@ -11,7 +11,7 @@ export const QUERY = gql`
       servidorId
       rol
       estado
-      k8s_uid
+      identity_key
       fecha_creacion
       usuario_creacion
       fecha_modificacion
@@ -20,16 +20,20 @@ export const QUERY = gql`
         nombre
       }
       maquina {
+        id
         nombre
       }
       servidor {
+        id     
         nombre
         maquinas{
           id
           nombre
-          uuid
           proxmox_vmid
-          mac_address
+          ram
+          so
+          cpu
+          estado_operativo
           ip
           cod_plataforma
         }

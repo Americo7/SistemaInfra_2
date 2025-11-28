@@ -15,13 +15,11 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
-      # Traemos info básica de clusters para mostrar contadores o tooltips
       clusters {
         id
         nombre
       }
     }
-    # Agregamos usuarios para pasarlos a la tabla
     usuarios {
       id
       nombres

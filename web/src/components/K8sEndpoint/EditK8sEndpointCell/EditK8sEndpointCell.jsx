@@ -69,12 +69,6 @@ export const Success = ({ k8SEndpoint }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Editar Endpoint K8s #{k8SEndpoint?.id}
-        </h2>
-      </header>
-
       <div className="rw-segment-main">
         <K8sEndpointForm
           k8SEndpoint={k8SEndpoint}

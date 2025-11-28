@@ -4,13 +4,14 @@ export const schema = gql`
     nombre: String!
     uuid: String
     proxmox_vmid: Int
-    mac_address: String
+    identity_key: String!
     ip: String
-    so: String!
-    cod_plataforma: String!
+    so: String
+    cod_plataforma: String
     ram: Int!
     cpu: Int!
     almacenamiento: JSON!
+    estado_operativo: String
     estado: estado!
     fecha_creacion: DateTime!
     usuario_creacion: Int!
@@ -39,13 +40,14 @@ export const schema = gql`
     nombre: String!
     uuid: String
     proxmox_vmid: Int
-    mac_address: String
+    identity_key: String!
     ip: String
-    so: String!
-    cod_plataforma: String!
+    so: String
+    cod_plataforma: String
     ram: Int!
     cpu: Int!
     almacenamiento: JSON!
+    estado_operativo: String
     id_servidor: Int
     estado: estado!
     fecha_creacion: DateTime
@@ -58,13 +60,14 @@ export const schema = gql`
     nombre: String
     uuid: String
     proxmox_vmid: Int
-    mac_address: String
+    identity_key: String
     ip: String
     so: String
     cod_plataforma: String
     ram: Int
     cpu: Int
     almacenamiento: JSON
+    estado_operativo: String
     id_servidor: Int
     estado: estado
     fecha_creacion: DateTime

@@ -1,124 +1,58 @@
-import { useState, useEffect } from 'react'
-import Select from 'react-select'
-import {
-  Form,
-  FormError,
-  FieldError,
-  Label,
-  TextField,
-} from '@redwoodjs/forms'
-import { useQuery } from '@redwoodjs/web'
+import React, { useState, useEffect, useMemo } from 'react'
+import { useQuery, gql } from '@redwoodjs/web'
+import { useForm, Controller } from 'react-hook-form'
+import { navigate, routes } from '@redwoodjs/router'
+
 import {
   Box,
   Card,
   CardContent,
-  Divider,
-  Grid,
+  CardHeader,
   Typography,
-  useTheme,
-  Chip,
+  TextField,
+  FormControl,
+  FormLabel,
+  Autocomplete,
   Stack,
-  Alert,
+  Avatar,
+  Button,
+  useTheme,
+  Paper,
+  CircularProgress,
+  Alert
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker'
+import dayjs from 'dayjs'
+
+// Iconos
 import {
-  CheckCircleOutline,
-  Event,
-  Description,
-  Category,
-  People,
-  Schedule,
-  Assignment,
-  Person,
-  Code,
-  Info,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  Edit as EditIcon,
+  AddCircle as AddIcon,
+  ErrorOutline as ErrorIcon,
+  Event as EventIcon,
+  Info as InfoIcon,
+  Description as DescIcon,
+  People as PeopleIcon,
+  Assignment as CiteIcon,
+  Person as PersonIcon
 } from '@mui/icons-material'
 
-const ResponsablesSelect = ({ usuarios, value, onChange, theme }) => {
-  const options = usuarios.map((u) => ({
-    value: u.id,
-    label: `${u.nombres} ${u.primer_apellido} ${u.segundo_apellido}`,
-  }))
-
-  const selected = options.filter((opt) => value?.includes(opt.value))
-
-  const customSelectStyles = {
-    control: (base, state) => ({
-      ...base,
-      minHeight: '50px',
-      borderRadius: '8px',
-      borderColor: state.isFocused ? theme.palette.primary.main : theme.palette.divider,
-      boxShadow: state.isFocused ? `0 0 0 1px ${theme.palette.primary.main}` : 'none',
-      '&:hover': {
-        borderColor: theme.palette.primary.main,
-      },
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isSelected
-        ? theme.palette.primary.light
-        : state.isFocused
-        ? theme.palette.action.hover
-        : 'transparent',
-      color: state.isSelected
-        ? theme.palette.primary.contrastText
-        : theme.palette.text.primary,
-    }),
-    menu: (base) => ({
-      ...base,
-      zIndex: 9999,
-    }),
-    multiValue: (base) => ({
-      ...base,
-      backgroundColor: theme.palette.primary.light,
-    }),
-    multiValueLabel: (base) => ({
-      ...base,
-      color: theme.palette.primary.contrastText,
-    }),
-  }
-
-  return (
-    <Grid item xs={12}>
-      <Label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          marginBottom: '8px',
-          fontWeight: '500',
-          color: theme.palette.text.primary,
-          fontSize: '0.875rem',
-        }}
-      >
-        <People fontSize="small" sx={{ mr: 1 }} />
-        Responsables
-      </Label>
-      <Select
-        isMulti
-        options={options}
-        value={selected}
-        onChange={(selectedOptions) =>
-          onChange(selectedOptions.map((opt) => opt.value))
-        }
-        styles={customSelectStyles}
-        classNamePrefix="select"
-        placeholder="Buscar y seleccionar usuarios..."
-        noOptionsMessage={() => 'No hay usuarios disponibles'}
-      />
-      <FieldError
-        name="responsables"
-        style={{
-          color: theme.palette.error.main,
-          fontSize: '0.75rem',
-          marginTop: '4px',
-        }}
-      />
-    </Grid>
-  )
-}
-
-const GET_PARAMETROS = gql`
-  query GetParametrosTipoEvento {
+/* ---------------------------------------------
+ * 1. QUERIES
+ * --------------------------------------------- */
+const GET_DATA_FORM = gql`
+  query GetDataEvento {
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
+    }
     parametros {
       id
       codigo
@@ -128,549 +62,381 @@ const GET_PARAMETROS = gql`
   }
 `
 
-const GET_USUARIOS = gql`
-  query GetUsuariosEvento {
-    usuarios {
-      id
-      nombres
-      primer_apellido
-      segundo_apellido
-    }
-  }
-`
-
-const formatDateForInput = (dateString) => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  if (isNaN(date.getTime())) return ''
-  const tzOffset = date.getTimezoneOffset() * 60000
-  return new Date(date - tzOffset).toISOString().slice(0, 16)
+/* ---------------------------------------------
+ * 2. COMPONENTE HELPER: SectionCard
+ * --------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
+    </Card>
+  )
 }
 
+/* ---------------------------------------------
+ * 3. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
 const EventoForm = (props) => {
   const theme = useTheme()
-  const { data: usuariosData, loading: loadingUsuarios } = useQuery(GET_USUARIOS)
-  const { data: parametrosData, loading: loadingParametros } = useQuery(GET_PARAMETROS)
-  const [responsablesSeleccionados, setResponsablesSeleccionados] = useState(
-    props.evento?.responsables || []
-  )
-  const [selectedTipoEvento, setSelectedTipoEvento] = useState(null)
-  const [selectedEstadoEvento, setSelectedEstadoEvento] = useState(null)
-  const [fechaEvento, setFechaEvento] = useState('')
-  const [isInitialized, setIsInitialized] = useState(false)
+  const isEdit = Boolean(props.evento?.id)
+  
+  // Estado para el código generado post-creación
   const [codigoGenerado, setCodigoGenerado] = useState(props.evento?.cod_evento || '')
-  const [mostrarCodigo, setMostrarCodigo] = useState(!!props.evento?.cod_evento)
 
-  useEffect(() => {
-    if (!loadingUsuarios && !loadingParametros && props.evento && !isInitialized) {
-      setResponsablesSeleccionados(props.evento.responsables || [])
-      if (props.evento.fecha_evento) {
-        setFechaEvento(formatDateForInput(props.evento.fecha_evento))
-      }
+  // Carga de datos
+  const { data, loading: loadingData } = useQuery(GET_DATA_FORM)
 
-      if (props.evento.cod_tipo_evento) {
-        const tipoEvento = parametrosData?.parametros?.find(
-          (param) => param.grupo === 'TIPO_EVENTO' && param.codigo === props.evento.cod_tipo_evento
-        )
-        if (tipoEvento) {
-          setSelectedTipoEvento({
-            value: tipoEvento.codigo,
-            label: tipoEvento.nombre
-          })
-        }
-      }
+  // Preparación de Opciones
+  const usuariosOptions = useMemo(() => {
+    if (!data?.usuarios) return []
+    return data.usuarios.map(u => ({
+      id: u.id,
+      label: `${u.nombres} ${u.primer_apellido} ${u.segundo_apellido || ''}`.trim()
+    })).sort((a, b) => a.label.localeCompare(b.label))
+  }, [data])
 
-      if (props.evento.estado_evento) {
-        const estadoEvento = parametrosData?.parametros?.find(
-          (param) => param.grupo === 'E_EVENTO_DESPLIEGUE' && param.codigo === props.evento.estado_evento
-        )
-        if (estadoEvento) {
-          setSelectedEstadoEvento({
-            value: estadoEvento.codigo,
-            label: estadoEvento.nombre
-          })
-        }
-      }
+  const tipoEventoOptions = useMemo(() => 
+    data?.parametros?.filter(p => p.grupo === 'TIPO_EVENTO') || [], 
+  [data])
 
-      setIsInitialized(true)
+  const estadoEventoOptions = useMemo(() => 
+    data?.parametros?.filter(p => p.grupo === 'E_EVENTO_DESPLIEGUE') || [], 
+  [data])
+
+  // Configuración del Formulario
+  const formMethods = useForm({
+    defaultValues: {
+      cod_tipo_evento: props.evento?.cod_tipo_evento || null,
+      estado_evento: props.evento?.estado_evento || null,
+      fecha_evento: props.evento?.fecha_evento ? dayjs(props.evento.fecha_evento) : null,
+      descripcion: props.evento?.descripcion || '',
+      cite: props.evento?.cite || '',
+      solicitante: props.evento?.solicitante || '',
+      responsables: props.evento?.responsables || [], // Array de IDs
+    },
+  })
+
+  const { control, handleSubmit, watch, formState: { errors } } = formMethods
+  const watchedTipoEvento = watch('cod_tipo_evento')
+
+  const onSubmit = async (formData) => {
+    const payload = {
+      ...formData,
+      fecha_evento: formData.fecha_evento ? formData.fecha_evento.toISOString() : null,
+      estado: 'ACTIVO',
+      usuario_modificacion: 2,
+      usuario_creacion: isEdit ? undefined : 3,
     }
-  }, [loadingUsuarios, loadingParametros, props.evento, isInitialized, parametrosData])
 
-  const onSubmit = async (data) => {
     try {
-      const formData = {
-        ...data,
-        cod_tipo_evento: selectedTipoEvento?.value,
-        estado_evento: selectedEstadoEvento?.value,
-        responsables: responsablesSeleccionados,
-        estado: 'ACTIVO',
-        usuario_modificacion: 2,
-        usuario_creacion: 3,
-      }
-
-      // Llama a la función onSave que ahora devuelve la respuesta de la API
-      const resultado = await props.onSave(formData, props?.evento?.id)
-
-      // Si es una creación (no hay ID) y la API devolvió un código
-      if (!props.evento?.id && resultado?.cod_evento) {
+      const resultado = await props.onSave(payload, props?.evento?.id)
+      
+      // Si es creación y retorna código, lo mostramos
+      if (!isEdit && resultado?.cod_evento) {
         setCodigoGenerado(resultado.cod_evento)
-        setMostrarCodigo(true)
       }
     } catch (error) {
-      console.error('Error al guardar el evento:', error)
+      console.error(error)
     }
   }
 
-  const parametrosDeTipoEvento = parametrosData?.parametros?.filter((param) => {
-    return param.grupo === 'TIPO_EVENTO'
-  }) || []
-
-  const parametrosDeEstadoEvento = parametrosData?.parametros?.filter(
-    (param) => param.grupo === 'E_EVENTO_DESPLIEGUE'
-  ) || []
-
-  const tipoEventoOptions = parametrosDeTipoEvento.map((tipo) => ({
-    value: tipo.codigo,
-    label: tipo.nombre,
-  }))
-
-  const estadoEventoOptions = parametrosDeEstadoEvento.map((estado) => ({
-    value: estado.codigo,
-    label: estado.nombre,
-  }))
-
-  const customSelectStyles = {
-    control: (base, state) => ({
-      ...base,
-      minHeight: '50px',
-      borderRadius: '8px',
-      borderColor: state.isFocused ? theme.palette.primary.main : theme.palette.divider,
-      boxShadow: state.isFocused ? `0 0 0 1px ${theme.palette.primary.main}` : 'none',
-      '&:hover': {
-        borderColor: theme.palette.primary.main,
-      },
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isSelected
-        ? theme.palette.primary.light
-        : state.isFocused
-        ? theme.palette.action.hover
-        : 'transparent',
-      color: state.isSelected
-        ? theme.palette.primary.contrastText
-        : theme.palette.text.primary,
-    }),
-    menu: (base) => ({
-      ...base,
-      zIndex: 9999,
-    }),
-  }
-
-  if (loadingUsuarios || loadingParametros) {
-    return (
-      <Box sx={{ textAlign: 'center', p: 4 }}>
-        <Typography>Cargando datos...</Typography>
-      </Box>
-    )
+  if (loadingData) {
+    return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box>
   }
 
   return (
-    <Card
-      sx={{
-        maxWidth: '900px',
-        margin: 'auto',
-        boxShadow: theme.shadows[6],
-        borderRadius: '12px',
-        overflow: 'visible',
-      }}
-    >
-      <Box
-        sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
-          p: 3,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-          marginTop: '-1px',
-        }}
-      >
-        <Typography variant="h5" fontWeight="600">
-          {props.evento?.id ? 'Editar Evento' : 'Nuevo Evento'}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          {props.evento?.id ? 'Actualice la información del evento' : 'Complete la información para crear un nuevo evento'}
-        </Typography>
-      </Box>
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
+        
+        {/* CONTENEDOR PRINCIPAL */}
+        <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+          
+          {/* HEADER */}
+          <Box sx={{ 
+              px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+              borderTopLeftRadius: 16, borderTopRightRadius: 16,
+            }}>
+              <Avatar sx={{
+                    width: 48, height: 48,
+                    background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                  }}>
+                {isEdit ? <EditIcon /> : <AddIcon />}
+              </Avatar>
+              
+              <Box>
+                <Typography variant="h5" fontWeight={800} sx={{
+                    lineHeight: 1.2,
+                    background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                  }}>
+                  {isEdit ? 'Editar Evento' : 'Nuevo Evento'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {isEdit ? 'Actualizar detalles del evento' : 'Registrar nuevo evento en el sistema'}
+                </Typography>
+              </Box>
+          </Box>
 
-      <CardContent sx={{ p: 4 }}>
-        <Form onSubmit={onSubmit} error={props.error}>
-          <FormError
-            error={props.error}
-            wrapperStyle={{
-              backgroundColor: theme.palette.error.light,
-              color: theme.palette.error.contrastText,
-              padding: '16px',
-              marginBottom: '24px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-            titleStyle={{
-              fontWeight: '600',
-              marginBottom: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-            listStyle={{
-              listStyleType: 'none',
-              padding: 0,
-              margin: 0,
-            }}
-          />
+          {/* CONTENIDO */}
+          <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+            
+            <form onSubmit={handleSubmit(onSubmit)}>
+              
+              {props.error && (
+                <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                  <ErrorOutlineIcon color="error" />
+                  <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+                </Paper>
+              )}
 
-          <Grid container spacing={4}>
-            {/* Mostrar código generado por la API */}
-            {mostrarCodigo && codigoGenerado && (
-              <Grid item xs={12}>
-                <Alert
-                  icon={<Info fontSize="inherit" />}
-                  severity="info"
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    borderRadius: '8px',
-                    backgroundColor: theme.palette.info.light,
-                    color: theme.palette.info.contrastText,
+              {/* ALERTA CÓDIGO GENERADO */}
+              {codigoGenerado && (
+                <Alert severity="success" sx={{ mb: 4 }}>
+                  <Typography variant="subtitle2">
+                    Código del Evento: <strong>{codigoGenerado}</strong>
+                  </Typography>
+                </Alert>
+              )}
+
+              {/* GRID DE 3 COLUMNAS */}
+              <Box sx={{ 
+                display: 'grid', 
+                gap: 3, 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+                alignItems: 'start'
+              }}>
+                
+                {/* --- CARD 1: IDENTIFICACIÓN --- */}
+                <SectionCard 
+                  icon={<EventIcon sx={{ fontSize: 20 }} />} 
+                  title="Identificación del Evento"
+                  bgcolor={theme.palette.primary.main}
+                >
+                  <Stack spacing={2.5}>
+                    
+                    {/* Tipo de Evento */}
+                    <FormControl fullWidth error={!!errors.cod_tipo_evento}>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Tipo de Evento *</FormLabel>
+                      <Controller
+                        name="cod_tipo_evento"
+                        control={control}
+                        rules={{ required: 'Requerido' }}
+                        render={({ field: { onChange, value } }) => (
+                          <Autocomplete
+                            options={tipoEventoOptions}
+                            getOptionLabel={(option) => option.nombre}
+                            value={tipoEventoOptions.find(t => t.codigo === value) || null}
+                            onChange={(_, newValue) => onChange(newValue ? newValue.codigo : null)}
+                            renderInput={(params) => (
+                              <TextField {...params} size="small" placeholder="Seleccionar tipo..." error={!!errors.cod_tipo_evento} />
+                            )}
+                            disabled={isEdit} // Generalmente el tipo no cambia al editar
+                          />
+                        )}
+                      />
+                    </FormControl>
+
+                    {/* Estado del Evento */}
+                    <FormControl fullWidth error={!!errors.estado_evento}>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Estado *</FormLabel>
+                      <Controller
+                        name="estado_evento"
+                        control={control}
+                        rules={{ required: 'Requerido' }}
+                        render={({ field: { onChange, value } }) => (
+                          <Autocomplete
+                            options={estadoEventoOptions}
+                            getOptionLabel={(option) => option.nombre}
+                            value={estadoEventoOptions.find(e => e.codigo === value) || null}
+                            onChange={(_, newValue) => onChange(newValue ? newValue.codigo : null)}
+                            renderInput={(params) => (
+                              <TextField {...params} size="small" placeholder="Seleccionar estado..." error={!!errors.estado_evento} />
+                            )}
+                          />
+                        )}
+                      />
+                    </FormControl>
+
+                    {/* Info Código */}
+                    {!isEdit && watchedTipoEvento && (
+                      <Alert severity="info" icon={<InfoIcon fontSize="inherit" />}>
+                        Se generará código: <strong>{watchedTipoEvento}-XXX</strong>
+                      </Alert>
+                    )}
+
+                  </Stack>
+                </SectionCard>
+
+                {/* --- CARD 2: DETALLES --- */}
+                <SectionCard 
+                  icon={<DescIcon sx={{ fontSize: 20 }} />} 
+                  title="Detalles del Evento"
+                  bgcolor={theme.palette.secondary.main}
+                >
+                  <Stack spacing={2.5}>
+                    
+                    {/* Fecha */}
+                    <FormControl fullWidth>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Fecha y Hora *</FormLabel>
+                      <Controller
+                        name="fecha_evento"
+                        control={control}
+                        rules={{ required: 'Requerido' }}
+                        render={({ field }) => (
+                          <DateTimePicker 
+                            {...field}
+                            slotProps={{ textField: { size: 'small', error: !!errors.fecha_evento } }}
+                          />
+                        )}
+                      />
+                    </FormControl>
+
+                    {/* Cite */}
+                    <FormControl fullWidth>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>CITE / Referencia</FormLabel>
+                      <Controller
+                        name="cite"
+                        control={control}
+                        render={({ field }) => (
+                          <TextField 
+                            {...field} 
+                            size="small" 
+                            placeholder="Ej. AGETIC/CITE/2023-001" 
+                            InputProps={{ startAdornment: <CiteIcon fontSize="small" color="action" sx={{ mr: 1 }} /> }}
+                          />
+                        )}
+                      />
+                    </FormControl>
+
+                    {/* Descripción */}
+                    <FormControl fullWidth error={!!errors.descripcion}>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción *</FormLabel>
+                      <Controller
+                        name="descripcion"
+                        control={control}
+                        rules={{ required: 'Requerido' }}
+                        render={({ field }) => (
+                          <TextField 
+                            {...field} 
+                            multiline 
+                            rows={3} 
+                            size="small" 
+                            placeholder="Detalles del evento..." 
+                            error={!!errors.descripcion}
+                          />
+                        )}
+                      />
+                    </FormControl>
+
+                  </Stack>
+                </SectionCard>
+
+                {/* --- CARD 3: INVOLUCRADOS --- */}
+                <SectionCard 
+                  icon={<PeopleIcon sx={{ fontSize: 20 }} />} 
+                  title="Responsables"
+                  bgcolor="#2e7d32"
+                >
+                  <Stack spacing={2.5}>
+                    
+                    {/* Solicitante */}
+                    <FormControl fullWidth>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Solicitante</FormLabel>
+                      <Controller
+                        name="solicitante"
+                        control={control}
+                        render={({ field }) => (
+                          <TextField 
+                            {...field} 
+                            size="small" 
+                            placeholder="Persona que solicita" 
+                            InputProps={{ startAdornment: <PersonIcon fontSize="small" color="action" sx={{ mr: 1 }} /> }}
+                          />
+                        )}
+                      />
+                    </FormControl>
+
+                    {/* Responsables (Multi Select) */}
+                    <FormControl fullWidth>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Responsables Asignados</FormLabel>
+                      <Controller
+                        name="responsables"
+                        control={control}
+                        render={({ field: { onChange, value } }) => {
+                          const selected = usuariosOptions.filter(u => value?.includes(u.id))
+                          return (
+                            <Autocomplete
+                              multiple
+                              options={usuariosOptions}
+                              getOptionLabel={(option) => option.label}
+                              value={selected}
+                              onChange={(_, newValue) => onChange(newValue.map(v => v.id))}
+                              renderInput={(params) => (
+                                <TextField 
+                                  {...params} 
+                                  size="small" 
+                                  placeholder="Seleccionar usuarios..." 
+                                />
+                              )}
+                              filterSelectedOptions
+                            />
+                          )
+                        }}
+                      />
+                    </FormControl>
+
+                  </Stack>
+                </SectionCard>
+
+              </Box>
+
+              {/* BOTONES */}
+              <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+                <Button
+                  variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                  onClick={props.onCancel} // Usando prop original
+                  sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+                >
+                  Cancelar
+                </Button>
+
+                <LoadingButton
+                  type="submit" variant="contained" loading={props.loading} startIcon={<SaveIcon />}
+                  sx={{ 
+                    background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
                   }}
                 >
-                  <Stack direction="row" alignItems="center" spacing={2}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Code sx={{ mr: 1 }} />
-                      <Typography variant="subtitle1">
-                        Código del evento:
-                      </Typography>
-                    </Box>
-                    <Chip
-                      label={codigoGenerado}
-                      color="info"
-                      variant="filled"
-                      sx={{
-                        fontSize: '1rem',
-                        fontWeight: '700',
-                        px: 2,
-                        py: 1,
-                      }}
-                    />
-                  </Stack>
-                </Alert>
-              </Grid>
-            )}
+                  {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar Evento')}
+                </LoadingButton>
+              </Box>
 
-            {/* Mensaje informativo para nuevos eventos */}
-            {!props.evento?.id && selectedTipoEvento && !mostrarCodigo && (
-              <Grid item xs={12}>
-                <Alert
-                  icon={<Info fontSize="inherit" />}
-                  severity="info"
-                  sx={{ borderRadius: '8px' }}
-                >
-                  Al guardar el evento se generará automáticamente un código con el formato: {selectedTipoEvento.value}-XXX
-                </Alert>
-              </Grid>
-            )}
-
-            <Grid item xs={12} md={6}>
-              <Label
-                name="cod_tipo_evento"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Category fontSize="small" sx={{ mr: 1 }} />
-                Tipo de Evento*
-              </Label>
-              <Select
-                name="cod_tipo_evento"
-                options={tipoEventoOptions}
-                value={selectedTipoEvento}
-                onChange={setSelectedTipoEvento}
-                styles={customSelectStyles}
-                classNamePrefix="select"
-                placeholder="Seleccionar tipo de evento..."
-                noOptionsMessage={() => 'No hay tipos de evento disponibles'}
-                isClearable
-                required
-                isDisabled={!!props.evento?.id}
-              />
-              <FieldError
-                name="cod_tipo_evento"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                }}
-              />
-            </Grid>
-
-            {/* Resto de los campos del formulario... */}
-            <Grid item xs={12} md={6}>
-              <Label
-                name="fecha_evento"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Schedule fontSize="small" sx={{ mr: 1 }} />
-                Fecha del Evento*
-              </Label>
-              <TextField
-                name="fecha_evento"
-                value={fechaEvento}
-                onChange={(e) => setFechaEvento(e.target.value)}
-                type="datetime-local"
-                validation={{ required: true }}
-                style={{
-                  minHeight: '50px',
-                  borderRadius: '8px',
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  fontSize: '0.9375rem',
-                }}
-                errorStyle={{
-                  border: `1px solid ${theme.palette.error.main}`,
-                  backgroundColor: theme.palette.error.light,
-                }}
-              />
-              <FieldError
-                name="fecha_evento"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                }}
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <Label
-                name="descripcion"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Description fontSize="small" sx={{ mr: 1 }} />
-                Descripción*
-              </Label>
-              <TextField
-                name="descripcion"
-                defaultValue={props.evento?.descripcion}
-                validation={{ required: true }}
-                style={{
-                  minHeight: '50px',
-                  borderRadius: '8px',
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  fontSize: '0.9375rem',
-                }}
-                errorStyle={{
-                  border: `1px solid ${theme.palette.error.main}`,
-                  backgroundColor: theme.palette.error.light,
-                }}
-              />
-              <FieldError
-                name="descripcion"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                }}
-              />
-            </Grid>
-
-            <ResponsablesSelect
-              usuarios={usuariosData?.usuarios || []}
-              value={responsablesSeleccionados}
-              onChange={setResponsablesSeleccionados}
-              theme={theme}
-            />
-
-            <Grid item xs={12} md={6}>
-              <Label
-                name="estado_evento"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Event fontSize="small" sx={{ mr: 1 }} />
-                Estado del Evento*
-              </Label>
-              <Select
-                name="estado_evento"
-                options={estadoEventoOptions}
-                value={selectedEstadoEvento}
-                onChange={setSelectedEstadoEvento}
-                styles={customSelectStyles}
-                classNamePrefix="select"
-                placeholder="Seleccionar estado..."
-                noOptionsMessage={() => 'No hay estados disponibles'}
-                isClearable
-                required
-              />
-              <FieldError
-                name="estado_evento"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                }}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Label
-                name="cite"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Assignment fontSize="small" sx={{ mr: 1 }} />
-                Cite
-              </Label>
-              <TextField
-                name="cite"
-                defaultValue={props.evento?.cite}
-                style={{
-                  minHeight: '50px',
-                  borderRadius: '8px',
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  fontSize: '0.9375rem',
-                }}
-                errorStyle={{
-                  border: `1px solid ${theme.palette.error.main}`,
-                  backgroundColor: theme.palette.error.light,
-                }}
-              />
-              <FieldError
-                name="cite"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                }}
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <Label
-                name="solicitante"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Person fontSize="small" sx={{ mr: 1 }} />
-                Solicitante
-              </Label>
-              <TextField
-                name="solicitante"
-                defaultValue={props.evento?.solicitante}
-                style={{
-                  minHeight: '50px',
-                  borderRadius: '8px',
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: `1px solid ${theme.palette.divider}`,
-                  fontSize: '0.9375rem',
-                }}
-                errorStyle={{
-                  border: `1px solid ${theme.palette.error.main}`,
-                  backgroundColor: theme.palette.error.light,
-                }}
-              />
-              <FieldError
-                name="solicitante"
-                style={{
-                  color: theme.palette.error.main,
-                  fontSize: '0.75rem',
-                  marginTop: '4px',
-                }}
-              />
-            </Grid>
-          </Grid>
-
-          <Divider sx={{ my: 4, borderColor: theme.palette.divider }} />
-
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 2,
-            }}
-          >
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              color="primary"
-              loading={props.loading}
-              loadingPosition="start"
-              startIcon={props.loading ? null : <CheckCircleOutline fontSize="small" />}
-              sx={{
-                px: 5,
-                py: 1.5,
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '600',
-                fontSize: '0.9375rem',
-                boxShadow: theme.shadows[2],
-                '&:hover': {
-                  boxShadow: theme.shadows[4],
-                  backgroundColor: theme.palette.primary.dark,
-                },
-              }}
-              disabled={!selectedTipoEvento}
-            >
-              {props.loading ? 'Guardando...' : 'Guardar Evento'}
-            </LoadingButton>
+            </form>
           </Box>
-        </Form>
-      </CardContent>
-    </Card>
+        </Card>
+      </Box>
+    </LocalizationProvider>
   )
 }
 

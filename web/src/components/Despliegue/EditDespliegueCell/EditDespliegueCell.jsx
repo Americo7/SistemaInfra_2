@@ -109,12 +109,6 @@ export const Success = ({ despliegue }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Editar Despliegue {despliegue?.id}
-        </h2>
-      </header>
-
       <div className="rw-segment-main">
         <DespliegueForm
           despliegue={despliegue}

@@ -1,29 +1,43 @@
-import {
-  Form,
-  FormError,
-  FieldError,
-  Label,
-  TextField,
-  Submit,
-  SelectField,
-} from '@redwoodjs/forms'
-import { useQuery } from '@redwoodjs/web'
-import { useState } from 'react'
+import React, { useState, useMemo } from 'react'
+import { useQuery, gql } from '@redwoodjs/web'
+import { useForm, Controller } from 'react-hook-form'
+import { navigate, routes } from '@redwoodjs/router'
+
 import {
   Box,
   Card,
   CardContent,
-  Divider,
-  Grid,
+  CardHeader,
   Typography,
-  IconButton,
-  TextField as MuiTextField,
+  TextField,
+  FormControl,
+  FormLabel,
   Autocomplete,
+  Stack,
+  Avatar,
+  Button,
   useTheme,
+  Paper,
+  CircularProgress
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
-import { CheckCircleOutline, ArrowBack } from '@mui/icons-material'
-import { alpha } from '@mui/system'
+
+// Iconos
+import {
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  AddCircle as AddIcon,
+  Edit as EditIcon,
+  ErrorOutline,
+  Settings as ParamIcon,
+  Category as GroupIcon,
+  Code as CodeIcon,
+  Description as DescIcon
+} from '@mui/icons-material'
+
+/* ---------------------------------------------
+ * 1. QUERIES
+ * --------------------------------------------- */
 const PARAMETROS_QUERY = gql`
   query ParametrosGrupos {
     parametros {
@@ -32,356 +46,333 @@ const PARAMETROS_QUERY = gql`
   }
 `
 
+/* ---------------------------------------------
+ * 2. COMPONENTE HELPER: SectionCard
+ * --------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* ---------------------------------------------
+ * 3. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
 const ParametroForm = (props) => {
   const theme = useTheme()
-  const { data } = useQuery(PARAMETROS_QUERY)
-  const [mostrarCampoNuevoGrupo, setMostrarCampoNuevoGrupo] = useState(false)
-  const [grupoSeleccionado, setGrupoSeleccionado] = useState(props.parametro?.grupo || '')
+  const isEdit = Boolean(props.parametro?.id)
 
-  // Extraer grupos únicos
-  const gruposExistentes = [...new Set(data?.parametros?.map(p => p.grupo) || [])]
-    .filter(grupo => grupo)
-    .sort()
+  // Carga de grupos existentes
+  const { data, loading: loadingData } = useQuery(PARAMETROS_QUERY)
+
+  // Extraer y ordenar grupos únicos
+  const gruposExistentes = useMemo(() => {
+    if (!data?.parametros) return []
+    return [...new Set(data.parametros.map(p => p.grupo))]
+      .filter(Boolean)
+      .sort()
+  }, [data])
+
+  // Configuración del Formulario
+  const formMethods = useForm({
+    defaultValues: {
+      codigo: props.parametro?.codigo || '',
+      nombre: props.parametro?.nombre || '',
+      grupo: props.parametro?.grupo || '',
+      descripcion: props.parametro?.descripcion || '',
+    },
+  })
+
+  const { control, handleSubmit, formState: { errors } } = formMethods
 
   const onSubmit = (data) => {
     const formData = {
       ...data,
-      grupo: mostrarCampoNuevoGrupo ? data.nuevoGrupo : (data.grupo || grupoSeleccionado),
       estado: 'ACTIVO',
       usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_creacion: isEdit ? undefined : 3,
     }
-    delete formData.nuevoGrupo // Eliminamos el campo temporal
     props.onSave(formData, props?.parametro?.id)
   }
 
-  const handleChangeGrupo = (event, newValue) => {
-    if (newValue === '__nuevo_grupo') {
-      setMostrarCampoNuevoGrupo(true)
-    } else {
-      setGrupoSeleccionado(newValue)
+  /* -----------------------------------------------------------------------
+   * FUNCIÓN PARA EXTRAER EL ERROR REAL DE GRAPHQL/PRISMA
+   * ----------------------------------------------------------------------- */
+  const getErrorMessage = (error) => {
+    if (!error) return null
+
+    // 1. Buscamos errores dentro de graphQLErrors (donde Prisma esconde los detalles)
+    if (error.graphQLErrors && error.graphQLErrors.length > 0) {
+      for (let graphQLError of error.graphQLErrors) {
+        // Verificar mensaje directo o mensaje original de la base de datos
+        const message = graphQLError.message || ''
+        // A veces el error viene anidado en extensions.originalError.message
+        const originalMessage = graphQLError.extensions?.originalError?.message || '' 
+
+        if (message.includes('Unique constraint') || originalMessage.includes('Unique constraint')) {
+          return 'El CÓDIGO ingresado ya existe. Por favor, utilice un código único.'
+        }
+      }
     }
+
+    // 2. Si no es constraint, devolvemos el mensaje genérico pero quitando el prefijo "GraphQLError: " si existe
+    return error.message?.replace('GraphQLError: ', '') || 'Ocurrió un error inesperado.'
   }
 
-  // Estilos comunes para los campos
-  const labelStyle = {
-    display: 'block',
-    marginBottom: '8px',
-    fontWeight: '500',
-    color: theme.palette.text.primary,
-    fontSize: '0.875rem',
-  }
+  const errorMessage = getErrorMessage(props.error)
 
-  const inputStyle = {
-    width: '100%',
-    padding: '14px 16px',
-    borderRadius: '8px',
-    border: `1px solid ${theme.palette.divider}`,
-    fontSize: '0.9375rem',
-    transition: 'all 0.2s ease',
-    backgroundColor: theme.palette.background.paper,
-    '&:focus': {
-      borderColor: theme.palette.primary.main,
-      boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
-    },
-  }
-
-  const errorStyle = {
-    borderColor: theme.palette.error.main,
-    backgroundColor: alpha(theme.palette.error.light, 0.1),
-  }
-
-  const fieldErrorStyle = {
-    color: theme.palette.error.main,
-    fontSize: '0.75rem',
-    marginTop: '4px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-  }
-
-  const helpTextStyle = {
-    fontSize: '0.75rem',
-    color: theme.palette.text.secondary,
-    marginTop: '4px',
+  if (loadingData) {
+    return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box>
   }
 
   return (
-    <Card
-      sx={{
-        maxWidth: '900px',
-        margin: 'auto',
-        boxShadow: theme.shadows[6],
-        borderRadius: '12px',
-        overflow: 'visible',
-        border: `1px solid ${theme.palette.divider}`,
-      }}
-    >
-      <Box
-        sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
-          p: 3,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-        }}
-      >
-        <Typography variant="h5" fontWeight="600">
-          {props.parametro?.id ? 'Editar Parámetro' : 'Nuevo Parámetro'}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          Complete todos los campos requeridos
-        </Typography>
-      </Box>
+    <Box sx={{ width: '100%', maxWidth: 1000, mx: 'auto', p: 2 }}>
+      
+      {/* CONTENEDOR PRINCIPAL */}
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        
+        {/* HEADER */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                }}>
+              {isEdit ? <EditIcon /> : <AddIcon />}
+            </Avatar>
+            
+            <Box>
+              <Typography variant="h5" fontWeight={800} sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>
+                {isEdit ? 'Editar Parámetro' : 'Nuevo Parámetro'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isEdit ? 'Modificar configuración del sistema' : 'Registrar nueva variable de configuración'}
+              </Typography>
+            </Box>
+        </Box>
 
-      <CardContent sx={{ p: 4 }}>
-        <Form onSubmit={onSubmit} error={props.error}>
-          <FormError
-            error={props.error}
-            wrapperStyle={{
-              backgroundColor: alpha(theme.palette.error.light, 0.2),
-              color: theme.palette.error.main,
-              padding: '16px',
-              marginBottom: '24px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              border: `1px solid ${theme.palette.error.light}`,
-            }}
-            titleStyle={{
-              fontWeight: '600',
-              marginBottom: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-            listStyle={{
-              listStyleType: 'none',
-              padding: 0,
-              margin: 0,
-            }}
-          />
+        {/* CONTENIDO */}
+        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          
+          <form onSubmit={handleSubmit(onSubmit)}>
+            
+            {/* --- BLOQUE DE ERROR MEJORADO --- */}
+            {errorMessage && (
+              <Paper variant="outlined" sx={{ 
+                p: 2, 
+                mb: 4, 
+                bgcolor: '#fff4f4', 
+                borderColor: '#ffcdd2', 
+                color: '#c62828', 
+                display: 'flex', 
+                gap: 1.5, 
+                alignItems: 'center', 
+                borderRadius: 2 
+              }}>
+                <ErrorOutline color="error" />
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={700}>No se pudo guardar</Typography>
+                  <Typography variant="body2">{errorMessage}</Typography>
+                </Box>
+              </Paper>
+            )}
 
-          <Grid container spacing={4}>
-            {/* Campo Código */}
-            <Grid item xs={12} md={6}>
-              <Label
-                name="codigo"
-                style={labelStyle}
-                errorStyle={labelStyle}
+            {/* GRID LAYOUT DE 2 COLUMNAS */}
+            <Box sx={{ 
+              display: 'grid', 
+              gap: 3, 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+              alignItems: 'start'
+            }}>
+              
+              {/* --- CARD 1: IDENTIFICACIÓN Y GRUPO --- */}
+              <SectionCard 
+                icon={<ParamIcon sx={{ fontSize: 20 }} />} 
+                title="Identificación y Clasificación"
+                bgcolor={theme.palette.primary.main}
               >
-                Código
-              </Label>
-              <TextField
-                name="codigo"
-                defaultValue={props.parametro?.codigo}
-                style={inputStyle}
-                errorStyle={{...inputStyle, ...errorStyle}}
-                validation={{
-                  required: 'El código es obligatorio',
-                  pattern: {
-                    value: /^[A-Z0-9_]{1,20}$/,
-                    message: 'Solo mayúsculas, números y guiones bajos (max 20 caracteres)'
-                  }
-                }}
-              />
-              <p style={helpTextStyle}>Usa mayúsculas y guiones bajos, sin espacios</p>
-              <FieldError name="codigo" style={fieldErrorStyle} />
-            </Grid>
-
-            {/* Campo Nombre */}
-            <Grid item xs={12} md={6}>
-              <Label
-                name="nombre"
-                style={labelStyle}
-                errorStyle={labelStyle}
-              >
-                Nombre
-              </Label>
-              <TextField
-                name="nombre"
-                defaultValue={props.parametro?.nombre}
-                style={inputStyle}
-                errorStyle={{...inputStyle, ...errorStyle}}
-                validation={{
-                  required: 'El nombre es obligatorio',
-                  maxLength: {
-                    value: 100,
-                  }
-                }}
-              />
-              <p style={helpTextStyle}>Nombre descriptivo del parámetro</p>
-              <FieldError name="nombre" style={fieldErrorStyle} />
-            </Grid>
-
-            {/* Campo Grupo */}
-            <Grid item xs={12}>
-              {!mostrarCampoNuevoGrupo ? (
-                <>
-                  <Label
-                    name="grupo"
-                    style={labelStyle}
-                    errorStyle={labelStyle}
-                  >
-                    Grupo
-                  </Label>
-                  <div style={{ position: 'relative' }}>
-                    <TextField
-                      name="grupo"
-                      defaultValue={props.parametro?.grupo || ''}
-                      style={{ display: 'none' }}
-                    />
-                    <Autocomplete
-                      freeSolo
-                      options={[...gruposExistentes, '__nuevo_grupo']}
-                      getOptionLabel={(option) => option === '__nuevo_grupo' ? '[+] Crear nuevo grupo' : option}
-                      value={grupoSeleccionado}
-                      onChange={handleChangeGrupo}
-                      renderInput={(params) => (
-                        <MuiTextField
-                          {...params}
-                          placeholder="Selecciona o escribe un grupo..."
-                          fullWidth
-                          sx={{
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: '8px',
-                              padding: '4px 16px',
-                              '& fieldset': {
-                                borderColor: theme.palette.divider,
-                              },
-                              '&:hover fieldset': {
-                                borderColor: theme.palette.primary.main,
-                              },
-                              '&.Mui-focused fieldset': {
-                                borderColor: theme.palette.primary.main,
-                                borderWidth: '1px',
-                              },
-                            },
-                          }}
+                <Stack spacing={2.5}>
+                  
+                  {/* Código */}
+                  <FormControl fullWidth error={!!errors.codigo}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Código Único *</FormLabel>
+                    <Controller
+                      name="codigo"
+                      control={control}
+                      rules={{ 
+                        required: 'El código es obligatorio',
+                        pattern: {
+                          value: /^[A-Z0-9_]{1,50}$/,
+                          message: 'Solo mayúsculas, números y guiones bajos'
+                        }
+                      }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. TIPO_DOCUMENTO_CI" 
+                          error={!!errors.codigo}
+                          helperText={errors.codigo?.message || 'Identificador único en mayúsculas'}
+                          InputProps={{ startAdornment: <CodeIcon fontSize="small" color="action" sx={{ mr: 1 }} /> }}
                         />
                       )}
                     />
-                  </div>
-                  <p style={helpTextStyle}>Agrupa parámetros relacionados o ingresa uno nuevo</p>
-                  <FieldError name="grupo" style={fieldErrorStyle} />
-                </>
-              ) : (
-                <>
-                  <Label
-                    name="nuevoGrupo"
-                    style={labelStyle}
-                    errorStyle={labelStyle}
-                  >
-                    Nuevo Grupo
-                  </Label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <TextField
-                      name="nuevoGrupo"
-                      style={{...inputStyle, flex: 1}}
-                      errorStyle={{...inputStyle, ...errorStyle, flex: 1}}
-                      validation={{
-                        required: 'Debes ingresar un nombre para el nuevo grupo'
-                      }}
-                      autoFocus
+                  </FormControl>
+
+                  {/* Grupo (Autocomplete con FreeSolo para crear nuevos) */}
+                  <FormControl fullWidth error={!!errors.grupo}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Grupo *</FormLabel>
+                    <Controller
+                      name="grupo"
+                      control={control}
+                      rules={{ required: 'El grupo es obligatorio' }}
+                      render={({ field: { onChange, value } }) => (
+                        <Autocomplete
+                          freeSolo
+                          options={gruposExistentes}
+                          value={value}
+                          onChange={(event, newValue) => {
+                            onChange(newValue)
+                          }}
+                          onInputChange={(event, newInputValue) => {
+                            onChange(newInputValue)
+                          }}
+                          renderInput={(params) => (
+                            <TextField 
+                              {...params} 
+                              size="small" 
+                              placeholder="Seleccionar o escribir nuevo grupo..." 
+                              error={!!errors.grupo}
+                              helperText={errors.grupo?.message || 'Agrupa parámetros relacionados'}
+                              InputProps={{
+                                ...params.InputProps,
+                                startAdornment: <GroupIcon fontSize="small" color="action" sx={{ mr: 1 }} />
+                              }}
+                            />
+                          )}
+                        />
+                      )}
                     />
-                    <IconButton
-                      type="button"
-                      onClick={() => setMostrarCampoNuevoGrupo(false)}
-                      sx={{
-                        backgroundColor: theme.palette.error.main,
-                        color: theme.palette.error.contrastText,
-                        p: 1,
-                        borderRadius: '8px',
-                        '&:hover': {
-                          backgroundColor: theme.palette.error.dark,
-                        },
-                      }}
-                    >
-                      <ArrowBack fontSize="small" />
-                    </IconButton>
-                  </div>
-                  <p style={helpTextStyle}>Usa un nombre descriptivo para el nuevo grupo</p>
-                  <FieldError name="nuevoGrupo" style={fieldErrorStyle} />
-                </>
-              )}
-            </Grid>
+                  </FormControl>
 
-            {/* Campo Descripción */}
-            <Grid item xs={12}>
-              <Label
-                name="descripcion"
-                style={labelStyle}
-                errorStyle={labelStyle}
+                </Stack>
+              </SectionCard>
+
+              {/* --- CARD 2: DETALLES --- */}
+              <SectionCard 
+                icon={<DescIcon sx={{ fontSize: 20 }} />} 
+                title="Detalles del Parámetro"
+                bgcolor={theme.palette.secondary.main}
               >
-                Descripción
-              </Label>
-              <TextField
-                name="descripcion"
-                defaultValue={props.parametro?.descripcion}
-                style={{...inputStyle, minHeight: '100px'}}
-                errorStyle={{...inputStyle, ...errorStyle, minHeight: '100px'}}
-                as="textarea"
-                rows={3}
-                validation={{
-                  maxLength: {
-                    value: 255,
-                    message: 'Máximo 255 caracteres'
-                  }
+                <Stack spacing={2.5}>
+                  
+                  {/* Nombre */}
+                  <FormControl fullWidth error={!!errors.nombre}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre Visible *</FormLabel>
+                    <Controller
+                      name="nombre"
+                      control={control}
+                      rules={{ required: 'El nombre es obligatorio' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. Cédula de Identidad" 
+                          error={!!errors.nombre}
+                          helperText={errors.nombre?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
+
+                  {/* Descripción */}
+                  <FormControl fullWidth error={!!errors.descripcion}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
+                    <Controller
+                      name="descripcion"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          multiline
+                          rows={4}
+                          size="small" 
+                          placeholder="Descripción del propósito de este parámetro..." 
+                          error={!!errors.descripcion}
+                          helperText={errors.descripcion?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
+
+                </Stack>
+              </SectionCard>
+
+            </Box>
+
+            {/* BOTONES */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.parametros())}
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+              >
+                Cancelar
+              </Button>
+
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={props.loading}
+                startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
+                  boxShadow: 4, 
+                  px: 4, 
+                  minWidth: 160, 
+                  borderRadius: 2, 
+                  textTransform: 'none', 
+                  fontWeight: 700 
                 }}
-              />
-              <p style={helpTextStyle}>Descripción detallada del propósito del parámetro</p>
-              <FieldError name="descripcion" style={fieldErrorStyle} />
-            </Grid>
-          </Grid>
+              >
+                {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar Parámetro')}
+              </LoadingButton>
+            </Box>
 
-          <Divider sx={{
-            my: 4,
-            borderColor: theme.palette.divider,
-            borderBottomWidth: '1px',
-          }} />
-
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 2,
-            }}
-          >
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              color="primary"
-              loading={props.loading}
-              loadingPosition="start"
-              startIcon={
-                props.loading ? null : (
-                  <CheckCircleOutline fontSize="small" />
-                )
-              }
-              sx={{
-                px: 5,
-                py: 1.5,
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '600',
-                fontSize: '0.9375rem',
-                boxShadow: theme.shadows[2],
-                '&:hover': {
-                  boxShadow: theme.shadows[4],
-                  backgroundColor: theme.palette.primary.dark,
-                },
-                '&.MuiLoadingButton-loading': {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.5),
-                },
-              }}
-            >
-              {props.loading ? 'Guardando...' : 'Guardar Parámetro'}
-            </LoadingButton>
-          </Box>
-        </Form>
-      </CardContent>
-    </Card>
+          </form>
+        </Box>
+      </Card>
+    </Box>
   )
 }
 

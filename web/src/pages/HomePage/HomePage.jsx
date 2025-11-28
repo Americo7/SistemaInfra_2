@@ -32,8 +32,10 @@ import {
   FiberManualRecord as DotIcon
 } from '@mui/icons-material'
 import Chart from 'react-apexcharts'
-import { useQuery, gql } from '@redwoodjs/web'
+import { useQuery } from '@redwoodjs/web'
 import { styled, alpha } from '@mui/material/styles'
+
+
 
 // Consultas GraphQL optimizadas
 const GET_SYSTEMS = gql`
@@ -57,7 +59,7 @@ const GET_SYSTEMS = gql`
 
 const GET_DEPLOYMENTS = gql`
   query FindDeployments {
-    despliegues {
+    despliegues(limit: 5, orderBy: { fecha_despliegue: desc }) {
       id
       estado_despliegue
       fecha_despliegue
@@ -73,7 +75,7 @@ const GET_DEPLOYMENTS = gql`
 
 const GET_EVENTS = gql`
   query FindEvents {
-    eventos {
+    eventos(limit: 2, orderBy: { fecha_evento: desc }) {
       id
       cod_tipo_evento
       descripcion
@@ -88,14 +90,14 @@ const GET_EVENTS = gql`
   }
 `
 
-const GET_SERVIDORES = gql`
-  query ObtenerServidores {
+const GET_SERVERS = gql`
+  query FindServers {
     servidores {
       id
       nombre
       cod_tipo_servidor
       estado_operativo
-      data_centers {
+      data_center {
         nombre
       }
     }
@@ -103,7 +105,7 @@ const GET_SERVIDORES = gql`
 `
 
 const GET_DATA_CENTERS = gql`
-  query ObtenerDataCenters {
+  query FindDataCenters_fromHomePage {
     dataCenters {
       id
       nombre
@@ -115,27 +117,25 @@ const GET_DATA_CENTERS = gql`
   }
 `
 
-const GET_MAQUINAS = gql`
-  query FindMaquinas1 {
+const GET_MACHINES = gql`
+  query FindMachines {
     maquinas {
       id
       nombre
       estado
-      id_servidor
+      es_virtual
     }
   }
 `
-
 const GET_DEPLOYMENTS_HISTORY = gql`
   query FindDeploymentsHistory {
-    despliegues {
+    despliegues(orderBy: { fecha_despliegue: asc }) {
       id
       estado_despliegue
       fecha_despliegue
     }
   }
 `
-
 // Componentes personalizados
 const GlowCard = styled(Paper)(({ theme, glowcolor }) => ({
   borderRadius: '16px',
@@ -159,10 +159,12 @@ const HomePage = () => {
   const { data: systemsData, loading: systemsLoading } = useQuery(GET_SYSTEMS)
   const { data: deploymentsData, loading: deploymentsLoading } = useQuery(GET_DEPLOYMENTS)
   const { data: eventsData, loading: eventsLoading } = useQuery(GET_EVENTS)
-  const { data: servidoresData, loading: servidoresLoading } = useQuery(GET_SERVIDORES)
+  const { data: serversData, loading: serversLoading } = useQuery(GET_SERVERS)
   const { data: dataCentersData, loading: dataCentersLoading } = useQuery(GET_DATA_CENTERS)
-  const { data: maquinasData, loading: maquinasLoading } = useQuery(GET_MAQUINAS)
+  const { data: machinesData, loading: machinesLoading } = useQuery(GET_MACHINES)
   const { data: deploymentsHistoryData } = useQuery(GET_DEPLOYMENTS_HISTORY)
+  // Estado para sistemas expandidos
+  const [expandedSystems, setExpandedSystems] = useState({})
 
   // Calcular estadísticas con useMemo para optimización
   const systemStats = useMemo(() => {
@@ -180,15 +182,15 @@ const HomePage = () => {
   }, [deploymentsData])
 
   const serverStats = useMemo(() => {
-    if (!servidoresData) return { total: 0, types: {}, status: {} }
+    if (!serversData) return { total: 0, types: {}, status: {} }
     const types = {}
     const status = {}
-    servidoresData.servidores.forEach(server => {
+    serversData.servidores.forEach(server => {
       types[server.cod_tipo_servidor] = (types[server.cod_tipo_servidor] || 0) + 1
       status[server.estado_operativo] = (status[server.estado_operativo] || 0) + 1
     })
-    return { total: servidoresData.servidores.length, types, status }
-  }, [servidoresData])
+    return { total: serversData.servidores.length, types, status }
+  }, [serversData])
 
   const eventStats = useMemo(() => {
     if (!eventsData) return { total: 0, maintenance: 0, incidents: 0 }
@@ -204,53 +206,53 @@ const HomePage = () => {
   }, [dataCentersData])
 
   const machineStats = useMemo(() => {
-    if (!maquinasData) return { total: 0, withServer: 0, withoutServer: 0 }
-    const withServer = maquinasData.maquinas.filter(m => m.id_servidor).length
-    const withoutServer = maquinasData.maquinas.filter(m => !m.id_servidor).length
-    return { total: maquinasData.maquinas.length, withServer, withoutServer }
-  }, [maquinasData])
+    if (!machinesData) return { total: 0, physical: 0, virtual: 0 }
+    const physical = machinesData.maquinas.filter(m => !m.es_virtual).length
+    const virtual = machinesData.maquinas.filter(m => m.es_virtual).length
+    return { total: machinesData.maquinas.length, physical, virtual }
+  }, [machinesData])
 
-  // Procesar datos históricos de despliegues
-  const deploymentHistoryData = useMemo(() => {
-    if (!deploymentsHistoryData) return { series: [], categories: [] }
 
-    const monthlyData = deploymentsHistoryData.despliegues.reduce((acc, deployment) => {
-      const date = new Date(deployment.fecha_despliegue)
-      const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+ // Procesar datos históricos de despliegues
+ const deploymentHistoryData = useMemo(() => {
+  if (!deploymentsHistoryData) return { series: [], categories: [] }
 
-      if (!acc[monthYear]) {
-        acc[monthYear] = { started: 0, finished: 0 }
-      }
+  const monthlyData = deploymentsHistoryData.despliegues.reduce((acc, deployment) => {
+    const date = new Date(deployment.fecha_despliegue)
+    const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 
-      if (deployment.estado_despliegue === 'INICIADO') {
-        acc[monthYear].started += 1
-      } else if (deployment.estado_despliegue === 'FINALIZADO') {
-        acc[monthYear].finished += 1
-      }
-
-      return acc
-    }, {})
-
-    const sortedMonths = Object.keys(monthlyData).sort()
-
-    const categories = sortedMonths.map(month => {
-      const [year, monthNum] = month.split('-')
-      const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-      return `${monthNames[parseInt(monthNum) - 1]} ${year}`
-    })
-
-    const startedData = sortedMonths.map(month => monthlyData[month].started)
-    const finishedData = sortedMonths.map(month => monthlyData[month].finished)
-
-    return {
-      series: [
-        { name: 'Despliegues Iniciados', data: startedData },
-        { name: 'Despliegues Finalizados', data: finishedData }
-      ],
-      categories
+    if (!acc[monthYear]) {
+      acc[monthYear] = { started: 0, finished: 0 }
     }
-  }, [deploymentsHistoryData])
 
+    if (deployment.estado_despliegue === 'INICIADO') {
+      acc[monthYear].started += 1
+    } else if (deployment.estado_despliegue === 'FINALIZADO') {
+      acc[monthYear].finished += 1
+    }
+
+    return acc
+  }, {})
+
+  const sortedMonths = Object.keys(monthlyData).sort()
+
+  const categories = sortedMonths.map(month => {
+    const [year, monthNum] = month.split('-')
+    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    return `${monthNames[parseInt(monthNum) - 1]} ${year}`
+  })
+
+  const startedData = sortedMonths.map(month => monthlyData[month].started)
+  const finishedData = sortedMonths.map(month => monthlyData[month].finished)
+
+  return {
+    series: [
+      { name: 'Despliegues Iniciados', data: startedData },
+      { name: 'Despliegues Finalizados', data: finishedData }
+    ],
+    categories
+  }
+}, [deploymentsHistoryData])
   // Componentes de estado optimizados
   const StateChip = ({ estado }) => {
     switch(estado) {
@@ -276,7 +278,7 @@ const HomePage = () => {
     }
   }
 
-  // Opciones para gráficos
+  // Opciones para gráficos 3D mejorados
   const deploymentChartOptions = {
     chart: {
       id: 'deployments-chart',
@@ -295,7 +297,7 @@ const HomePage = () => {
       width: 3,
       lineCap: 'round'
     },
-    xaxis: {
+ xaxis: {
       categories: deploymentHistoryData.categories,
       axisBorder: { show: false },
       axisTicks: { show: false },
@@ -305,7 +307,7 @@ const HomePage = () => {
         }
       }
     },
-    yaxis: {
+  yaxis: {
       show: true,
       labels: {
         style: {
@@ -343,6 +345,7 @@ const HomePage = () => {
     },
     dataLabels: { enabled: false }
   }
+
 
   const systemStatusOptions = {
     chart: {
@@ -421,14 +424,15 @@ const HomePage = () => {
     tooltip: { theme: theme.palette.mode }
   }
 
+
   if (systemsLoading || deploymentsLoading || eventsLoading ||
-    servidoresLoading || dataCentersLoading || maquinasLoading) {
-    return (
-      <Container maxWidth="xl" sx={{ mt: 3, mb: 6 }}>
-        <LinearProgress color="primary" sx={{ height: 6, borderRadius: 3 }} />
-      </Container>
-    )
-  }
+    serversLoading || dataCentersLoading || machinesLoading) {
+  return (
+    <Container maxWidth="xl" sx={{ mt: 3, mb: 6 }}>
+      <LinearProgress color="primary" sx={{ height: 6, borderRadius: 3 }} />
+    </Container>
+  )
+}
 
   return (
     <>
@@ -458,29 +462,8 @@ const HomePage = () => {
               alignItems: 'center',
               gap: 1
             }}>
-              <Button
-                variant="outlined"
-                startIcon={<RefreshIcon />}
-                onClick={() => window.location.reload()}
-                sx={{
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
-                }}
-              >
-                Actualizar
-              </Button>
-              <Button
-                variant="contained"
-                disableElevation
-                startIcon={<FilterIcon />}
-                sx={{
-                  borderRadius: '12px',
-                  background: `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                }}
-              >
-                Filtros
-              </Button>
+
+
             </Grid>
           </Grid>
         </Box>
@@ -634,7 +617,7 @@ const HomePage = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <DotIcon sx={{ color: 'info.main', fontSize: '14px', mr: 0.5 }} />
                       <Typography variant="body2" sx={{ fontWeight: '600' }}>
-                        {eventStats.maintenance} mant.
+                        {eventStats.maintenance} mantenimientos
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -682,7 +665,7 @@ const HomePage = () => {
               borderRadius: '2px'
             }
           }}>
-            Data Centers y Máquinas
+            Datecenter y maquinas
           </Typography>
           <Grid container spacing={3}>
             {/* Data Centers */}
@@ -697,7 +680,7 @@ const HomePage = () => {
                       {dataCenterStats.total}
                     </Typography>
                     <Typography variant="body2" sx={{ mt: 2, fontWeight: '600' }}>
-                      {dataCenterStats.servers} servidores
+
                     </Typography>
                   </Box>
                   <GradientAvatar gradient="linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)">
@@ -719,16 +702,16 @@ const HomePage = () => {
               </GlowCard>
             </Grid>
 
-            {/* Máquinas Asignadas */}
+            {/* Máquinas Físicas */}
             <Grid item xs={12} sm={6} md={3}>
               <GlowCard glowcolor="#673ab7">
                 <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: '600' }}>
-                      Máquinas Asignadas
+                      Máquinas Físicas
                     </Typography>
                     <Typography variant="h2" sx={{ mt: 1, fontWeight: '700' }}>
-                      {machineStats.withServer}
+                      {machineStats.physical}
                     </Typography>
                     <Typography variant="body2" sx={{ mt: 2, fontWeight: '600' }}>
                       {machineStats.total} total
@@ -753,16 +736,16 @@ const HomePage = () => {
               </GlowCard>
             </Grid>
 
-            {/* Máquinas Sin Asignar */}
+            {/* Máquinas Virtuales */}
             <Grid item xs={12} sm={6} md={3}>
               <GlowCard glowcolor="#3f51b5">
                 <Box sx={{ p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: '600' }}>
-                      Máquinas Sin Asignar
+                      Máquinas Virtuales
                     </Typography>
                     <Typography variant="h2" sx={{ mt: 1, fontWeight: '700' }}>
-                      {machineStats.withoutServer}
+                      {machineStats.virtual}
                     </Typography>
                     <Typography variant="body2" sx={{ mt: 2, fontWeight: '600' }}>
                       {machineStats.total} total
@@ -846,7 +829,7 @@ const HomePage = () => {
                     </Box>
                   )}
                 </Box>
-              </Box>
+                </Box>
             </GlowCard>
           </Grid>
 

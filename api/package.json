@@ -5,6 +5,8 @@
   "dependencies": {
     "@kubernetes/client-node": "^1.4.0",
     "@redwoodjs/api": "8.6.1",
-    "@redwoodjs/graphql-server": "8.6.1"
+    "@redwoodjs/graphql-server": "8.6.1",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.2.0"
   }
 }

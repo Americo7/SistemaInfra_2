@@ -1,7 +1,41 @@
 import { db } from 'src/lib/db'
 
+/* ============================================================
+   GENERADOR UNIVERSAL DE IDENTITY_KEY (USO MANUAL)
+============================================================ */
+const generarIdentityKeyMaquina = (input) => {
+  // Si viene uuid y vmid (caso manual pero similar a proxmox)
+  if (input.uuid && input.proxmox_vmid) {
+    return `manual:proxmox:${input.proxmox_vmid}:${input.uuid.toLowerCase()}`
+  }
+
+  // Caso K8s manual
+  if (input.uuid && input.cod_plataforma === 'K8S') {
+    return `manual:k8s:${input.uuid.toLowerCase()}`
+  }
+
+  // Caso 100% manual
+  const slug = input.nombre.trim().toLowerCase().replace(/\s+/g, '-')
+  return `manual:maquina:${slug}`
+}
+
+/* ============================================================
+   LISTA
+============================================================ */
 export const maquinas = () => {
   return db.maquina.findMany({
+    include: {
+      servidores: true,
+    },
+  })
+}
+
+/* ============================================================
+   DETALLE SIMPLE
+============================================================ */
+export const maquina = ({ id }) => {
+  return db.maquina.findUnique({
+    where: { id },
     include: {
       servidores: true,
       cluster_nodos: true,
@@ -9,17 +43,12 @@ export const maquinas = () => {
   })
 }
 
-export const maquina = ({ id }) => {
-  return db.maquina.findUnique({
-    where: { id },
-    include: {
-      servidores: true,
-      cluster_nodos: true, // Incluir nodos también en el detalle simple
-    },
-  })
-}
-
+/* ============================================================
+   CREAR MANUALMENTE
+============================================================ */
 export const createMaquina = ({ input }) => {
+  const identity_key = generarIdentityKeyMaquina(input)
+
   return db.maquina.create({
     data: {
       nombre: input.nombre,
@@ -27,20 +56,29 @@ export const createMaquina = ({ input }) => {
       so: input.so,
       ram: input.ram,
       almacenamiento: input.almacenamiento,
+      estado_operativo: input.estado_operativo,
       cpu: input.cpu,
       cod_plataforma: input.cod_plataforma,
       estado: input.estado,
       id_servidor: input.id_servidor,
       usuario_creacion: input.usuario_creacion,
       fecha_creacion: new Date(),
-      uuid: input.uuid,
-      proxmox_vmid: input.proxmox_vmid,
-      mac_address: input.mac_address,
+
+      // Sincronización manual opcional
+      uuid: input.uuid || null,
+      proxmox_vmid: input.proxmox_vmid || null,
+
+      // Generado automáticamente
+      identity_key,
     },
   })
 }
 
+/* ============================================================
+   ACTUALIZAR MANUALMENTE
+============================================================ */
 export const updateMaquina = ({ id, input }) => {
+
   return db.maquina.update({
     where: { id },
     data: {
@@ -49,6 +87,7 @@ export const updateMaquina = ({ id, input }) => {
       so: input.so,
       ram: input.ram,
       almacenamiento: input.almacenamiento,
+      estado_operativo: input.estado_operativo,
       cpu: input.cpu,
       cod_plataforma: input.cod_plataforma,
       estado: input.estado,
@@ -56,20 +95,24 @@ export const updateMaquina = ({ id, input }) => {
       usuario_modificacion: input.usuario_modificacion,
       fecha_modificacion: new Date(),
 
-      // ✔ CAMPOS DE SINCRONIZACIÓN
-      uuid: input.uuid,
-      proxmox_vmid: input.proxmox_vmid,
-      mac_address: input.mac_address,
+      uuid: input.uuid || null,
+      proxmox_vmid: input.proxmox_vmid || null,
     },
   })
 }
 
+/* ============================================================
+   ELIMINAR
+============================================================ */
 export const deleteMaquina = ({ id }) => {
   return db.maquina.delete({
     where: { id },
   })
 }
 
+/* ============================================================
+   DETALLE COMPLETO
+============================================================ */
 export const maquinaCompleta = ({ id }) => {
   return db.maquina.findUnique({
     where: { id },
@@ -84,17 +127,23 @@ export const maquinaCompleta = ({ id }) => {
           },
         },
       },
+
       cluster_nodos: {
         include: {
           cluster: true,
+          servidor: {
+            include: { data_centers: true },
+          },
         },
       },
+
       usuario_roles: {
         include: {
           usuarios: true,
           roles: true,
         },
       },
+
       despliegue: {
         include: {
           componentes: {
@@ -108,25 +157,32 @@ export const maquinaCompleta = ({ id }) => {
           },
         },
       },
-      infra_afectada: true,
+
+      infra_afectada: {
+        include: {
+          eventos: true,
+        },
+      },
     },
   })
 }
 
+/* ============================================================
+   RESOLVERS (Lazy Loading)
+============================================================ */
 export const Maquina = {
-  servidores: (_obj, { root }) => {
-    return db.maquina.findUnique({ where: { id: root.id } }).servidores()
-  },
-  despliegue: (_obj, { root }) => {
-    return db.maquina.findUnique({ where: { id: root.id } }).despliegue()
-  },
-  infra_afectada: (_obj, { root }) => {
-    return db.maquina.findUnique({ where: { id: root.id } }).infra_afectada()
-  },
-  usuario_roles: (_obj, { root }) => {
-    return db.maquina.findUnique({ where: { id: root.id } }).usuario_roles()
-  },
-  cluster_nodos: (_obj, { root }) => {
-    return db.maquina.findUnique({ where: { id: root.id } }).cluster_nodos()
-  },
+  servidores: (_obj, { root }) =>
+    db.maquina.findUnique({ where: { id: root.id } }).servidores(),
+
+  despliegue: (_obj, { root }) =>
+    db.maquina.findUnique({ where: { id: root.id } }).despliegue(),
+
+  infra_afectada: (_obj, { root }) =>
+    db.maquina.findUnique({ where: { id: root.id } }).infra_afectada(),
+
+  usuario_roles: (_obj, { root }) =>
+    db.maquina.findUnique({ where: { id: root.id } }).usuario_roles(),
+
+  cluster_nodos: (_obj, { root }) =>
+    db.maquina.findUnique({ where: { id: root.id } }).cluster_nodos(),
 }

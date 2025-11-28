@@ -9,8 +9,7 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
-
-    # Nuevos campos
+    identity_key: String!
     id_proxmox_endpoint: Int
     id_k8s_endpoint: Int
 
@@ -37,6 +36,7 @@ export const schema = gql`
     descripcion: String!
     estado: estado!
     usuario_creacion: Int!
+    identity_key: String!
     id_proxmox_endpoint: Int
     id_k8s_endpoint: Int
   }
@@ -47,6 +47,7 @@ export const schema = gql`
     descripcion: String
     estado: estado
     usuario_modificacion: Int
+    identity_key: String
     id_proxmox_endpoint: Int
     id_k8s_endpoint: Int
   }

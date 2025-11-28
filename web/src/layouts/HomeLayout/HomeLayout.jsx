@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Head } from '@redwoodjs/web'
 import { Link, routes, useLocation, navigate } from '@redwoodjs/router'
+import { useAuth } from 'src/auth' // <--- IMPORTANTE: Importamos el hook de autenticación
 
 // MUI Components
 import {
@@ -16,8 +17,6 @@ import {
   ListItemText,
   Toolbar,
   Typography,
-  Container,
-  Paper,
   Avatar,
   Divider,
   useMediaQuery,
@@ -28,7 +27,6 @@ import {
   MenuItem as MuiMenuItem,
   alpha,
   LinearProgress,
-  Badge,
 } from '@mui/material'
 
 // MUI Icons
@@ -62,7 +60,6 @@ import {
   VerifiedUser as UserManagementIcon,
   Tune as ParametersIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
-  Notifications as NotificationsIcon,
   Hub as HubIcon,
   Sync as SyncIcon
 } from '@mui/icons-material'
@@ -73,6 +70,9 @@ const DRAWER_WIDTH_COLLAPSED = 80
 const TRANSITION_DURATION = 300
 
 const HomeLayout = ({ children }) => {
+  // 1. OBTENER DATOS REALES DE AUTENTICACIÓN
+  const { currentUser: dbUser, logOut, isAuthenticated } = useAuth()
+
   const [mode, setMode] = useState('light')
   const [mobileOpen, setMobileOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -90,19 +90,49 @@ const HomeLayout = ({ children }) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const [notificationsAnchorEl, setNotificationsAnchorEl] = useState(null)
 
-  // User data - Hardcoded for now (replace with actual user data)
-  const currentUser = {
-    id: 8,
-    name: 'RODRIGO AMERICO DE LA CRUZ',
-    role: 'SI - Admin',
-    roleDescription: 'Administrador de Sistema de Inventario',
-    username: 'AMERICO',
-    documentNumber: '13854969',
-    phone: '61135053',
-    email: 'rodrigo.americo@agetic.gob.bo',
-    avatar: 'RA',
-    notifications: 3,
-  }
+  // 2. ADAPTAR EL USUARIO REAL AL DISEÑO
+  // Convertimos los datos de la BD (nombre, apellido) al formato que usa tu UI
+  const currentUser = useMemo(() => {
+    if (!dbUser) {
+      return {
+        id: 0,
+        name: 'Cargando...',
+        role: '...',
+        email: '',
+        avatar: '...'
+      }
+    }
+
+    // Unir nombre y apellidos, o usar email si no existen
+    const fullName = `${dbUser.nombre || ''} ${dbUser.apellido || ''}`.trim() || dbUser.email
+    
+    // Generar iniciales (Ej: Rodrigo Americo -> RA)
+    let initials = 'U'
+    if (dbUser.nombre && dbUser.nombre.length > 0) {
+      initials = dbUser.nombre[0]
+      if (dbUser.apellido && dbUser.apellido.length > 0) {
+        initials += dbUser.apellido[0]
+      }
+    } else if (dbUser.email) {
+      initials = dbUser.email.substring(0, 2).toUpperCase()
+    }
+
+    // Obtener el primer rol o 'Usuario' por defecto
+    const displayRole = (dbUser.roles && dbUser.roles.length > 0) 
+      ? dbUser.roles[0] 
+      : 'Usuario'
+
+    return {
+      id: dbUser.id,
+      name: fullName,
+      role: displayRole, // Muestra el rol real
+      roleDescription: 'Usuario del Sistema',
+      username: dbUser.ciudadaniaDigital || dbUser.email,
+      email: dbUser.email,
+      avatar: initials.toUpperCase(),
+      notifications: 0,
+    }
+  }, [dbUser])
 
   // Theme configuration - Memoize to prevent recreation on every render
   const theme = useMemo(() => createTheme({
@@ -243,7 +273,7 @@ const HomeLayout = ({ children }) => {
       items: [
         { id: 'maquinas', label: 'Máquinas', icon: <MachinesIcon />, route: routes.maquinas() },
         { id: 'clusters', label: 'Clusters', icon: <InventoryIcon />, route: routes.clusters() },
-        { id: 'asignacion', label: 'Asignación CLuster Nodo', icon: <HardwareIcon />, route: routes.clusterNodos() },
+        { id: 'asignacion', label: 'Asignación Cluster Nodo', icon: <HardwareIcon />, route: routes.clusterNodos() },
         { id: 'servidores', label: 'Servidores', icon: <ServersIcon />, route: routes.servidors() },
         { id: 'dataCenters', label: 'Data Centers', icon: <DataCenterIcon />, route: routes.dataCenters() }
       ]
@@ -329,19 +359,24 @@ const HomeLayout = ({ children }) => {
   }, []);
 
   const handleViewProfile = useCallback(() => {
-    navigate(routes.usuario({ id: currentUser.id }))
+    if (currentUser && currentUser.id) {
+      navigate(routes.usuario({ id: currentUser.id }))
+    }
     handleProfileMenuClose()
-  }, [currentUser.id, handleProfileMenuClose])
+  }, [currentUser, handleProfileMenuClose])
 
   const handleEditProfile = useCallback(() => {
-    navigate(routes.editUsuario({ id: currentUser.id }))
+    if (currentUser && currentUser.id) {
+      navigate(routes.editUsuario({ id: currentUser.id }))
+    }
     handleProfileMenuClose()
-  }, [currentUser.id, handleProfileMenuClose])
+  }, [currentUser, handleProfileMenuClose])
 
-  const handleLogout = useCallback(() => {
-    // Add your logout logic here
+  // 3. LOGOUT REAL
+  const handleLogout = useCallback(async () => {
     handleProfileMenuClose()
-  }, [handleProfileMenuClose])
+    await logOut() // Cierra sesión en Redwood y Auth
+  }, [handleProfileMenuClose, logOut])
 
   // Fixed toggle section logic to avoid state conflicts
   const toggleSection = useCallback((sectionId) => {
@@ -634,7 +669,7 @@ const HomeLayout = ({ children }) => {
       </Box>
 
       {/* User profile */}
-      {!sidebarCollapsed && (
+      {!sidebarCollapsed && currentUser.name && (
         <Box sx={{ px: 2, mt: 2 }}>
           <Box
             sx={{
@@ -658,7 +693,7 @@ const HomeLayout = ({ children }) => {
             </Avatar>
             <Box sx={{ ml: 1.5 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                {currentUser.name.split(' ')[0]} {currentUser.name.split(' ')[1]}
+                {currentUser.name.split(' ')[0]} {currentUser.name.split(' ')[1] || ''}
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 {currentUser.role}
@@ -898,7 +933,7 @@ const HomeLayout = ({ children }) => {
                   </Avatar>
                   <Box sx={{ ml: 1, display: { xs: 'none', md: 'block' } }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {currentUser.name.split(' ')[0]} {currentUser.name.split(' ')[1]}
+                      {currentUser.name.split(' ')[0]} {currentUser.name.split(' ')[1] || ''}
                     </Typography>
                     <Typography variant="caption" color="textSecondary">
                       {currentUser.role}

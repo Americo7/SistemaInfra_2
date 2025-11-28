@@ -14,7 +14,6 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
-      # Traemos los clusters asociados para mostrarlos en el detalle
       clusters {
         id
         nombre
@@ -22,7 +21,6 @@ export const QUERY = gql`
         estado
       }
     }
-    # Traemos usuarios para mapear IDs a nombres
     usuarios {
       id
       nombres

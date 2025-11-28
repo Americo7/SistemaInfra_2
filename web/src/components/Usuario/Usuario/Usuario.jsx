@@ -145,15 +145,6 @@ const formatDateTime = (dateString) => {
 const Usuario = ({ usuario }) => {
   const theme = useTheme()
   const [activeTab, setActiveTab] = useState(0)
-  const [deleteUsuario] = useMutation(DELETE_USUARIO_MUTATION, {
-    onCompleted: () => {
-      toast.success('Usuario eliminado correctamente')
-      navigate(routes.usuarios())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar usuario: ${error.message}`)
-    },
-  })
 
   const { data: rolesData } = useQuery(GET_ROLES_QUERY, {
     variables: { id: usuario.id }
@@ -212,11 +203,6 @@ const Usuario = ({ usuario }) => {
   const usuarioCreacionNombre = formatUserName(userCreacionData?.usuario)
   const usuarioModificacionNombre = formatUserName(userModificacionData?.usuario)
 
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar el usuario ${usuario.nombres} ${usuario.primer_apellido} (ID: ${id})?`)) {
-      deleteUsuario({ variables: { id } })
-    }
-  }
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue)
@@ -264,20 +250,7 @@ const Usuario = ({ usuario }) => {
           >
             Editar Usuario
           </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(usuario.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
-          </Button>
+         
         </Stack>
       </Box>
 
@@ -360,10 +333,7 @@ const Usuario = ({ usuario }) => {
                       <TableCell sx={{ fontWeight: 600 }}>Segundo Apellido</TableCell>
                       <TableCell>{usuario.segundo_apellido}</TableCell>
                     </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>ID Ciudadano Digital</TableCell>
-                      <TableCell>{usuario.id_ciudadano_digital || 'N/A'}</TableCell>
-                    </TableRow>
+                  
                     <TableRow>
                       <TableCell sx={{ fontWeight: 600 }}>Número de Documento</TableCell>
                       <TableCell>{usuario.nro_documento}</TableCell>

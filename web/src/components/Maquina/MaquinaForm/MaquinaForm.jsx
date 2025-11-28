@@ -1,94 +1,157 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useQuery, gql } from '@redwoodjs/web'
+import { navigate, routes } from '@redwoodjs/router'
+
 import {
-  Box, Paper, Typography, TextField, Select, MenuItem,
-  FormControl, FormLabel, FormHelperText, InputAdornment,
-  IconButton, Chip, Avatar, Button, Stack, Divider, useTheme,
+  Box,
+  Card,
+  CardHeader,
+  CardContent,
+  Typography,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  FormLabel,
+  FormHelperText,
+  InputAdornment,
+  IconButton,
+  Chip,
+  Avatar,
+  Button,
+  Stack,
+  Divider,
+  Paper,
+  Autocomplete,
+  useTheme,
+  CircularProgress
 } from '@mui/material'
+
 import { LoadingButton } from '@mui/lab'
-import ComputerIcon from '@mui/icons-material/Computer'
+
+// Iconos
+import FingerprintIcon from '@mui/icons-material/Fingerprint'
+import SettingsEthernetIcon from '@mui/icons-material/SettingsEthernet'
 import MemoryIcon from '@mui/icons-material/Memory'
-import StorageIcon from '@mui/icons-material/Storage'
-import DnsIcon from '@mui/icons-material/Dns'
 import NetworkCheckIcon from '@mui/icons-material/NetworkCheck'
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
-import DevicesOtherIcon from '@mui/icons-material/DevicesOther'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import SaveIcon from '@mui/icons-material/Save'
+import CancelIcon from '@mui/icons-material/Cancel'
 import LinkIcon from '@mui/icons-material/Link'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
-import Storage from '@mui/icons-material/Storage'
+import EditIcon from '@mui/icons-material/Edit'
+import StorageIcon from '@mui/icons-material/Storage'
 
-// El Query de Parámetros ya no es necesario aquí porque se pasan como props
-// desde el EditMaquinaCell / NewMaquinaCell.
-// Pero si lo necesitas por alguna razón local:
-const GET_ESTADOS = gql`
-  query GetEstadosEnum {
-    __type(name: "estado") {
-      enumValues { name }
+/* ---------------------------------------------
+ * 1. QUERIES
+ * --------------------------------------------- */
+const FIND_SERVIDORES_QUERY = gql`
+  query ObtenServidores {
+    servidores {
+      id
+      nombre
     }
   }
 `
 
-const SectionCard = ({ title, icon, children }) => (
-  <Paper variant="outlined" sx={{ p: 2, height: '100%', borderRadius: 2 }}>
-    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
-      {icon}
-      <Typography sx={{ fontWeight: 600 }}>{title}</Typography>
-    </Box>
-    {children}
-  </Paper>
-)
+/* ----- COMPONENTES AUXILIARES ----- */
+
+const SectionCard = ({ icon, title, children, color }) => {
+  const theme = useTheme()
+  const activeColor = color || theme.palette.primary.main
+  
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
+            {title}
+          </Typography>
+        }
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5 }}>{children}</CardContent>
+    </Card>
+  )
+}
 
 const DiscosEditor = ({ discos, onAdd, onDelete, onUpdate, error }) => {
   const theme = useTheme()
-  const sanitizeInput = (v) => {
-    if (v === '') return ''
-    const digits = String(v).replace(/\D/g, '')
-    return digits === '' ? '' : String(Number(digits))
-  }
+  const sanitizeInput = (v) => (v === '' ? '' : String(Number(String(v).replace(/\D/g, ''))))
 
   return (
-    <Paper variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
-      {discos.map((d, i) => (
-        <Box key={i} sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: i < discos.length - 1 ? 1 : 0 }}>
-          <Chip
-            avatar={<Avatar sx={{ bgcolor: theme.palette.primary.main, color: '#fff' }}>{d.Disco}</Avatar>}
-            label={`Disco ${d.Disco}`}
-            size="small"
-            sx={{ width: 100 }}
-          />
-          <TextField
-            size="small"
-            type="text"
-            value={d.Valor === 0 ? '' : d.Valor}
-            onChange={(e) => onUpdate(i, sanitizeInput(e.target.value))}
-            placeholder="0"
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><StorageIcon /></InputAdornment>,
-              endAdornment: <InputAdornment position="end">GB</InputAdornment>,
-            }}
-            sx={{ flex: 1 }}
-          />
-          {discos.length > 1 && (
-            <IconButton size="small" color="error" onClick={() => onDelete(i)}>
-              <DeleteOutlineIcon fontSize="small" />
-            </IconButton>
-          )}
-        </Box>
-      ))}
-      <Box sx={{ mt: 1 }}>
-        <Button size="small" startIcon={<AddCircleOutlineIcon />} onClick={onAdd}>
-          Añadir disco
-        </Button>
-        {error && <FormHelperText error>{error}</FormHelperText>}
-      </Box>
+    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#f8f9fa' }}>
+      <Stack spacing={1.5}>
+        {discos.map((d, i) => (
+          <Box key={i} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Chip
+              icon={<StorageIcon style={{ fontSize: 16, color: 'white' }} />}
+              label={`#${d.Disco}`}
+              size="small"
+              sx={{ 
+                minWidth: 60, 
+                fontWeight: 700, 
+                bgcolor: theme.palette.text.secondary, 
+                color: 'white' 
+              }}
+            />
+
+            <TextField
+              size="small"
+              type="text"
+              value={d.Valor === 0 ? '' : d.Valor}
+              onChange={(e) => onUpdate(i, sanitizeInput(e.target.value))}
+              placeholder="0"
+              fullWidth
+              InputProps={{
+                endAdornment: <InputAdornment position="end"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>GB</Typography></InputAdornment>,
+              }}
+              sx={{ bgcolor: '#fff' }}
+            />
+
+            {discos.length > 1 && (
+              <IconButton size="small" color="error" onClick={() => onDelete(i)}>
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Box>
+        ))}
+      </Stack>
+
+      <Button 
+          fullWidth
+          size="small" 
+          startIcon={<AddCircleOutlineIcon />} 
+          onClick={onAdd}
+          sx={{ mt: 1.5, textTransform: 'none', borderStyle: 'dashed' }}
+          variant="outlined"
+      >
+        Añadir Disco
+      </Button>
+      {error && <FormHelperText error>{error}</FormHelperText>}
     </Paper>
   )
 }
 
-// Valores iniciales por defecto
+/* ----- VALORES INICIALES ----- */
 const getDefaultFormValues = () => ({
   nombre: '',
   ip: '',
@@ -97,18 +160,25 @@ const getDefaultFormValues = () => ({
   cpu: '',
   cod_plataforma: '',
   estado: 'ACTIVO',
-  id_servidor: '', // String vacío para el select
-
-  // Campos nuevos
+  estado_operativo: 'unknown',
+  id_servidor: '',
   proxmox_vmid: '',
   uuid: '',
-  mac_address: ''
+  identity_key: '',
 })
 
-const MaquinaForm = ({ maquina, onSave, loading, error, servidores = [], parametros = [] }) => {
+/* ----- FORM PRINCIPAL ----- */
+const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
   const theme = useTheme()
   const isEditMode = Boolean(maquina?.id)
 
+  // --- 1. CARGA DE SERVIDORES (Query Interna) ---
+  const { data: dataServidores, loading: loadingServidores } = useQuery(FIND_SERVIDORES_QUERY)
+  
+  // Lista simple extraída de la query
+  const listaServidores = dataServidores?.servidores || []
+
+  // --- ESTADOS ---
   const [formValues, setFormValues] = useState(getDefaultFormValues())
   const [selectedSO, setSelectedSO] = useState('')
   const [soVersion, setSoVersion] = useState('')
@@ -117,20 +187,8 @@ const MaquinaForm = ({ maquina, onSave, loading, error, servidores = [], paramet
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
 
-  const { data: estadosData, loading: estadosLoading } = useQuery(GET_ESTADOS)
+  const plataformas = useMemo(() => parametros.filter((p) => p.grupo === 'PLATAFORMA'), [parametros])
 
-  const estadosEnum = useMemo(
-    () => estadosData?.__type?.enumValues?.map((e) => e.name) || [],
-    [estadosData]
-  )
-
-  // Filtrar plataformas desde las props
-  const plataformas = useMemo(
-    () => parametros.filter(p => p.grupo === 'PLATAFORMA'),
-    [parametros]
-  )
-
-  // Función para resetear el formulario
   const resetForm = useCallback(() => {
     setFormValues(getDefaultFormValues())
     setSelectedSO('')
@@ -139,10 +197,8 @@ const MaquinaForm = ({ maquina, onSave, loading, error, servidores = [], paramet
     setErrors({})
   }, [])
 
-  // Cargar datos cuando esté en edición
+  /* ----- CARGA INICIAL EN EDICIÓN ----- */
   useEffect(() => {
-    if (estadosLoading) return
-
     if (!isEditMode) {
       if (!isInitialized) {
         resetForm()
@@ -151,7 +207,6 @@ const MaquinaForm = ({ maquina, onSave, loading, error, servidores = [], paramet
       return
     }
 
-    // Modo edición: cargar datos de la máquina
     setFormValues({
       nombre: maquina.nombre ?? '',
       ip: maquina.ip ?? '',
@@ -160,25 +215,19 @@ const MaquinaForm = ({ maquina, onSave, loading, error, servidores = [], paramet
       cpu: maquina.cpu ?? '',
       cod_plataforma: maquina.cod_plataforma ?? '',
       estado: maquina.estado ?? 'ACTIVO',
+      estado_operativo: maquina.estado_operativo ?? 'unknown',
       id_servidor: maquina.id_servidor ?? '',
-
-      // Cargar campos nuevos
       proxmox_vmid: maquina.proxmox_vmid ?? '',
       uuid: maquina.uuid ?? '',
-      mac_address: maquina.mac_address ?? ''
+      identity_key: maquina.identity_key ?? '',
     })
 
-    // Split SO -> selectedSO + soVersion
     if (maquina.so) {
       const parts = String(maquina.so).split(' ')
-      setSelectedSO(parts[0] ?? '')
-      setSoVersion(parts.slice(1).join(' ') ?? '')
-    } else {
-      setSelectedSO('')
-      setSoVersion('')
+      setSelectedSO(parts[0])
+      setSoVersion(parts.slice(1).join(' '))
     }
 
-    // Almacenamiento
     let discosInput = maquina.almacenamiento
     if (typeof discosInput === 'string') {
       try { discosInput = JSON.parse(discosInput) } catch { discosInput = [] }
@@ -188,285 +237,360 @@ const MaquinaForm = ({ maquina, onSave, loading, error, servidores = [], paramet
     setDiscos(
       discosInput.length > 0
         ? discosInput.map((d, idx) => ({
-            Disco: d?.Disco ?? idx + 1,
-            Valor: d?.Valor != null ? String(d.Valor) : '',
+            Disco: d.Disco ?? idx + 1,
+            Valor: d.Valor != null ? String(d.Valor) : '',
           }))
         : [{ Disco: 1, Valor: '' }]
     )
 
     setIsInitialized(true)
-  }, [maquina, estadosLoading, isEditMode, resetForm, isInitialized])
+  }, [maquina, isEditMode, isInitialized, resetForm])
 
-  // Reset isInitialized cuando cambia maquina
   useEffect(() => {
     setIsInitialized(false)
   }, [maquina?.id])
 
-  const cleanNombre = (v) => (v || '').trim().replace(/[\u200B-\u200D\uFEFF]/g, '').slice(0, 50)
-
+  /* ----- VALIDACIONES ----- */
   const validateIP = (ip) => {
-    if (!ip) return '' // IP es opcional ahora
+    if (!ip) return ''
     const ipv4 = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
     return ipv4.test(ip) ? '' : 'IP inválida'
   }
 
   const validateForm = () => {
     const e = {}
-    if (!formValues.nombre?.trim()) e.nombre = 'El nombre es requerido'
-    if ((formValues.nombre || '').length > 50) e.nombre = 'Máximo 50 caracteres'
-
+    if (!formValues.nombre.trim()) e.nombre = 'Requerido'
+    if (!formValues.cod_plataforma) e.cod_plataforma = 'Requerido'
+    if (!formValues.cpu) e.cpu = 'Requerido'
+    if (!formValues.ram) e.ram = 'Requerido'
     const ipErr = validateIP(formValues.ip)
     if (ipErr) e.ip = ipErr
-
-    const soFull = selectedSO && soVersion ? `${selectedSO} ${soVersion}` : ''
-    if (!soFull) e.so = 'El sistema operativo es requerido'
-
-    if (!formValues.ram) e.ram = 'La RAM es requerida'
-    if (!formValues.cpu) e.cpu = 'Los CPUs son requeridos'
-    if (!formValues.cod_plataforma) e.cod_plataforma = 'La plataforma es requerida'
-    if (!formValues.id_servidor) e.id_servidor = 'El servidor host es requerido'
-
-    const discosInvalidos = discos.some((d) => d.Valor === '' || Number(d.Valor) < 1)
-    if (discosInvalidos) e.discos = 'Todos los discos deben tener un valor mayor a 0'
-
+    const soFull = `${selectedSO} ${soVersion}`.trim()
+    if (!soFull) e.so = 'Requerido'
+    if (discos.some((d) => !d.Valor || Number(d.Valor) < 1)) e.discos = 'Tamaño inválido'
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
-  const agregarDisco = () => setDiscos((d) => [...d, { Disco: d.length + 1, Valor: '' }])
-  const eliminarDisco = (idx) => setDiscos((d) => {
-    if (d.length <= 1) return d
-    return d.filter((_, i) => i !== idx).map((x, i) => ({ ...x, Disco: i + 1 }))
-  })
-  const actualizarDisco = (idx, val) => setDiscos((d) => d.map((x, i) => (i === idx ? { ...x, Valor: val } : x)))
+  const agregarDisco = () => setDiscos((prev) => [...prev, { Disco: prev.length + 1, Valor: '' }])
+  const eliminarDisco = (idx) =>
+    setDiscos((prev) => prev.filter((_, i) => i !== idx).map((d, i) => ({ ...d, Disco: i + 1 })))
+  const actualizarDisco = (idx, val) =>
+    setDiscos((prev) => prev.map((d, i) => (i === idx ? { ...d, Valor: val } : d)))
 
-  const handleFieldChange = (name, value) => {
-    setFormValues((prev) => ({ ...prev, [name]: value }))
-    if (name === 'ip') {
-      setErrors((prev) => ({ ...prev, ip: validateIP(value) }))
-    }
+  const handleFieldChange = (field, value) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }))
+    if (field === 'ip') setErrors((prev) => ({ ...prev, ip: validateIP(value) }))
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }))
   }
 
-  const handleSubmit = async (evt) => {
-    evt.preventDefault()
-    if (isSubmitting) return
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!validateForm()) return
     setIsSubmitting(true)
-
     try {
-      if (!validateForm()) {
-        setIsSubmitting(false)
-        return
-      }
-
-      const almacenamientoNormalizado = discos
-        .filter((d) => d.Valor !== '' && Number(d.Valor) > 0)
-        .map((d, idx) => ({ Disco: idx + 1, Valor: Number(d.Valor) }))
-
-      // Payload FINAL
-      const payload = {
-        // ❌ Eliminado: codigo
-        nombre: cleanNombre(formValues.nombre),
-        ip: formValues.ip || null,
-        so: `${selectedSO} ${soVersion}`.trim(),
-        ram: Number(formValues.ram),
-        cpu: Number(formValues.cpu),
-        cod_plataforma: formValues.cod_plataforma,
-        estado: formValues.estado || 'ACTIVO',
-        almacenamiento: almacenamientoNormalizado,
-        // ❌ Eliminado: es_virtual (Siempre true implícitamente en backend si se necesita)
-        id_servidor: formValues.id_servidor ? Number(formValues.id_servidor) : null,
-
-        // ✔ Campos Nuevos
-        proxmox_vmid: formValues.proxmox_vmid ? Number(formValues.proxmox_vmid) : null,
-        uuid: formValues.uuid || null,
-        mac_address: formValues.mac_address || null,
-      }
-
-      if (typeof onSave === 'function') {
-        if (isEditMode) {
-          payload.usuario_modificacion = 1 // O el ID del usuario actual
-          await onSave(payload, maquina.id)
-        } else {
-          payload.usuario_creacion = 1 // O el ID del usuario actual
-          await onSave(payload)
+        const almacenamiento = discos.map((d, idx) => ({ Disco: idx + 1, Valor: Number(d.Valor) }))
+        const payload = {
+            ...formValues,
+            nombre: formValues.nombre.trim(),
+            ram: Number(formValues.ram),
+            cpu: Number(formValues.cpu),
+            so: `${selectedSO} ${soVersion}`.trim(),
+            almacenamiento,
+            id_servidor: formValues.id_servidor ? Number(formValues.id_servidor) : null,
+            proxmox_vmid: formValues.proxmox_vmid ? Number(formValues.proxmox_vmid) : null,
+            usuario_modificacion: isEditMode ? 1 : undefined,
+            usuario_creacion: isEditMode ? undefined : 1,
         }
-      }
-    } catch (err) {
-      console.error('Error al guardar:', err)
+        await onSave(payload, isEditMode ? maquina.id : undefined)
     } finally {
-      setIsSubmitting(false)
+        setIsSubmitting(false)
     }
-  }
-
-  if (estadosLoading) {
-    return (
-      <Paper elevation={2} sx={{ p: 3, textAlign: 'center' }}>
-        <Typography>Cargando formulario...</Typography>
-      </Paper>
-    )
   }
 
   return (
-    <Box component="form" onSubmit={handleSubmit} noValidate>
-      <Paper elevation={2} sx={{ p: 3, px: 4, borderRadius: 3 }}>
-        {/* Header */}
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 3 }}>
-          {isEditMode ? (
-            <DevicesOtherIcon fontSize="large" color="primary" />
-          ) : (
-            <AddCircleOutlineIcon fontSize="large" color="primary" />
+    <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
+      
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        
+        {/* HEADER */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar
+              sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
+                  color: 'white', boxShadow: 3
+                }}
+              >
+              {isEditMode ? <EditIcon /> : <AddCircleOutlineIcon />}
+            </Avatar>
+            <Box>
+              <Typography
+                variant="h5"
+                fontWeight={800}
+                sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  mb: 0.5
+                }}
+              >
+                {isEditMode ? 'Editar Máquina Virtual' : 'Crear Máquina Virtual'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isEditMode ? 'Modificar parámetros de la VM' : 'Provisionamiento de nueva infraestructura'}
+              </Typography>
+            </Box>
+        </Box>
+
+        {/* CONTENIDO PRINCIPAL */}
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+
+          {error && (
+            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+              <ErrorOutlineIcon color="error" />
+              <Typography variant="body2" fontWeight={600}>{String(error)}</Typography>
+            </Paper>
           )}
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              {isEditMode ? `Editar Máquina: ${maquina.nombre || ''}` : 'Crear Máquina'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Complete los datos de la VM y su vinculación
-            </Typography>
-          </Box>
-        </Box>
 
-        {error && (
-          <Paper variant="outlined" sx={{ p: 1, mb: 2, backgroundColor: theme.palette.error.light, color: theme.palette.error.contrastText, display: 'flex', gap: 1, alignItems: 'center' }}>
-            <ErrorOutlineIcon />
-            <Typography variant="body2">{error?.message || String(error)}</Typography>
-          </Paper>
-        )}
+          {/* GRID DE 3 COLUMNAS */}
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+            gap: 3,
+            alignItems: 'start'
+          }}>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, '@media(max-width:1100px)': { gridTemplateColumns: '1fr' } }}>
-
-          {/* Columna 1: Información Básica e Identidad */}
-          <SectionCard title="Información e Identidad" icon={<ComputerIcon />}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 2 }}>
-
-              {/* Nombre */}
-              <FormControl fullWidth error={!!errors.nombre}>
-                <FormLabel>Nombre VM *</FormLabel>
-                <TextField name="nombre" size="small" value={formValues.nombre} onChange={(e) => handleFieldChange('nombre', e.target.value)} />
-                {errors.nombre && <FormHelperText error>{errors.nombre}</FormHelperText>}
-              </FormControl>
-
-              {/* Servidor Host */}
-              <FormControl fullWidth error={!!errors.id_servidor}>
-                <FormLabel>Servidor Físico (Host) *</FormLabel>
-                <Select
-                  size="small"
-                  value={formValues.id_servidor || ''}
-                  onChange={(e) => handleFieldChange('id_servidor', e.target.value)}
-                  displayEmpty
-                >
-                  <MenuItem value="">Seleccionar Host...</MenuItem>
-                  {servidores.map(s => (
-                    <MenuItem key={s.id} value={s.id}>{s.nombre}</MenuItem>
-                  ))}
-                </Select>
-                {errors.id_servidor && <FormHelperText error>{errors.id_servidor}</FormHelperText>}
-              </FormControl>
-
-              {/* Identificadores de Sync */}
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                <FormControl fullWidth>
-                  <FormLabel>Proxmox ID</FormLabel>
-                  <TextField size="small" type="number" value={formValues.proxmox_vmid} onChange={(e) => handleFieldChange('proxmox_vmid', e.target.value)}
-                    InputProps={{ startAdornment: <InputAdornment position="start"><DnsIcon fontSize="small" /></InputAdornment> }}
+            {/* --- CARD 1: IDENTIFICACIÓN --- */}
+            <SectionCard title="Identificación y Host" icon={<FingerprintIcon />} color={theme.palette.primary.main}>
+              <Stack spacing={2.5}>
+                
+                <FormControl fullWidth error={!!errors.nombre}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre de la VM *</FormLabel>
+                  <TextField 
+                    size="small" 
+                    value={formValues.nombre} 
+                    onChange={(e) => handleFieldChange('nombre', e.target.value)}
+                    placeholder="Ej. SRV-WEB-01" 
                   />
+                  {errors.nombre && <FormHelperText>{errors.nombre}</FormHelperText>}
                 </FormControl>
 
-                <FormControl fullWidth>
-                  <FormLabel>MAC Address</FormLabel>
-                  <TextField size="small" value={formValues.mac_address} onChange={(e) => handleFieldChange('mac_address', e.target.value)}
-                    InputProps={{ startAdornment: <InputAdornment position="start"><LinkIcon fontSize="small" /></InputAdornment> }}
-                  />
-                </FormControl>
-              </Box>
+                {/* FILA: SERVIDOR (AUTOCOMPLETE) + VMID */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 2 }}>
+                    
+                    {/* AUTOCOMPLETE SERVIDOR */}
+                    <FormControl fullWidth error={!!errors.id_servidor}>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Servidor Host *</FormLabel>
+                        <Autocomplete
+                            disablePortal
+                            id="combo-box-servidores"
+                            options={listaServidores} // Usamos la lista directa de la query
+                            getOptionLabel={(option) => option.nombre || ''}
+                            loading={loadingServidores}
+                            // Encontrar el objeto completo según el ID del form
+                            value={listaServidores.find(s => s.id === formValues.id_servidor) || null}
+                            onChange={(event, newValue) => {
+                                handleFieldChange('id_servidor', newValue ? newValue.id : '')
+                            }}
+                            renderInput={(params) => (
+                                <TextField 
+                                    {...params} 
+                                    size="small" 
+                                    placeholder={loadingServidores ? "Cargando..." : "Buscar servidor..."}
+                                    error={!!errors.id_servidor}
+                                    InputProps={{
+                                      ...params.InputProps,
+                                      endAdornment: (
+                                        <>
+                                          {loadingServidores ? <CircularProgress color="inherit" size={20} /> : null}
+                                          {params.InputProps.endAdornment}
+                                        </>
+                                      ),
+                                    }}
+                                />
+                            )}
+                            noOptionsText="Sin resultados"
+                        />
+                        {errors.id_servidor && <FormHelperText>{errors.id_servidor}</FormHelperText>}
+                    </FormControl>
 
-              <FormControl fullWidth>
-                <FormLabel>UUID</FormLabel>
-                <TextField size="small" value={formValues.uuid} onChange={(e) => handleFieldChange('uuid', e.target.value)}
-                  InputProps={{ startAdornment: <InputAdornment position="start"><VpnKeyIcon fontSize="small" /></InputAdornment> }}
-                />
-              </FormControl>
-
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                <FormControl fullWidth error={!!errors.estado}>
-                  <FormLabel>Estado</FormLabel>
-                  <Select size="small" value={formValues.estado || ''} onChange={(e) => handleFieldChange('estado', e.target.value)}>
-                    {estadosEnum.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                  </Select>
-                </FormControl>
-
-                <FormControl fullWidth error={!!errors.cod_plataforma}>
-                  <FormLabel>Plataforma *</FormLabel>
-                  <Select name="cod_plataforma" size="small" value={formValues.cod_plataforma || ''} onChange={(e) => handleFieldChange('cod_plataforma', e.target.value)}>
-                    <MenuItem value="">Seleccionar…</MenuItem>
-                    {plataformas.map((p) => (
-                      <MenuItem key={p.codigo} value={p.codigo}>{p.nombre}</MenuItem>
-                    ))}
-                  </Select>
-                  {errors.cod_plataforma && <FormHelperText error>{errors.cod_plataforma}</FormHelperText>}
-                </FormControl>
-              </Box>
-
-            </Box>
-          </SectionCard>
-
-          {/* Columna 2: Especificaciones */}
-          <SectionCard title="Recursos y Red" icon={<MemoryIcon />}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr', gap: 2 }}>
-
-              <FormControl fullWidth error={!!errors.ip}>
-                <FormLabel>Dirección IP</FormLabel>
-                <TextField name="ip" size="small" value={formValues.ip} onChange={(e) => handleFieldChange('ip', e.target.value)} placeholder="192.168.x.x"
-                  InputProps={{ startAdornment: <InputAdornment position="start"><NetworkCheckIcon /></InputAdornment> }}
-                />
-                {errors.ip && <FormHelperText error>{errors.ip}</FormHelperText>}
-              </FormControl>
-
-              <FormControl fullWidth error={!!errors.so}>
-                <FormLabel>Sistema operativo *</FormLabel>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '0.5fr 1fr', gap: 1 }}>
-                  <Select size="small" value={selectedSO} onChange={(e) => setSelectedSO(e.target.value)} displayEmpty>
-                    <MenuItem value="">Seleccionar</MenuItem>
-                    <MenuItem value="Debian">Debian</MenuItem>
-                    <MenuItem value="Ubuntu">Ubuntu</MenuItem>
-                    <MenuItem value="CentOS">CentOS</MenuItem>
-                    <MenuItem value="RedHat">RedHat</MenuItem>
-                    <MenuItem value="Windows">Windows</MenuItem>
-                  </Select>
-                  <TextField size="small" placeholder="Versión (ej: 22.04)" value={soVersion} onChange={(e) => setSoVersion(e.target.value)} />
+                    <FormControl fullWidth>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>VMID</FormLabel>
+                        <TextField 
+                          size="small" 
+                          type="number" 
+                          value={formValues.proxmox_vmid} 
+                          onChange={(e) => handleFieldChange('proxmox_vmid', e.target.value)}
+                        />
+                    </FormControl>
                 </Box>
-                {errors.so && <FormHelperText error>{errors.so}</FormHelperText>}
-              </FormControl>
 
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>UUID</FormLabel>
+                    <TextField 
+                      size="small" 
+                      value={formValues.uuid} 
+                      onChange={(e) => handleFieldChange('uuid', e.target.value)}
+                      placeholder="Auto-generado si vacío"
+                      InputProps={{ startAdornment: <InputAdornment position="start"><VpnKeyIcon fontSize="small" /></InputAdornment> }} 
+                    />
+                </FormControl>
+
+                <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Identificador</FormLabel>
+                    <TextField 
+                      size="small" 
+                      value={formValues.identity_key} 
+                      onChange={(e) => handleFieldChange('identity_key', e.target.value)}
+                      InputProps={{ startAdornment: <InputAdornment position="start"><LinkIcon fontSize="small" /></InputAdornment> }} 
+                    />
+                </FormControl>
+
+              </Stack>
+            </SectionCard>
+
+            {/* --- CARD 2: SISTEMA Y RED --- */}
+            <SectionCard title="Sistema y Red" icon={<SettingsEthernetIcon />} color={theme.palette.secondary.main}>
+              <Stack spacing={2.5}>
+                
+                <FormControl fullWidth error={!!errors.cod_plataforma}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Plataforma *</FormLabel>
+                    <Select
+                      size="small"
+                      value={formValues.cod_plataforma}
+                      onChange={(e) => handleFieldChange('cod_plataforma', e.target.value)}
+                      displayEmpty
+                    >
+                      <MenuItem value=""><em>Seleccionar...</em></MenuItem>
+                      {plataformas.map((p) => (
+                        <MenuItem key={p.codigo} value={p.codigo}>{p.nombre}</MenuItem>
+                      ))}
+                    </Select>
+                </FormControl>
+
+                <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Estado Operativo</FormLabel>
+                    <Select
+                      size="small"
+                      value={formValues.estado_operativo}
+                      onChange={(e) => handleFieldChange('estado_operativo', e.target.value)}
+                    >
+                      <MenuItem value="running">Encendida</MenuItem>
+                      <MenuItem value="stopped">Apagada</MenuItem>
+                      <MenuItem value="paused">Pausada</MenuItem>
+                      <MenuItem value="unknown">Desconocido</MenuItem>
+                    </Select>
+                </FormControl>
+                
+                <Divider sx={{ borderStyle: 'dashed' }} />
+
+                <FormControl fullWidth error={!!errors.ip}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Dirección IP</FormLabel>
+                  <TextField
+                    size="small"
+                    value={formValues.ip}
+                    onChange={(e) => handleFieldChange('ip', e.target.value)}
+                    placeholder="192.168.x.x"
+                    InputProps={{ startAdornment: <InputAdornment position="start"><NetworkCheckIcon fontSize="small" /></InputAdornment> }}
+                  />
+                  {errors.ip && <FormHelperText>{errors.ip}</FormHelperText>}
+                </FormControl>
+
+                <FormControl fullWidth error={!!errors.so}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Sistema Operativo *</FormLabel>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Select sx={{ width: '40%' }} size="small" value={selectedSO} onChange={(e) => setSelectedSO(e.target.value)} displayEmpty>
+                      <MenuItem value=""><em>SO...</em></MenuItem>
+                      <MenuItem value="Debian">Debian</MenuItem>
+                      <MenuItem value="Ubuntu">Ubuntu</MenuItem>
+                      <MenuItem value="CentOS">CentOS</MenuItem>
+                      <MenuItem value="Windows">Windows</MenuItem>
+                    </Select>
+
+                    <TextField
+                      sx={{ width: '60%' }}
+                      size="small"
+                      placeholder="Ver."
+                      value={soVersion}
+                      onChange={(e) => setSoVersion(e.target.value)}
+                    />
+                  </Box>
+                  {errors.so && <FormHelperText>{errors.so}</FormHelperText>}
+                </FormControl>
+
+              </Stack>
+            </SectionCard>
+
+            {/* --- CARD 3: HARDWARE --- */}
+            <SectionCard title="Hardware y Storage" icon={<MemoryIcon />} color="#2e7d32">
+              <Stack spacing={2.5}>
+
                 <FormControl fullWidth error={!!errors.cpu}>
-                  <FormLabel>vCPUs *</FormLabel>
-                  <TextField name="cpu" type="number" size="small" value={formValues.cpu} onChange={(e) => handleFieldChange('cpu', e.target.value)} InputProps={{ inputProps: { min: 1 } }} />
-                  {errors.cpu && <FormHelperText error>{errors.cpu}</FormHelperText>}
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>vCPUs *</FormLabel>
+                    <TextField 
+                        type="number" 
+                        size="small" 
+                        value={formValues.cpu} 
+                        onChange={(e) => handleFieldChange('cpu', e.target.value)} 
+                    />
                 </FormControl>
 
+                {/* RAM debajo de CPU */}
                 <FormControl fullWidth error={!!errors.ram}>
-                  <FormLabel>RAM (GB) *</FormLabel>
-                  <TextField name="ram" type="number" size="small" value={formValues.ram} onChange={(e) => handleFieldChange('ram', e.target.value)} InputProps={{ inputProps: { min: 1 } }} />
-                  {errors.ram && <FormHelperText error>{errors.ram}</FormHelperText>}
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>RAM (GB) *</FormLabel>
+                    <TextField 
+                        type="number" 
+                        size="small" 
+                        value={formValues.ram} 
+                        onChange={(e) => handleFieldChange('ram', e.target.value)} 
+                    />
                 </FormControl>
-              </Box>
 
-              <Divider sx={{ my: 1 }} />
-              <FormLabel sx={{ mb: 1 }}>Discos Virtuales</FormLabel>
-              <DiscosEditor discos={discos} onAdd={agregarDisco} onDelete={eliminarDisco} onUpdate={actualizarDisco} error={errors.discos} />
-            </Box>
-          </SectionCard>
-        </Box>
+                <Divider />
 
-        {/* Botonera */}
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 2 }}>
-          <LoadingButton type="submit" variant="contained" startIcon={<CheckCircleOutlineIcon />} loading={loading || isSubmitting} sx={{ textTransform: 'none', fontWeight: 700 }}>
-            {loading || isSubmitting ? 'Guardando…' : 'Guardar'}
-          </LoadingButton>
-          <Button variant="outlined" onClick={resetForm}>Reset</Button>
+                <Box>
+                  <FormLabel sx={{ mb: 1, display: 'block', fontWeight: 600 }}>Discos Virtuales *</FormLabel>
+                  <DiscosEditor discos={discos} onAdd={agregarDisco} onDelete={eliminarDisco} onUpdate={actualizarDisco} error={errors.discos} />
+                </Box>
+
+              </Stack>
+            </SectionCard>
+
+          </Box>
+
+          {/* BOTONES ACCIÓN */}
+          <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              startIcon={<CancelIcon />}
+              onClick={() => navigate(routes.maquinas())}
+              sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+            >
+              Cancelar
+            </Button>
+
+            <LoadingButton
+              type="submit"
+              variant="contained"
+              loading={loading || isSubmitting}
+              startIcon={<SaveIcon />}
+              sx={{ 
+                background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
+                boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
+              }}
+            >
+              {isEditMode ? 'Guardar Cambios' : 'Registrar Máquina'}
+            </LoadingButton>
+          </Box>
+
         </Box>
-      </Paper>
+      </Card>
     </Box>
   )
 }

@@ -1,8 +1,6 @@
 import { navigate, routes } from '@redwoodjs/router'
 import { useMutation } from '@redwoodjs/web'
-
 import { toast } from '@redwoodjs/web/toast'
-
 import K8sEndpointForm from 'src/components/K8sEndpoint/K8sEndpointForm'
 
 const CREATE_K8S_ENDPOINT_MUTATION = gql`
@@ -18,7 +16,7 @@ const NewK8sEndpoint = () => {
     CREATE_K8S_ENDPOINT_MUTATION,
     {
       onCompleted: () => {
-        toast.success('K8sEndpoint created')
+        toast.success('Endpoint Kubernetes creado')
         navigate(routes.k8SEndpoints())
       },
       onError: (error) => {
@@ -32,14 +30,11 @@ const NewK8sEndpoint = () => {
   }
 
   return (
-    <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">New K8sEndpoint</h2>
-      </header>
-      <div className="rw-segment-main">
-        <K8sEndpointForm onSave={onSave} loading={loading} error={error} />
-      </div>
-    </div>
+    <K8sEndpointForm
+      onSave={onSave}
+      loading={loading}
+      error={error}
+    />
   )
 }
 

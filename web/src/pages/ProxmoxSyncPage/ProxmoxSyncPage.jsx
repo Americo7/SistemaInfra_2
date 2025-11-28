@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
-// Iconos Material UI
-import StorageIcon from '@mui/icons-material/Storage'
+// Iconos
+import StorageIcon from '@mui/icons-material/Storage' // Nodos
+import ComputerIcon from '@mui/icons-material/Computer' // VMs
 import SyncIcon from '@mui/icons-material/Sync'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorIcon from '@mui/icons-material/Error'
 import DnsIcon from '@mui/icons-material/Dns'
-import ComputerIcon from '@mui/icons-material/Computer' // Icono para VM/Proxmox
+import FactCheckIcon from '@mui/icons-material/FactCheck'
+import AddCircleIcon from '@mui/icons-material/AddCircle' // Para insertados
 
 import {
   Box,
@@ -24,8 +26,12 @@ import {
   Stack,
   Avatar,
   Alert,
+  Tooltip
 } from '@mui/material'
 
+/* ============================================================
+   GRAPHQL
+============================================================ */
 const CONSULTA_PROXMOX = gql`
   query ProxmoxEndpointsForSync {
     proxmoxEndpoints {
@@ -39,134 +45,134 @@ const CONSULTA_PROXMOX = gql`
   }
 `
 
+/* ============================================================
+   COMPONENTE PRINCIPAL
+============================================================ */
 export default function ProxmoxSyncPage() {
   const { data, loading, refetch } = useQuery(CONSULTA_PROXMOX)
 
-  // Estados de control
   const [idEnProceso, setIdEnProceso] = useState(null)
+  const [tipoProceso, setTipoProceso] = useState(null)
   const [sincronizandoTodo, setSincronizandoTodo] = useState(false)
   const [estadoSincronizacion, setEstadoSincronizacion] = useState({})
+  const [yaVerificado, setYaVerificado] = useState(false)
 
-  // ---------------------------------------------------------
-  // VARIABLE DE ENTORNO PARA URL (Igual que en K8s)
-  // ---------------------------------------------------------
   const API_URL = process.env.API_URL || 'http://localhost:8911'
 
-  /**
-   * Conecta con la función proxmoxSync del backend
-   */
-  const procesarSincronizacion = async (endpointId) => {
-    console.log(`[ProxmoxSync] Iniciando sync ID: ${endpointId}`)
+  /* ============================================================
+     CONEXIÓN BACKEND
+  ============================================================ */
+  const conectarBackend = async (endpointId, accion) => {
     setIdEnProceso(endpointId)
+    setTipoProceso(accion)
 
-    // Resetear estado visual a "cargando"
-    setEstadoSincronizacion((previos) => ({
-      ...previos,
-      [endpointId]: { tipo: 'cargando' },
+    setEstadoSincronizacion((prev) => ({
+      ...prev,
+      [endpointId]: { tipo: 'cargando', accion },
     }))
 
     try {
-      const urlDestino = `${API_URL}/proxmoxSync`
-      console.log(`[ProxmoxSync] Request a: ${urlDestino}`)
-
-      const respuesta = await fetch(urlDestino, {
+      const respuesta = await fetch(`${API_URL}/proxmoxSync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpointId: endpointId }),
+        body: JSON.stringify({
+          endpointId,
+          soloVerificar: accion === 'verify',
+        }),
       })
 
       const datos = await respuesta.json()
+      if (!respuesta.ok) throw new Error(datos.error || 'Error desconocido')
+      if (datos.success === false) throw new Error(datos.message || 'Error lógico')
 
-      if (!respuesta.ok) {
-        throw new Error(datos.error || `Error HTTP ${respuesta.status}`)
+      // Mapeo de datos para el frontend
+      const info = {
+        nodos: datos.totalNodosDetectados ?? 0,
+        nodosNuevos: datos.totalNodosInsertados ?? 0,
+        vms: datos.totalVMsDetectadas ?? 0,
+        vmsNuevas: datos.totalVMsInsertadas ?? 0,
       }
 
-      console.log('[ProxmoxSync] Éxito:', datos)
+      const mensaje = accion === 'verify' ? 'Conexión exitosa' : 'Sincronización completada'
 
-      // Calculamos totales para el feedback visual
-      const totalNodos = datos.nodos?.length || 0
-      // Sumamos las VMs de todos los nodos
-      const totalVMs = datos.nodos?.reduce((acc, nodo) => acc + (nodo.vms?.length || 0), 0) || 0
-
-      setEstadoSincronizacion((previos) => ({
-        ...previos,
+      setEstadoSincronizacion((prev) => ({
+        ...prev,
         [endpointId]: {
           tipo: 'exito',
-          mensaje: 'Sincronizado',
-          detalles: `${totalNodos} Nodos / ${totalVMs} VMs`,
+          mensaje,
+          resumen: info,
+          accion
         },
       }))
 
-      toast.success(`Proxmox conectado: ${totalVMs} VMs encontradas`)
-      await refetch()
+      toast.success(mensaje)
+      if (accion === 'sync') await refetch()
 
     } catch (error) {
-      console.error('[ProxmoxSync] Error:', error)
-      setEstadoSincronizacion((previos) => ({
-        ...previos,
+      setEstadoSincronizacion((prev) => ({
+        ...prev,
         [endpointId]: {
           tipo: 'error',
           mensaje: error.message,
+          accion // Mantenemos la acción para saber qué falló
         },
       }))
-      toast.error(`Error Proxmox: ${error.message}`)
+      toast.error(error.message)
     } finally {
       setIdEnProceso(null)
+      setTipoProceso(null)
     }
   }
 
-  /**
-   * Sincronización masiva secuencial
-   */
+  /* ============================================================
+     SINCRONIZACIÓN MASIVA
+  ============================================================ */
   const ejecutarSincronizacionMasiva = async () => {
     const lista = data?.proxmoxEndpoints || []
-
-    if (lista.length === 0) {
-      toast.info('No hay servidores Proxmox configurados')
-      return
-    }
-
+    if (lista.length === 0) return
     setSincronizandoTodo(true)
-    toast.loading('Sincronizando todos los servidores...', { id: 'proxmox-masivo' })
-
+    toast.loading('Sincronizando todo...', { id: 'proxmox-masivo' })
     for (const ep of lista) {
-      await procesarSincronizacion(ep.id)
+      await conectarBackend(ep.id, 'sync')
     }
-
     toast.dismiss('proxmox-masivo')
-    toast.success('Sincronización masiva completada')
+    toast.success('Proceso masivo completado')
     setSincronizandoTodo(false)
   }
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="50vh">
-        <CircularProgress />
-        <Typography ml={2}>Cargando servidores...</Typography>
-      </Box>
-    )
-  }
+  /* ============================================================
+     AUTO-VERIFY
+  ============================================================ */
+  useEffect(() => {
+    if (yaVerificado || loading) return
+    const endpoints = data?.proxmoxEndpoints || []
+    if (endpoints.length > 0) {
+      setYaVerificado(true)
+      endpoints.forEach((ep) => conectarBackend(ep.id, 'verify'))
+    }
+  }, [loading, data, yaVerificado])
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
+  if (loading) return <Box display="flex" justifyContent="center" mt={10}><CircularProgress /></Box>
 
   const endpoints = data?.proxmoxEndpoints ?? []
 
   return (
-    <Box p={3}>
-      {/* Cabecera */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" mb={4} spacing={2}>
+    <Box p={3} maxWidth={1600} mx="auto">
+      {/* HEADER */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" mb={4} sx={{ borderBottom: '1px solid #e0e0e0', pb: 2 }}>
         <Box>
-          <Typography variant="h4" component="h1" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 'bold' }}>
-            <DnsIcon fontSize="large" color="warning" /> {/* Color warning (naranja) para Proxmox */}
-            Sincronización Proxmox
+          <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: '#e65100' }}>
+            <DnsIcon fontSize="large" /> Sincronización Proxmox
           </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Conectando vía: {API_URL}
-          </Typography>
+          <Typography variant="body2" color="text.secondary">Gestión de hipervisores y VMs (API: {API_URL})</Typography>
         </Box>
-
         <Button
           variant="contained"
           size="large"
-          color="warning" // Botón naranja para diferenciar de K8s
+          color="warning" // Color Naranja Proxmox
           startIcon={sincronizandoTodo ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />}
           onClick={ejecutarSincronizacionMasiva}
           disabled={sincronizandoTodo || endpoints.length === 0}
@@ -175,106 +181,120 @@ export default function ProxmoxSyncPage() {
         </Button>
       </Stack>
 
-      {/* Listado de Tarjetas */}
+      {/* LISTA */}
       {endpoints.length === 0 ? (
-        <Alert severity="warning" variant="outlined">
-          No hay servidores Proxmox configurados en la base de datos.
-        </Alert>
+        <Alert severity="warning">No hay endpoints Proxmox configurados.</Alert>
       ) : (
         <Grid container spacing={3}>
           {endpoints.map((ep) => {
             const resultado = estadoSincronizacion[ep.id] || {}
-            const estaCargando = idEnProceso === ep.id
+            const procesando = idEnProceso === ep.id
+            const esError = resultado.tipo === 'error'
+            const exitoSync = resultado.tipo === 'exito' && resultado.accion === 'sync'
 
-            // Configuración visual del estado
-            let colorChip = 'default'
-            let iconoChip = <StorageIcon />
-            let textoChip = 'Pendiente'
-
-            if (resultado.tipo === 'exito') {
-              colorChip = 'success'
-              iconoChip = <CheckCircleIcon />
-              textoChip = resultado.detalles // Muestra "X Nodos / Y VMs"
-            } else if (resultado.tipo === 'error') {
-              colorChip = 'error'
-              iconoChip = <ErrorIcon />
-              textoChip = 'Error'
-            }
+            // Contadores
+            const info = resultado.resumen || { nodos: 0, vms: 0, nodosNuevos: 0, vmsNuevas: 0 }
+            const totalInsertados = info.nodosNuevos + info.vmsNuevas
 
             return (
               <Grid item xs={12} md={6} lg={4} key={ep.id}>
-                <Card elevation={4} sx={{ borderRadius: 3, transition: '0.3s', '&:hover': { transform: 'translateY(-4px)' } }}>
-
-                  {/* Cabecera de Tarjeta */}
+                <Card elevation={3} sx={{ borderRadius: 3, transition: '0.2s', '&:hover': { transform: 'translateY(-4px)' } }}>
+                  
                   <CardHeader
-                    avatar={
-                      // Avatar Naranja intenso (#E55D32 es parecido al de Proxmox)
-                      <Avatar sx={{ bgcolor: '#E55D32', width: 50, height: 50 }}>
-                        <ComputerIcon />
-                      </Avatar>
-                    }
-                    title={
-                      <Typography variant="h6" fontWeight="bold">
-                        {ep.nombre}
-                      </Typography>
-                    }
-                    subheader={
-                      <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
-                        {ep.usuario}@{ep.ip}:{ep.puerto}
-                      </Typography>
-                    }
+                    avatar={<Avatar sx={{ bgcolor: esError ? '#d32f2f' : '#ef6c00' }}><ComputerIcon /></Avatar>}
+                    title={<Typography fontWeight="bold" noWrap>{ep.nombre}</Typography>}
+                    subheader={<Typography variant="caption" noWrap>{ep.usuario}@{ep.ip}</Typography>}
                   />
                   <Divider />
 
-                  {/* Cuerpo */}
                   <CardContent>
                     <Stack spacing={2}>
-
-                      {/* Estado */}
+                      
+                      {/* ESTADO */}
                       <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Typography variant="body2" color="text.secondary">
-                          Estado Sync:
-                        </Typography>
-                        <Chip
-                          label={estaCargando ? 'Conectando...' : textoChip}
-                          color={colorChip}
-                          size="small"
-                          variant={estaCargando ? 'outlined' : 'filled'}
-                          icon={estaCargando ? <CircularProgress size={16} /> : iconoChip}
-                        />
+                        <Typography variant="body2" fontWeight="600">Estado:</Typography>
+                        {procesando ? (
+                           <Chip label={tipoProceso === 'verify' ? "Verificando..." : "Sincronizando..."} color="warning" variant="outlined" icon={<CircularProgress size={14} />} />
+                        ) : esError ? (
+                           <Chip label="Error" color="error" icon={<ErrorIcon />} />
+                        ) : resultado.tipo === 'exito' ? (
+                           <Chip label={resultado.accion === 'sync' ? "Sincronizado" : "Online"} color="success" icon={<CheckCircleIcon />} />
+                        ) : (
+                           <Chip label="Pendiente" />
+                        )}
                       </Box>
 
-                      {/* Alerta de Error */}
-                      {resultado.tipo === 'error' && (
-                        <Alert severity="error" sx={{ fontSize: '0.8rem' }}>
-                          {resultado.mensaje}
-                        </Alert>
+                      {/* --- ESTADÍSTICAS (ESTILO K8S) --- */}
+                      {resultado.tipo === 'exito' && (
+                        <Box sx={{ bgcolor: '#fff3e0', p: 1.5, borderRadius: 2, border: '1px solid #ffe0b2' }}>
+                            <Typography variant="caption" color="warning.dark" fontWeight="bold" gutterBottom display="block">
+                                RESULTADO DEL ESCANEO:
+                            </Typography>
+                            
+                            <Stack direction="row" spacing={1} justifyContent="space-between">
+                                {/* Total Nodos */}
+                                <Tooltip title="Nodos Físicos (Hypervisors)">
+                                    <Chip 
+                                        size="small" 
+                                        icon={<StorageIcon sx={{ fontSize: 16, color: '#e65100 !important' }} />} 
+                                        label={`${info.nodos} Nodos`} 
+                                        sx={{ bgcolor: 'white', fontWeight: 'bold', border: '1px solid #ffe0b2', color: '#e65100' }} 
+                                    />
+                                </Tooltip>
+
+                                {/* Total VMs */}
+                                <Tooltip title="Máquinas Virtuales Detectadas">
+                                    <Chip 
+                                        size="small" 
+                                        icon={<ComputerIcon sx={{ fontSize: 16, color: '#1565c0 !important' }} />} 
+                                        label={`${info.vms} VMs`} 
+                                        sx={{ bgcolor: 'white', color: '#1565c0', borderColor: '#bbdefb', border: '1px solid' }} 
+                                    />
+                                </Tooltip>
+
+                                {/* Insertados / Nuevos (Lo que pediste) */}
+                                <Tooltip title="Recursos Nuevos Insertados en BD">
+                                    <Chip 
+                                        size="small" 
+                                        icon={<AddCircleIcon sx={{ fontSize: 16, color: '#2e7d32 !important' }} />} 
+                                        label={`+${totalInsertados} New`} 
+                                        sx={{ bgcolor: 'white', color: '#2e7d32', borderColor: '#c8e6c9', border: '1px solid' }} 
+                                    />
+                                </Tooltip>
+                            </Stack>
+                        </Box>
                       )}
 
-                      {/* Fecha */}
-                      <Box sx={{ bgcolor: '#fff3e0', p: 1.5, borderRadius: 2 }}> {/* Fondo naranja muy suave */}
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          Última sincronización:
-                        </Typography>
-                        <Typography variant="body2" fontWeight="medium">
-                          {ep.fecha_ultima_sync
-                            ? new Date(ep.fecha_ultima_sync).toLocaleString()
-                            : 'Nunca'}
-                        </Typography>
-                      </Box>
+                      {/* MENSAJE ERROR */}
+                      {esError && (
+                          <Alert severity="error" sx={{ py: 0, fontSize: '0.75rem' }}>{resultado.mensaje}</Alert>
+                      )}
 
-                      {/* Botón */}
-                      <Button
-                        variant="outlined"
-                        color="warning"
-                        fullWidth
-                        startIcon={<SyncIcon />}
-                        onClick={() => procesarSincronizacion(ep.id)}
-                        disabled={estaCargando || sincronizandoTodo}
-                        sx={{ mt: 1 }}
-                      >
-                        {estaCargando ? 'Sincronizando...' : 'Sincronizar'}
-                      </Button>
+                      {/* FECHA */}
+                      {!exitoSync && !esError && (
+                        <Box sx={{ bgcolor: '#f5f7fa', p: 1.5, borderRadius: 2 }}>
+                            <Typography variant="caption" color="text.secondary">Última sync:</Typography>
+                            <Typography variant="body2" fontWeight="medium">
+                            {ep.fecha_ultima_sync ? new Date(ep.fecha_ultima_sync).toLocaleString() : 'Nunca'}
+                            </Typography>
+                        </Box>
+                      )}
+
+                      {/* BOTONES */}
+                      <Stack direction="row" spacing={1}>
+                        <Button 
+                            variant="outlined" color="inherit" fullWidth size="small" startIcon={<FactCheckIcon />}
+                            onClick={() => conectarBackend(ep.id, 'verify')} disabled={procesando || sincronizandoTodo}
+                        >
+                          Verificar
+                        </Button>
+                        <Button 
+                            variant="contained" color="warning" fullWidth size="small" startIcon={<SyncIcon />}
+                            onClick={() => conectarBackend(ep.id, 'sync')} disabled={procesando || sincronizandoTodo || esError}
+                        >
+                          Sincronizar
+                        </Button>
+                      </Stack>
 
                     </Stack>
                   </CardContent>

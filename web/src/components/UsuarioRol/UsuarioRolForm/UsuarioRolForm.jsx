@@ -1,39 +1,48 @@
-import { useState, useEffect } from 'react'
-import Select from 'react-select'
-import { Form, FormError, Label } from '@redwoodjs/forms'
-import { useQuery } from '@redwoodjs/web'
+import React, { useMemo } from 'react'
+import { useQuery, gql } from '@redwoodjs/web'
+import { useForm, Controller } from 'react-hook-form'
+import { navigate, routes } from '@redwoodjs/router'
+
 import {
   Box,
   Card,
   CardContent,
-  Divider,
-  Grid,
+  CardHeader,
   Typography,
-  useTheme,
-  IconButton,
   TextField,
-  List,
-  ListItem,
-  Checkbox,
-  ListItemIcon,
-  ListItemText,
-  Chip,
-  Fade,
+  FormControl,
+  FormLabel,
+  Autocomplete,
+  Stack,
+  Avatar,
+  Button,
+  useTheme,
+  Paper,
+  CircularProgress,
+  Divider,
+  Alert
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
+
+// Iconos
 import {
-  CheckCircleOutline,
-  ErrorOutline,
-  HelpOutline,
-  Person,
-  Badge,
-  Computer,
-  Apps,
-  Close,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  Edit as EditIcon,
+  AddCircle as AddIcon,
+  ErrorOutline as ErrorIcon,
+  Person as PersonIcon,
+  Badge as RoleIcon,
+  Computer as MachineIcon,
+  Apps as SystemIcon,
+  AdminPanelSettings as AssignIcon
 } from '@mui/icons-material'
 
-const GET_USUARIOS = gql`
-  query ObtenerUsuariosAsignacion {
+/* ---------------------------------------------
+ * 1. QUERIES
+ * --------------------------------------------- */
+const GET_DATA_FORM = gql`
+  query GetDataUsuarioRol {
     usuarios {
       id
       nombres
@@ -41,32 +50,17 @@ const GET_USUARIOS = gql`
       segundo_apellido
       estado
     }
-  }
-`
-
-const GET_ROLES = gql`
-  query ObtenerRolesAsignacion {
     roles {
       id
       nombre
       estado
     }
-  }
-`
-
-const GET_MAQUINAS = gql`
-  query GetMaquinasAsignacion {
     maquinas {
       id
       nombre
       ip
       estado
     }
-  }
-`
-
-const GET_SISTEMAS = gql`
-  query GetSistemasAsignacion {
     sistemas {
       id
       nombre
@@ -75,531 +69,384 @@ const GET_SISTEMAS = gql`
   }
 `
 
+/* ---------------------------------------------
+ * 2. COMPONENTE HELPER: SectionCard
+ * --------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* ---------------------------------------------
+ * 3. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
 const UsuarioRolForm = (props) => {
   const theme = useTheme()
-  const { data: usuariosData } = useQuery(GET_USUARIOS)
-  const { data: rolesData } = useQuery(GET_ROLES)
-  const { data: maquinasData } = useQuery(GET_MAQUINAS)
-  const { data: sistemasData } = useQuery(GET_SISTEMAS)
+  const isEdit = Boolean(props.usuarioRol?.id)
 
-  const [selectedUsuario, setSelectedUsuario] = useState(props.usuarioRol?.id_usuario || null)
-  const [selectedRol, setSelectedRol] = useState(props.usuarioRol?.id_rol || null)
-  const [selectedMaquinas, setSelectedMaquinas] = useState([])
-  const [selectedSistema, setSelectedSistema] = useState(props.usuarioRol?.id_sistema || null)
-  const [searchMaquina, setSearchMaquina] = useState('')
-  const [showMaquinas, setShowMaquinas] = useState(false)
-  const [showSistemas, setShowSistemas] = useState(false)
-  const [searchUsuario, setSearchUsuario] = useState('')
+  // Carga de datos
+  const { data, loading: loadingData } = useQuery(GET_DATA_FORM)
 
-  // Initialize selected machines when editing
-  useEffect(() => {
-    if (props.usuarioRol && props.usuarioRol.id_maquina) {
-      setSelectedMaquinas([props.usuarioRol.id_maquina])
-    } else if (props.usuarioRol && props.usuarioRol.maquinas && props.usuarioRol.maquinas.length > 0) {
-      const maquinaIds = props.usuarioRol.maquinas.map(m => m.id)
-      setSelectedMaquinas(maquinaIds)
+  // Preparación de Opciones
+  const usuariosOptions = useMemo(() => {
+    if (!data?.usuarios) return []
+    return data.usuarios
+      .filter(u => u.estado === 'ACTIVO')
+      .map(u => ({
+        id: u.id,
+        label: `${u.primer_apellido} ${u.segundo_apellido || ''}, ${u.nombres}`.trim()
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [data])
+
+  const rolesOptions = useMemo(() => 
+    data?.roles?.filter(r => r.estado === 'ACTIVO').sort((a, b) => a.nombre.localeCompare(b.nombre)) || [], 
+  [data])
+
+  const maquinasOptions = useMemo(() => 
+    data?.maquinas?.filter(m => m.estado === 'ACTIVO').map(m => ({
+      id: m.id,
+      label: `${m.nombre} (${m.ip})`
+    })).sort((a, b) => a.label.localeCompare(b.label)) || [], 
+  [data])
+
+  const sistemasOptions = useMemo(() => 
+    data?.sistemas?.filter(s => s.estado === 'ACTIVO').sort((a, b) => a.nombre.localeCompare(b.nombre)) || [], 
+  [data])
+
+  // Configuración del Formulario
+  const formMethods = useForm({
+    defaultValues: {
+      id_usuario: props.usuarioRol?.id_usuario || null,
+      id_rol: props.usuarioRol?.id_rol || null,
+      // Manejo de array para múltiples máquinas
+      maquinas: props.usuarioRol?.id_maquina 
+        ? [props.usuarioRol.id_maquina] 
+        : (props.usuarioRol?.maquinas?.map(m => m.id) || []), 
+      id_sistema: props.usuarioRol?.id_sistema || null,
+    },
+  })
+
+  const { control, handleSubmit, formState: { errors } } = formMethods
+
+  // Manejador de Envío
+  const onSubmit = async (formData) => {
+    const basePayload = {
+      id_usuario: formData.id_usuario,
+      id_rol: formData.id_rol,
+      estado: 'ACTIVO',
+      usuario_modificacion: 2,
+      usuario_creacion: isEdit ? undefined : 3,
     }
-  }, [props.usuarioRol])
 
-  // Efecto para mostrar/ocultar campos según el rol seleccionado
-  useEffect(() => {
-    if (selectedRol) {
-      const rolSeleccionado = rolesData?.roles?.find(rol => rol.id === selectedRol)
-      if (rolSeleccionado?.nombre === 'SI - Admin') {
-        setShowSistemas(true)
-        setShowMaquinas(false)
-      } else {
-        setShowMaquinas(true)
-        setShowSistemas(false)
-        // Solo limpiar sistema si cambiamos de Admin SI a otro rol
-        if (!showMaquinas) {
-          setSelectedSistema(null)
+    const maquinasSeleccionadas = formData.maquinas || []
+    const sistemaSeleccionado = formData.id_sistema
+
+    // Validación custom: Debe haber al menos un recurso seleccionado
+    if (maquinasSeleccionadas.length === 0 && !sistemaSeleccionado) {
+      alert("Debe asignar al menos una Máquina o un Sistema.")
+      return
+    }
+
+    // 1. Guardar Asignación de Sistema (si existe)
+    if (sistemaSeleccionado) {
+      const payloadSistema = {
+        ...basePayload,
+        id_sistema: sistemaSeleccionado,
+        id_maquina: null,
+      }
+      await props.onSave(payloadSistema, isEdit && !maquinasSeleccionadas.length ? props.usuarioRol.id : undefined)
+    }
+
+    // 2. Guardar Asignaciones de Máquinas (si existen)
+    // Nota: Esto creará múltiples registros.
+    if (maquinasSeleccionadas.length > 0) {
+      for (const maquinaId of maquinasSeleccionadas) {
+        const payloadMaquina = {
+          ...basePayload,
+          id_maquina: maquinaId,
+          id_sistema: null
         }
+        // En edición simple, usamos el ID existente solo para el primer elemento si coincide,
+        // pero para asignación masiva suele ser mejor tratarlo como creaciones nuevas o lógica específica de backend.
+        // Aquí enviamos undefined en ID si estamos en un bucle para forzar creaciones nuevas salvo que sea edición unitaria.
+        await props.onSave(payloadMaquina, undefined) 
       }
-    } else {
-      // Si no hay rol seleccionado, ocultar ambos campos
-      setShowMaquinas(false)
-      setShowSistemas(false)
     }
-  }, [selectedRol, rolesData?.roles])
-
-  const usuarioOptions =
-    usuariosData?.usuarios
-      ?.filter((usuario) => usuario.estado === 'ACTIVO')
-      .sort((a, b) => {
-        // Ordenar por apellido y luego por nombre
-        const apellidoA = `${a.primer_apellido} ${a.segundo_apellido || ''}`.trim().toLowerCase();
-        const apellidoB = `${b.primer_apellido} ${b.segundo_apellido || ''}`.trim().toLowerCase();
-
-        if (apellidoA < apellidoB) return -1;
-        if (apellidoA > apellidoB) return 1;
-
-        // Si los apellidos son iguales, ordenar por nombre
-        return a.nombres.toLowerCase() < b.nombres.toLowerCase() ? -1 : 1;
-      })
-      .map((usuario) => ({
-        value: usuario.id,
-        label: `${usuario.primer_apellido} ${usuario.segundo_apellido || ''}, ${usuario.nombres}`,
-        searchTerms: `${usuario.nombres} ${usuario.primer_apellido} ${usuario.segundo_apellido || ''}`.toLowerCase(),
-      })) || []
-
-  const rolOptions =
-    rolesData?.roles
-      ?.filter((rol) => rol.estado === 'ACTIVO')
-      .sort((a, b) => a.nombre.localeCompare(b.nombre)) // Ordenar roles alfabéticamente
-      .map((rol) => ({
-        value: rol.id,
-        label: rol.nombre,
-      })) || []
-
-  const maquinasList =
-    maquinasData?.maquinas
-      ?.filter((maquina) => maquina.estado === 'ACTIVO')
-      .sort((a, b) => a.nombre.localeCompare(b.nombre)) || [] // Ordenar máquinas alfabéticamente
-
-  const filteredMaquinas = maquinasList.filter(maquina =>
-    maquina.nombre.toLowerCase().includes(searchMaquina.toLowerCase()) ||
-    maquina.ip.includes(searchMaquina)
-  )
-
-  const sistemasOptions =
-    sistemasData?.sistemas
-      ?.filter((sistema) => sistema.estado === 'ACTIVO')
-      .sort((a, b) => a.nombre.localeCompare(b.nombre)) // Ordenar sistemas alfabéticamente
-      .map((sistema) => ({
-        value: sistema.id,
-        label: sistema.nombre,
-      })) || []
-
-  const handleToggleMaquina = (maquinaId) => {
-    const currentIndex = selectedMaquinas.indexOf(maquinaId)
-    const newSelected = [...selectedMaquinas]
-
-    if (currentIndex === -1) {
-      newSelected.push(maquinaId)
-    } else {
-      newSelected.splice(currentIndex, 1)
-    }
-
-    setSelectedMaquinas(newSelected)
+    
+    // Si es edición unitaria de un solo registro existente que tenía máquina y ahora cambiamos, 
+    // la lógica anterior podría crear nuevos. Esto depende de cómo tu `onSave` maneje el retorno.
   }
 
-  const handleRemoveMaquina = (maquinaId, e) => {
-    e.stopPropagation()
-    setSelectedMaquinas(selectedMaquinas.filter(id => id !== maquinaId))
-  }
-
-  const onSubmit = (data) => {
-    // Validar campos requeridos (solo usuario y rol)
-    if (!selectedUsuario || !selectedRol) {
-      alert('Por favor complete los campos obligatorios: Usuario y Rol')
-      return
-    }
-
-    // Determinar qué campos incluir según el rol
-    const rolSeleccionado = rolesData?.roles?.find(rol => rol.id === selectedRol)
-    const esAdminSI = rolSeleccionado?.nombre === 'SI - Admin'
-
-    // Si es admin SI, crear una sola asignación con sistema
-    if (esAdminSI) {
-      const asignacion = {
-        ...data,
-        id_usuario: selectedUsuario,
-        id_rol: selectedRol,
-        id_maquina: null,
-        id_sistema: selectedSistema,
-        estado: 'ACTIVO',
-        usuario_modificacion: 2,
-        usuario_creacion: 3,
-      }
-      props.onSave(asignacion, props?.usuarioRol?.id)
-      return
-    }
-
-    // Si no hay máquinas seleccionadas (y no es admin SI), crear una sola asignación sin máquina
-    if (selectedMaquinas.length === 0 && !esAdminSI) {
-      const asignacion = {
-        ...data,
-        id_usuario: selectedUsuario,
-        id_rol: selectedRol,
-        id_maquina: null,
-        id_sistema: null,
-        estado: 'ACTIVO',
-        usuario_modificacion: 2,
-        usuario_creacion: 3,
-      }
-      props.onSave(asignacion, props?.usuarioRol?.id)
-      return
-    }
-
-    // Si hay máquinas seleccionadas, crear una asignación por cada máquina
-    selectedMaquinas.forEach((id_maquina) => {
-      const asignacion = {
-        ...data,
-        id_usuario: selectedUsuario,
-        id_rol: selectedRol,
-        id_maquina: id_maquina,
-        id_sistema: null,
-        estado: 'ACTIVO',
-        usuario_modificacion: 2,
-        usuario_creacion: 3,
-      }
-      props.onSave(asignacion, props?.usuarioRol?.id)
-    })
-  }
-
-  const customSelectStyles = {
-    control: (base, state) => ({
-      ...base,
-      minHeight: '50px',
-      borderRadius: '8px',
-      borderColor: state.isFocused ? theme.palette.primary.main : theme.palette.divider,
-      boxShadow: state.isFocused ? `0 0 0 1px ${theme.palette.primary.main}` : 'none',
-      '&:hover': {
-        borderColor: theme.palette.primary.main,
-      },
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isSelected
-        ? theme.palette.primary.light
-        : state.isFocused
-        ? theme.palette.action.hover
-        : 'transparent',
-      color: state.isSelected
-        ? theme.palette.primary.contrastText
-        : theme.palette.text.primary,
-      padding: '10px 15px',
-      fontSize: '14px',
-    }),
-    menu: (base) => ({
-      ...base,
-      zIndex: 9999,
-      maxHeight: '300px',
-    }),
-    menuList: (base) => ({
-      ...base,
-      maxHeight: '300px',
-    }),
-    input: (base) => ({
-      ...base,
-      fontSize: '14px',
-    }),
-    placeholder: (base) => ({
-      ...base,
-      fontSize: '14px',
-    }),
-    singleValue: (base) => ({
-      ...base,
-      fontSize: '14px',
-    }),
-    dropdownIndicator: (base) => ({
-      ...base,
-      padding: '8px',
-    }),
-    clearIndicator: (base) => ({
-      ...base,
-      padding: '8px',
-    }),
-    valueContainer: (base) => ({
-      ...base,
-      padding: '2px 8px',
-    }),
+  if (loadingData) {
+    return <Box sx={{ p: 5, textAlign: 'center' }}><CircularProgress /></Box>
   }
 
   return (
-    <Card
-      sx={{
-        maxWidth: '900px',
-        margin: 'auto',
-        boxShadow: theme.shadows[6],
-        borderRadius: '12px',
-        overflow: 'visible',
-      }}
-    >
-      <Box
-        sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
-          p: 3,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-          marginTop: '-1px',
-        }}
-      >
-        <Typography variant="h5" fontWeight="600">
-          {props.usuarioRol?.id ? 'Editar Asignación' : 'Nueva Asignación'}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          Asignar roles, máquinas y sistemas a usuarios
-        </Typography>
-      </Box>
+    <Box sx={{ width: '100%', maxWidth: 1100, mx: 'auto', p: 2 }}>
+      
+      {/* CONTENEDOR PRINCIPAL */}
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        
+        {/* HEADER */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                }}>
+              {isEdit ? <EditIcon /> : <AddIcon />}
+            </Avatar>
+            
+            <Box>
+              <Typography variant="h5" fontWeight={800} sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>
+                {isEdit ? 'Editar Asignación' : 'Nueva Asignación'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Asignar roles y recursos (Máquinas y/o Sistemas)
+              </Typography>
+            </Box>
+        </Box>
 
-      <CardContent sx={{ p: 4 }}>
-        <Form onSubmit={onSubmit} error={props.error}>
-          <FormError
-            error={props.error}
-            wrapperStyle={{
-              backgroundColor: theme.palette.error.light,
-              color: theme.palette.error.contrastText,
-              padding: '16px',
-              marginBottom: '24px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-            titleStyle={{
-              fontWeight: '600',
-              marginBottom: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-            listStyle={{
-              listStyleType: 'none',
-              padding: 0,
-              margin: 0,
-            }}
-          />
+        {/* CONTENIDO */}
+        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          
+          <form onSubmit={handleSubmit(onSubmit)}>
+            
+            {props.error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorOutlineIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+              </Paper>
+            )}
 
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={6}>
-              <Label
-                name="id_usuario"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
+            {/* GRID LAYOUT DE 2 COLUMNAS */}
+            <Box sx={{ 
+              display: 'grid', 
+              gap: 3, 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+              alignItems: 'start'
+            }}>
+              
+              {/* --- CARD 1: USUARIO Y ROL --- */}
+              <SectionCard 
+                icon={<PersonIcon sx={{ fontSize: 20 }} />} 
+                title="Usuario y Rol"
+                bgcolor={theme.palette.primary.main}
               >
-                <Person fontSize="small" sx={{ mr: 1 }} />
-                Usuario*
-              </Label>
-              <Select
-                name="id_usuario"
-                value={usuarioOptions.find((option) => option.value === selectedUsuario) || null}
-                options={usuarioOptions}
-                onChange={(selectedOption) => setSelectedUsuario(selectedOption?.value || null)}
-                styles={customSelectStyles}
-                classNamePrefix="select"
-                isClearable
-                placeholder="Seleccionar usuario..."
-                noOptionsMessage={() => 'No hay usuarios disponibles'}
-                required
-                isSearchable={true}
-                filterOption={(option, inputValue) =>
-                  option.data.searchTerms.includes(inputValue.toLowerCase())
-                }
-                menuPortalTarget={document.body} // Para evitar problemas de z-index
-                menuPlacement="auto" // Para posicionar el menú automáticamente
-                maxMenuHeight={300}
-              />
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Label
-                name="id_rol"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '8px',
-                  fontWeight: '500',
-                  color: theme.palette.text.primary,
-                  fontSize: '0.875rem',
-                }}
-              >
-                <Badge fontSize="small" sx={{ mr: 1 }} />
-                Rol*
-              </Label>
-              <Select
-                name="id_rol"
-                value={rolOptions.find((option) => option.value === selectedRol) || null}
-                options={rolOptions}
-                onChange={(selectedOption) => setSelectedRol(selectedOption?.value || null)}
-                styles={customSelectStyles}
-                classNamePrefix="select"
-                isClearable
-                placeholder="Seleccionar rol..."
-                noOptionsMessage={() => 'No hay roles disponibles'}
-                required
-                isSearchable={true}
-                menuPortalTarget={document.body}
-                menuPlacement="auto"
-                maxMenuHeight={300}
-              />
-            </Grid>
-
-            <Fade in={showMaquinas} unmountOnExit>
-              <Grid item xs={12} md={6}>
-                <Label
-                  name="id_maquinas"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <Computer fontSize="small" sx={{ mr: 1 }} />
-                  Máquinas
-                  <IconButton size="small" sx={{ ml: 0.5, color: 'text.secondary' }}>
-                    <HelpOutline fontSize="small" />
-                  </IconButton>
-                </Label>
-
-                <TextField
-                  fullWidth
-                  variant="outlined"
-                  placeholder="Buscar por nombre o IP..."
-                  value={searchMaquina}
-                  onChange={(e) => setSearchMaquina(e.target.value)}
-                  sx={{ mb: 2 }}
-                />
-
-                {selectedMaquinas.length > 0 && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-                    {selectedMaquinas.map(maquinaId => {
-                      const maquina = maquinasList.find(m => m.id === maquinaId)
-                      return (
-                        <Chip
-                          key={maquinaId}
-                          label={`${maquina?.nombre || 'Cargando...'} ${maquina?.ip ? `(${maquina.ip})` : ''}`}
-                          onDelete={(e) => handleRemoveMaquina(maquinaId, e)}
-                          deleteIcon={<Close fontSize="small" />}
-                          sx={{ backgroundColor: theme.palette.primary.light, color: theme.palette.primary.contrastText, mb: 1 }}
+                <Stack spacing={3}>
+                  
+                  {/* Usuario */}
+                  <FormControl fullWidth error={!!errors.id_usuario}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Usuario *</FormLabel>
+                    <Controller
+                      name="id_usuario"
+                      control={control}
+                      rules={{ required: 'Seleccione un usuario' }}
+                      render={({ field: { onChange, value } }) => (
+                        <Autocomplete
+                          options={usuariosOptions}
+                          getOptionLabel={(option) => option.label}
+                          value={usuariosOptions.find(u => u.id === value) || null}
+                          onChange={(_, newValue) => onChange(newValue ? newValue.id : null)}
+                          renderInput={(params) => (
+                            <TextField {...params} size="small" placeholder="Buscar usuario..." error={!!errors.id_usuario} />
+                          )}
                         />
-                      )
-                    })}
-                  </Box>
-                )}
+                      )}
+                    />
+                  </FormControl>
 
-                <Card variant="outlined" sx={{ maxHeight: 300, overflow: 'auto' }}>
-                  <List dense>
-                    {filteredMaquinas.length > 0 ? (
-                      filteredMaquinas.map((maquina) => (
-                        <ListItem
-                          key={maquina.id}
-                          button
-                          onClick={() => handleToggleMaquina(maquina.id)}
-                          sx={{
-                            '&:hover': {
-                              backgroundColor: theme.palette.action.hover,
-                            },
-                            backgroundColor: selectedMaquinas.includes(maquina.id)
-                              ? theme.palette.action.selected
-                              : 'transparent',
-                          }}
-                        >
-                          <ListItemIcon>
-                            <Checkbox
-                              edge="start"
-                              checked={selectedMaquinas.includes(maquina.id)}
-                              tabIndex={-1}
-                              disableRipple
-                              color="primary"
+                  {/* Rol */}
+                  <FormControl fullWidth error={!!errors.id_rol}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Rol a Asignar *</FormLabel>
+                    <Controller
+                      name="id_rol"
+                      control={control}
+                      rules={{ required: 'Seleccione un rol' }}
+                      render={({ field: { onChange, value } }) => (
+                        <Autocomplete
+                          options={rolesOptions}
+                          getOptionLabel={(option) => option.nombre}
+                          value={rolesOptions.find(r => r.id === value) || null}
+                          onChange={(_, newValue) => onChange(newValue ? newValue.id : null)}
+                          renderInput={(params) => (
+                            <TextField 
+                              {...params} 
+                              size="small" 
+                              placeholder="Seleccionar rol..." 
+                              error={!!errors.id_rol}
+                              InputProps={{
+                                ...params.InputProps,
+                                startAdornment: (
+                                  <>
+                                    <RoleIcon color="action" fontSize="small" sx={{ mr: 1 }} />
+                                    {params.InputProps.startAdornment}
+                                  </>
+                                )
+                              }}
                             />
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={`${maquina.nombre} (${maquina.ip})`}
-                            secondary={`ID: ${maquina.id}`}
-                            primaryTypographyProps={{ fontWeight: selectedMaquinas.includes(maquina.id) ? '500' : '400' }}
-                          />
-                        </ListItem>
-                      ))
-                    ) : (
-                      <ListItem>
-                        <ListItemText
-                          primary="No se encontraron máquinas"
-                          secondary="Intente con otro término de búsqueda"
-                          sx={{ textAlign: 'center', py: 2 }}
+                          )}
                         />
-                      </ListItem>
-                    )}
-                  </List>
-                </Card>
-              </Grid>
-            </Fade>
+                      )}
+                    />
+                  </FormControl>
 
-            <Fade in={showSistemas} unmountOnExit>
-              <Grid item xs={12} md={6}>
-                <Label
-                  name="id_sistema"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <Apps fontSize="small" sx={{ mr: 1 }} />
-                  Sistema
-                  <IconButton size="small" sx={{ ml: 0.5, color: 'text.secondary' }}>
-                    <HelpOutline fontSize="small" />
-                  </IconButton>
-                </Label>
-                <Select
-                  name="id_sistema"
-                  value={sistemasOptions.find((option) => option.value === selectedSistema) || null}
-                  options={sistemasOptions}
-                  onChange={(selectedOption) => setSelectedSistema(selectedOption?.value || null)}
-                  styles={customSelectStyles}
-                  classNamePrefix="select"
-                  isClearable
-                  placeholder="Seleccionar sistema..."
-                  noOptionsMessage={() => 'No hay sistemas disponibles'}
-                  isSearchable={true}
-                  menuPortalTarget={document.body}
-                  menuPlacement="auto"
-                  maxMenuHeight={300}
-                />
-              </Grid>
-            </Fade>
-          </Grid>
+                  <Alert severity="info" sx={{ fontSize: '0.8rem' }}>
+                    Seleccione un usuario y un rol, luego asigne los recursos necesarios a la derecha.
+                  </Alert>
 
-          <Divider sx={{ my: 4, borderColor: theme.palette.divider }} />
+                </Stack>
+              </SectionCard>
 
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 2,
-            }}
-          >
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              color="primary"
-              loading={props.loading}
-              loadingPosition="start"
-              startIcon={props.loading ? null : <CheckCircleOutline fontSize="small" />}
-              sx={{
-                px: 5,
-                py: 1.5,
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '600',
-                fontSize: '0.9375rem',
-                boxShadow: theme.shadows[2],
-                '&:hover': {
-                  boxShadow: theme.shadows[4],
-                  backgroundColor: theme.palette.primary.dark,
-                },
-              }}
-            >
-              {props.loading ? 'Guardando...' : 'Guardar Asignación'}
-            </LoadingButton>
-          </Box>
-        </Form>
-      </CardContent>
-    </Card>
+              {/* --- CARD 2: RECURSOS ASIGNADOS --- */}
+              <SectionCard 
+                icon={<AssignIcon sx={{ fontSize: 20 }} />} 
+                title="Recursos Disponibles"
+                bgcolor={theme.palette.secondary.main}
+              >
+                <Stack spacing={3}>
+                  
+                  {/* SECCIÓN SISTEMAS */}
+                  <Box>
+                    <FormControl fullWidth>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                            <SystemIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> 
+                            Acceso a Sistema (Opcional)
+                        </FormLabel>
+                        <Controller
+                        name="id_sistema"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                            <Autocomplete
+                            options={sistemasOptions}
+                            getOptionLabel={(option) => option.nombre}
+                            value={sistemasOptions.find(s => s.id === value) || null}
+                            onChange={(_, newValue) => onChange(newValue ? newValue.id : null)}
+                            renderInput={(params) => (
+                                <TextField 
+                                {...params} 
+                                size="small" 
+                                placeholder="Seleccionar sistema..." 
+                                />
+                            )}
+                            />
+                        )}
+                        />
+                    </FormControl>
+                  </Box>
+
+                  <Divider>O</Divider>
+
+                  {/* SECCIÓN MÁQUINAS */}
+                  <Box>
+                    <FormControl fullWidth>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
+                            <MachineIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> 
+                            Acceso a Máquinas (Opcional)
+                        </FormLabel>
+                        <Controller
+                        name="maquinas"
+                        control={control}
+                        render={({ field: { onChange, value } }) => {
+                            const selectedValues = maquinasOptions.filter(m => value.includes(m.id))
+                            return (
+                            <Autocomplete
+                                multiple
+                                limitTags={3}
+                                options={maquinasOptions}
+                                getOptionLabel={(option) => option.label}
+                                value={selectedValues}
+                                onChange={(_, newValue) => {
+                                onChange(newValue.map(v => v.id))
+                                }}
+                                renderInput={(params) => (
+                                <TextField 
+                                    {...params} 
+                                    size="small" 
+                                    placeholder={selectedValues.length === 0 ? "Seleccionar máquinas..." : ""}
+                                />
+                                )}
+                                filterSelectedOptions
+                            />
+                            )
+                        }}
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                        Puede seleccionar múltiples máquinas simultáneamente.
+                        </Typography>
+                    </FormControl>
+                  </Box>
+
+                </Stack>
+              </SectionCard>
+
+            </Box>
+
+            {/* BOTONES */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.usuarioRols())}
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+              >
+                Cancelar
+              </Button>
+
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={props.loading}
+                startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
+                  boxShadow: 4, 
+                  px: 4, 
+                  minWidth: 160, 
+                  borderRadius: 2, 
+                  textTransform: 'none', 
+                  fontWeight: 700 
+                }}
+              >
+                {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar Asignación')}
+              </LoadingButton>
+            </Box>
+
+          </form>
+        </Box>
+      </Card>
+    </Box>
   )
 }
 

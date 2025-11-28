@@ -61,11 +61,6 @@ export const Success = ({ dataCenter }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Edit DataCenter {dataCenter?.id}
-        </h2>
-      </header>
       <div className="rw-segment-main">
         <DataCenterForm
           dataCenter={dataCenter}

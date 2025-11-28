@@ -35,17 +35,14 @@ export const QUERY = gql`
       so
       ram
       almacenamiento
+      estado_operativo
       cpu
       estado
       cod_plataforma
       id_servidor
-
-      # --- CAMPOS DE SYNC ---
       uuid
       proxmox_vmid
-      mac_address
-
-      # --- AUDITORIA ---
+      identity_key
       usuario_creacion
       usuario_modificacion
       fecha_creacion

@@ -1,175 +1,65 @@
-// web/src/components/Maquina/MaquinaCell/MaquinaCell.jsx
-
-import { useQuery } from '@redwoodjs/web'
-import Maquina from 'src/components/Maquina/Maquina'
+import Cluster from 'src/components/Cluster/Cluster'
 
 export const QUERY = gql`
-  query MaquinaCompleta($id: Int!) {
-    maquinaCompleta(id: $id) {
+  query FindClusterById($id: Int!) {
+    cluster: cluster(id: $id) {
       id
-
-      # --- CAMPOS ELIMINADOS/ACTUALIZADOS ---
-      # ❌ Eliminado: codigo
       nombre
-
-      # ✔ CAMPOS DE SINCRONIZACIÓN
-      uuid          # Nuevo
-      proxmox_vmid  # Nuevo
-      mac_address   # Nuevo
-
-      ip
-      so
-      ram
-      almacenamiento
-      cpu
+      cod_tipo_cluster
+      descripcion
       estado
-      # ❌ Eliminado: es_virtual
       fecha_creacion
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
-      cod_plataforma
-
-      servidores {
-        id
-        nombre
-        ip_primaria
-        data_centers {
-          id
-          nombre
-        }
-        cluster_nodos {
-          id
-          nodoTipo
-          rol
-          cluster {
-            id
-            nombre
-            cod_tipo_cluster
-            descripcion
-            estado
-          }
-        }
-      }
-
       cluster_nodos {
         id
         nombre
         nodoTipo
         rol
-        cluster {
+        maquina {
           id
           nombre
-          cod_tipo_cluster
-          descripcion
-          estado
         }
-        # Nota: La relación con 'servidor' aquí es correcta.
-        # Este es el host físico del clúster K8s, si aplica.
+
+        # Relación si es nodo físico (servidor)
         servidor {
           id
           nombre
-          ip_primaria
-          data_centers {
+          # Necesario para el Tab de "Máquinas" en lógica Proxmox
+          maquinas {
             id
             nombre
+            ip
+            proxmox_vmid
+            ram
+            so
+            cpu
+            estado_operativo
+            
           }
-        }
-      }
-
-      usuario_roles {
-        id
-        usuarios {
-          id
-          nombres
-          primer_apellido
-          segundo_apellido
-        }
-        roles {
-          id
-          nombre
-        }
-      }
-
-      despliegue {
-        id
-        fecha_despliegue
-        estado_despliegue
-        descripcion
-        componentes {
-          id
-          nombre
-          sistemas {
-            id
-            nombre
-            sigla
-            descripcion
-            estado
-            componentes {
-              id
-              nombre
-              dominio
-              estado
-            }
-          }
-        }
-      }
-
-      infra_afectada {
-        id
-        estado
-        eventos {
-          id
-          cod_tipo_evento
-          descripcion
-          fecha_evento
-          estado_evento
-          fecha_creacion
-          solicitante
         }
       }
     }
 
-    # ❌ ELIMINADA: La consulta de usuarios debe ir en el componente principal
-    # si se usa en varios lugares, o simplificar el mapeo si no la necesitas aquí.
-    # Por ahora, la eliminamos para centralizar la carga de usuarios.
-    # usuarios { /* ... */ }
-  }
-`
-
-// --------------------------------------
-// QUERY: obtener nombre de tipo cluster
-// --------------------------------------
-// Nota: Esta consulta es ineficiente pero necesaria mientras no tengamos
-// una tabla de parámetros en el esquema principal del Cell. La mantenemos.
-export const GET_TIPO_CLUSTER = gql`
-  query GetTipoCluster($codigo: String!) {
-    parametroByCodigo(codigo: $codigo) {
-      nombre
+    # Traemos usuarios para resolver los nombres en la auditoría
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
     }
   }
 `
-export const Loading = () => <div>Cargando...</div>
-export const Empty = () => <div>No existe la máquina</div>
-export const Failure = ({ error }) => <div className="rw-cell-error">{error?.message}</div>
 
-export const Success = ({ maquinaCompleta }) => { // Se remueve 'usuarios' de props
-  const codigoTipoCluster =
-    maquinaCompleta?.cluster_nodos?.[0]?.cluster?.cod_tipo_cluster
+export const Loading = () => <div>Cargando Cluster...</div>
 
-  // ✔ OPTIMIZACIÓN: Dejar el hook para el Service de Parámetros
-  const { data: tipoClusterData } = useQuery(GET_TIPO_CLUSTER, {
-    variables: { codigo: codigoTipoCluster },
-    skip: !codigoTipoCluster,
-  })
+export const Empty = () => <div>El Cluster no existe</div>
 
-  const tipoClusterNombre = tipoClusterData?.parametroByCodigo?.nombre || null
+export const Failure = ({ error }) => (
+  <div style={{ color: 'red' }}>Error: {error?.message}</div>
+)
 
-  return (
-    <Maquina
-      maquina={maquinaCompleta}
-      // ❌ Se remueve 'usuarios' de props
-      tipoClusterNombre={tipoClusterNombre}
-    />
-  )
+export const Success = ({ cluster, usuarios }) => {
+  return <Cluster cluster={cluster} usuarios={usuarios} />
 }

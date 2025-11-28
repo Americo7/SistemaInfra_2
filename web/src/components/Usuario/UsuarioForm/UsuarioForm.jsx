@@ -1,632 +1,417 @@
-import { useState } from 'react'
-import {
-  Form,
-  FormError,
-  FieldError,
-  Label,
-  TextField,
-} from '@redwoodjs/forms'
+import React, { useState } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { navigate, routes } from '@redwoodjs/router'
+
 import {
   Box,
   Card,
   CardContent,
-  Divider,
-  Grid,
+  CardHeader,
   Typography,
-  useTheme,
+  TextField,
+  FormControl,
+  FormLabel,
+  Stack,
+  Avatar,
+  Button,
   IconButton,
   InputAdornment,
+  useTheme,
+  Paper
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
+
+// Iconos CORREGIDOS
 import {
-  CheckCircleOutline,
-  Person,
-  Email,
-  Phone,
-  Badge,
-  AccountCircle,
-  Lock,
-  Assignment,
-  DriveFileRenameOutline,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  AddCircle as AddIcon,
+  Edit as EditIcon,
+  ErrorOutline as ErrorIcon,
   Visibility,
   VisibilityOff,
+  Person as PersonIcon,
+  Lock as SecurityIcon,
+  Badge as IdIcon, // Importamos Badge correctamente (Mayúscula)
+  ContactPhone as ContactIcon
 } from '@mui/icons-material'
 
+/* ---------------------------------------------
+ * 1. COMPONENTE HELPER: SectionCard
+ * --------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+  return (
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* ---------------------------------------------
+ * 2. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
 const UsuarioForm = (props) => {
   const theme = useTheme()
+  const isEdit = Boolean(props.usuario?.id)
   const [showPassword, setShowPassword] = useState(false)
 
-  const handleClickShowPassword = () => {
-    setShowPassword(!showPassword)
-  }
+  // Configuración del Formulario
+  const formMethods = useForm({
+    defaultValues: {
+      nombre_usuario: props.usuario?.nombre_usuario || '',
+      contrasena: props.usuario?.contrasena || '',
+      email: props.usuario?.email || '',
+      nombres: props.usuario?.nombres || '',
+      primer_apellido: props.usuario?.primer_apellido || '',
+      segundo_apellido: props.usuario?.segundo_apellido || '',
+      celular: props.usuario?.celular || '',
+      nro_documento: props.usuario?.nro_documento || '',
+      id_ciudadano_digital: props.usuario?.id_ciudadano_digital || '',
+    },
+  })
+
+  const { control, handleSubmit, formState: { errors } } = formMethods
 
   const onSubmit = (data) => {
     const formData = {
       ...data,
       estado: 'ACTIVO',
       usuario_modificacion: 2,
-      usuario_creacion: 3,
+      usuario_creacion: isEdit ? undefined : 3,
     }
     props.onSave(formData, props?.usuario?.id)
   }
 
   return (
-    <Card
-      sx={{
-        maxWidth: '1000px',
-        margin: 'auto',
-        boxShadow: theme.shadows[6],
-        borderRadius: '12px',
-        overflow: 'visible',
-      }}
-    >
-      <Box
-        sx={{
-          backgroundColor: theme.palette.primary.main,
-          color: theme.palette.primary.contrastText,
-          p: 3,
-          borderTopLeftRadius: '12px',
-          borderTopRightRadius: '12px',
-          marginTop: '-1px',
-        }}
-      >
-        <Typography variant="h5" fontWeight="600">
-          {props.usuario?.id ? 'Editar Usuario' : 'Nuevo Usuario'}
-        </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9 }}>
-          {props.usuario?.id
-            ? 'Actualice la información del usuario'
-            : 'Complete la información para crear un nuevo usuario'}
-        </Typography>
-      </Box>
+    <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
+      
+      {/* CONTENEDOR PRINCIPAL */}
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        
+        {/* HEADER */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                }}>
+              {isEdit ? <EditIcon /> : <AddIcon />}
+            </Avatar>
+            
+            <Box>
+              <Typography variant="h5" fontWeight={800} sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>
+                {isEdit ? 'Editar Usuario' : 'Nuevo Usuario'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isEdit ? 'Actualice la información del usuario' : 'Complete la información para crear un nuevo usuario'}
+              </Typography>
+            </Box>
+        </Box>
 
-      <CardContent sx={{ p: 4 }}>
-        <Form onSubmit={onSubmit} error={props.error} autoComplete="off">
-          <FormError
-            error={props.error}
-            wrapperStyle={{
-              backgroundColor: theme.palette.error.light,
-              color: theme.palette.error.contrastText,
-              padding: '16px',
-              marginBottom: '24px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-            titleStyle={{
-              fontWeight: '600',
-              marginBottom: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-            listStyle={{
-              listStyleType: 'none',
-              padding: 0,
-              margin: 0,
-            }}
-          />
+        {/* CONTENIDO */}
+        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          
+          <form onSubmit={handleSubmit(onSubmit)} autoComplete="off">
+            
+            {/* Mensaje de Error */}
+            {props.error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorOutlineIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+              </Paper>
+            )}
 
-          {/* Sección de acceso */}
-          <Box sx={{ mb: 4 }}>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 600,
-                mb: 2,
-                color: theme.palette.primary.dark,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                fontSize: '1rem'
-              }}
-            >
-              <AccountCircle />
-              Información de Acceso
-            </Typography>
-            <Divider sx={{ mb: 3 }} />
+            {/* GRID DE 3 COLUMNAS */}
+            <Box sx={{ 
+              display: 'grid', 
+              gap: 3, 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+              alignItems: 'start'
+            }}>
+              
+              {/* --- CARD 1: CREDENCIALES Y ACCESO --- */}
+              <SectionCard 
+                icon={<SecurityIcon sx={{ fontSize: 20 }} />} 
+                title="Credenciales y Acceso"
+                bgcolor={theme.palette.primary.main}
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* Nombre Usuario */}
+                  <FormControl fullWidth error={!!errors.nombre_usuario}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre de Usuario *</FormLabel>
+                    <Controller
+                      name="nombre_usuario"
+                      control={control}
+                      rules={{ required: 'Requerido' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. jdoe" 
+                          error={!!errors.nombre_usuario}
+                          helperText={errors.nombre_usuario?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Label
-                  name="nombre_usuario"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <AccountCircle fontSize="small" sx={{ mr: 1 }} />
-                  Nombre Usuario
-                </Label>
-                <TextField
-                  name="nombre_usuario"
-                  defaultValue={props.usuario?.nombre_usuario || ''}
-                  validation={{ required: true }}
-                  autoComplete="off"
-                  style={{
-                    minHeight: '50px',
-                    borderRadius: '8px',
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: `1px solid ${theme.palette.divider}`,
-                    fontSize: '0.9375rem',
-                  }}
-                  errorStyle={{
-                    border: `1px solid ${theme.palette.error.main}`,
-                    backgroundColor: theme.palette.error.light,
-                  }}
-                />
-                <FieldError
-                  name="nombre_usuario"
-                  style={{
-                    color: theme.palette.error.main,
-                    fontSize: '0.75rem',
-                    marginTop: '4px',
-                  }}
-                />
-              </Grid>
+                  {/* Contraseña */}
+                  <FormControl fullWidth error={!!errors.contrasena}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Contraseña {isEdit ? '(Opcional)' : '*'}</FormLabel>
+                    <Controller
+                      name="contrasena"
+                      control={control}
+                      rules={{ required: isEdit ? false : 'Requerido' }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          size="small"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="••••••"
+                          error={!!errors.contrasena}
+                          helperText={errors.contrasena?.message}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton
+                                  aria-label="toggle password visibility"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  edge="end"
+                                  size="small"
+                                >
+                                  {showPassword ? <VisibilityOff /> : <Visibility />}
+                                </IconButton>
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-              <Grid item xs={12} md={6}>
-                <Label
-                  name="contrasena"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <Lock fontSize="small" sx={{ mr: 1 }} />
-                  Contraseña
-                </Label>
-                <div style={{ position: 'relative' }}>
-                  <TextField
-                    name="contrasena"
-                    defaultValue={props.usuario?.contrasena || ''}
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    style={{
-                      minHeight: '50px',
-                      borderRadius: '8px',
-                      width: '100%',
-                      padding: '12px 16px',
-                      paddingRight: '48px', // Espacio para el icono
-                      border: `1px solid ${theme.palette.divider}`,
-                      fontSize: '0.9375rem',
-                    }}
-                    errorStyle={{
-                      border: `1px solid ${theme.palette.error.main}`,
-                      backgroundColor: theme.palette.error.light,
-                    }}
-                  />
-                  <IconButton
-                    aria-label="toggle password visibility"
-                    onClick={handleClickShowPassword}
-                    style={{
-                      position: 'absolute',
-                      right: '8px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                    }}
-                    edge="end"
-                  >
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </div>
-                <FieldError
-                  name="contrasena"
-                  style={{
-                    color: theme.palette.error.main,
-                    fontSize: '0.75rem',
-                    marginTop: '4px',
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+                  {/* Email */}
+                  <FormControl fullWidth error={!!errors.email}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Correo Electrónico *</FormLabel>
+                    <Controller
+                      name="email"
+                      control={control}
+                      rules={{ 
+                        required: 'Requerido',
+                        pattern: {
+                          value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                          message: "Email inválido"
+                        }
+                      }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="ejemplo@agetic.gob.bo" 
+                          error={!!errors.email}
+                          helperText={errors.email?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-          {/* Sección de identificación */}
-          <Box sx={{ mb: 4 }}>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 600,
-                mb: 2,
-                color: theme.palette.primary.dark,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                fontSize: '1rem'
-              }}
-            >
-              <Badge />
-              Identificación
-            </Typography>
-            <Divider sx={{ mb: 3 }} />
+                </Stack>
+              </SectionCard>
 
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Label
-                  name="id_ciudadano_digital"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <Assignment fontSize="small" sx={{ mr: 1 }} />
-                  ID Ciudadano Digital
-                </Label>
-                <TextField
-                  name="id_ciudadano_digital"
-                  defaultValue={props.usuario?.id_ciudadano_digital || ''}
-                  style={{
-                    minHeight: '50px',
-                    borderRadius: '8px',
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: `1px solid ${theme.palette.divider}`,
-                    fontSize: '0.9375rem',
-                  }}
-                  errorStyle={{
-                    border: `1px solid ${theme.palette.error.main}`,
-                    backgroundColor: theme.palette.error.light,
-                  }}
-                />
-                <FieldError
-                  name="id_ciudadano_digital"
-                  style={{
-                    color: theme.palette.error.main,
-                    fontSize: '0.75rem',
-                    marginTop: '4px',
-                  }}
-                />
-              </Grid>
+              {/* --- CARD 2: DATOS PERSONALES --- */}
+              <SectionCard 
+                icon={<PersonIcon sx={{ fontSize: 20 }} />} 
+                title="Datos Personales"
+                bgcolor={theme.palette.secondary.main}
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* Nombres */}
+                  <FormControl fullWidth error={!!errors.nombres}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombres *</FormLabel>
+                    <Controller
+                      name="nombres"
+                      control={control}
+                      rules={{ required: 'Requerido' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. Juan Carlos" 
+                          error={!!errors.nombres}
+                          helperText={errors.nombres?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-              <Grid item xs={12} md={6}>
-                <Label
-                  name="nro_documento"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <Badge fontSize="small" sx={{ mr: 1 }} />
-                  Nro. Documento
-                </Label>
-                <TextField
-                  name="nro_documento"
-                  defaultValue={props.usuario?.nro_documento || ''}
-                  validation={{ required: true }}
-                  style={{
-                    minHeight: '50px',
-                    borderRadius: '8px',
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: `1px solid ${theme.palette.divider}`,
-                    fontSize: '0.9375rem',
-                  }}
-                  errorStyle={{
-                    border: `1px solid ${theme.palette.error.main}`,
-                    backgroundColor: theme.palette.error.light,
-                  }}
-                />
-                <FieldError
-                  name="nro_documento"
-                  style={{
-                    color: theme.palette.error.main,
-                    fontSize: '0.75rem',
-                    marginTop: '4px',
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+                  {/* Primer Apellido */}
+                  <FormControl fullWidth error={!!errors.primer_apellido}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Primer Apellido *</FormLabel>
+                    <Controller
+                      name="primer_apellido"
+                      control={control}
+                      rules={{ required: 'Requerido' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. Perez" 
+                          error={!!errors.primer_apellido}
+                          helperText={errors.primer_apellido?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-          {/* Sección datos personales */}
-          <Box sx={{ mb: 4 }}>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 600,
-                mb: 2,
-                color: theme.palette.primary.dark,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                fontSize: '1rem'
-              }}
-            >
-              <Person />
-              Datos Personales
-            </Typography>
-            <Divider sx={{ mb: 3 }} />
+                  {/* Segundo Apellido */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Segundo Apellido</FormLabel>
+                    <Controller
+                      name="segundo_apellido"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. Mamani" 
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={4}>
-                <Label
-                  name="nombres"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <DriveFileRenameOutline fontSize="small" sx={{ mr: 1 }} />
-                  Nombres
-                </Label>
-                <TextField
-                  name="nombres"
-                  defaultValue={props.usuario?.nombres || ''}
-                  validation={{ required: true }}
-                  style={{
-                    minHeight: '50px',
-                    borderRadius: '8px',
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: `1px solid ${theme.palette.divider}`,
-                    fontSize: '0.9375rem',
-                  }}
-                  errorStyle={{
-                    border: `1px solid ${theme.palette.error.main}`,
-                    backgroundColor: theme.palette.error.light,
-                  }}
-                />
-                <FieldError
-                  name="nombres"
-                  style={{
-                    color: theme.palette.error.main,
-                    fontSize: '0.75rem',
-                    marginTop: '4px',
-                  }}
-                />
-              </Grid>
+                </Stack>
+              </SectionCard>
 
-              <Grid item xs={12} md={4}>
-                <Label
-                  name="primer_apellido"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <DriveFileRenameOutline fontSize="small" sx={{ mr: 1 }} />
-                  Primer Apellido
-                </Label>
-                <TextField
-                  name="primer_apellido"
-                  defaultValue={props.usuario?.primer_apellido || ''}
-                  validation={{ required: true }}
-                  style={{
-                    minHeight: '50px',
-                    borderRadius: '8px',
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: `1px solid ${theme.palette.divider}`,
-                    fontSize: '0.9375rem',
-                  }}
-                  errorStyle={{
-                    border: `1px solid ${theme.palette.error.main}`,
-                    backgroundColor: theme.palette.error.light,
-                  }}
-                />
-                <FieldError
-                  name="primer_apellido"
-                  style={{
-                    color: theme.palette.error.main,
-                    fontSize: '0.75rem',
-                    marginTop: '4px',
-                  }}
-                />
-              </Grid>
+              {/* --- CARD 3: IDENTIFICACIÓN Y CONTACTO --- */}
+              <SectionCard 
+                icon={<ContactIcon sx={{ fontSize: 20 }} />} 
+                title="Identificación y Contacto"
+                bgcolor="#2e7d32"
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* Celular */}
+                  <FormControl fullWidth error={!!errors.celular}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Celular *</FormLabel>
+                    <Controller
+                      name="celular"
+                      control={control}
+                      rules={{ required: 'Requerido' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. 77712345" 
+                          error={!!errors.celular}
+                          helperText={errors.celular?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-              <Grid item xs={12} md={4}>
-                <Label
-                  name="segundo_apellido"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <DriveFileRenameOutline fontSize="small" sx={{ mr: 1 }} />
-                  Segundo Apellido
-                </Label>
-                <TextField
-                  name="segundo_apellido"
-                  defaultValue={props.usuario?.segundo_apellido || ''}
-                  validation={{ required: true }}
-                  style={{
-                    minHeight: '50px',
-                    borderRadius: '8px',
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: `1px solid ${theme.palette.divider}`,
-                    fontSize: '0.9375rem',
-                  }}
-                  errorStyle={{
-                    border: `1px solid ${theme.palette.error.main}`,
-                    backgroundColor: theme.palette.error.light,
-                  }}
-                />
-                <FieldError
-                  name="segundo_apellido"
-                  style={{
-                    color: theme.palette.error.main,
-                    fontSize: '0.75rem',
-                    marginTop: '4px',
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+                  {/* Nro Documento */}
+                  <FormControl fullWidth error={!!errors.nro_documento}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nro. Documento *</FormLabel>
+                    <Controller
+                      name="nro_documento"
+                      control={control}
+                      rules={{ required: 'Requerido' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. 1234567 LP" 
+                          error={!!errors.nro_documento}
+                          helperText={errors.nro_documento?.message}
+                          InputProps={{ startAdornment: <InputAdornment position="start"><IdIcon fontSize="small" /></InputAdornment> }}
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-          {/* Sección de contacto */}
-          <Box sx={{ mb: 4 }}>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 600,
-                mb: 2,
-                color: theme.palette.primary.dark,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                fontSize: '1rem'
-              }}
-            >
-              <Phone />
-              Información de Contacto
-            </Typography>
-            <Divider sx={{ mb: 3 }} />
+                  {/* ID Ciudadano Digital */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>ID Ciudadano Digital</FormLabel>
+                    <Controller
+                      name="id_ciudadano_digital"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="UUID o Identificador" 
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Label
-                  name="celular"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <Phone fontSize="small" sx={{ mr: 1 }} />
-                  Celular
-                </Label>
-                <TextField
-                  name="celular"
-                  defaultValue={props.usuario?.celular || ''}
-                  validation={{ required: true }}
-                  style={{
-                    minHeight: '50px',
-                    borderRadius: '8px',
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: `1px solid ${theme.palette.divider}`,
-                    fontSize: '0.9375rem',
-                  }}
-                  errorStyle={{
-                    border: `1px solid ${theme.palette.error.main}`,
-                    backgroundColor: theme.palette.error.light,
-                  }}
-                />
-                <FieldError
-                  name="celular"
-                  style={{
-                    color: theme.palette.error.main,
-                    fontSize: '0.75rem',
-                    marginTop: '4px',
-                  }}
-                />
-              </Grid>
+                </Stack>
+              </SectionCard>
 
-              <Grid item xs={12} md={6}>
-                <Label
-                  name="email"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    marginBottom: '8px',
-                    fontWeight: '500',
-                    color: theme.palette.text.primary,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <Email fontSize="small" sx={{ mr: 1 }} />
-                  Email
-                </Label>
-                <TextField
-                  name="email"
-                  defaultValue={props.usuario?.email || ''}
-                  validation={{ required: true }}
-                  style={{
-                    minHeight: '50px',
-                    borderRadius: '8px',
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: `1px solid ${theme.palette.divider}`,
-                    fontSize: '0.9375rem',
-                  }}
-                  errorStyle={{
-                    border: `1px solid ${theme.palette.error.main}`,
-                    backgroundColor: theme.palette.error.light,
-                  }}
-                />
-                <FieldError
-                  name="email"
-                  style={{
-                    color: theme.palette.error.main,
-                    fontSize: '0.75rem',
-                    marginTop: '4px',
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
+            </Box>
 
-          <Divider sx={{ my: 4, borderColor: theme.palette.divider }} />
+            {/* BOTONES */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.usuarios())} // Asumiendo ruta
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+              >
+                Cancelar
+              </Button>
 
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 2,
-            }}
-          >
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              color="primary"
-              loading={props.loading}
-              loadingPosition="start"
-              startIcon={props.loading ? null : <CheckCircleOutline fontSize="small" />}
-              sx={{
-                px: 5,
-                py: 1.5,
-                borderRadius: '8px',
-                textTransform: 'none',
-                fontWeight: '600',
-                fontSize: '0.9375rem',
-                boxShadow: theme.shadows[2],
-                '&:hover': {
-                  boxShadow: theme.shadows[4],
-                  backgroundColor: theme.palette.primary.dark,
-                },
-              }}
-            >
-              {props.loading ? 'Guardando...' : 'Guardar Usuario'}
-            </LoadingButton>
-          </Box>
-        </Form>
-      </CardContent>
-    </Card>
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={props.loading}
+                startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
+                  boxShadow: 4, 
+                  px: 4, 
+                  minWidth: 160, 
+                  borderRadius: 2, 
+                  textTransform: 'none', 
+                  fontWeight: 700 
+                }}
+              >
+                {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar Usuario')}
+              </LoadingButton>
+            </Box>
+
+          </form>
+        </Box>
+      </Card>
+    </Box>
   )
 }
 

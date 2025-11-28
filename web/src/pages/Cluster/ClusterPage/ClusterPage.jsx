@@ -57,7 +57,7 @@ const ClusterPage = ({ id }) => {
     <ScaffoldLayout
       breadcrumbItems={[
         { label: 'Clusters', link: routes.clusters() },
-        { label: nombreCluster },
+        { label: 'Detalle' },
       ]}
       actionButtons={actionButtons}
     >

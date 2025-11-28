@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Link, routes } from '@redwoodjs/router'
+import { Link, routes, navigate } from '@redwoodjs/router'
 import { useQuery, gql } from '@redwoodjs/web'
 import {
   Box,
@@ -20,6 +20,8 @@ import {
   TableHead,
   TableRow,
   useTheme,
+  IconButton,
+  Tooltip,
 } from '@mui/material'
 
 import {
@@ -31,9 +33,12 @@ import {
   Apps as SystemIcon,
   Storage as InfraIcon,
   Link as MacIcon,
-  Server as ProxmoxIcon,
+  Domain as ProxmoxIcon,
   VpnKey as UuidIcon,
   Settings as OSIcon,
+  History as AuditIcon,
+  Info as GeneralIcon,
+  ArrowBack as BackIcon,
 } from '@mui/icons-material'
 
 /* -----------------------
@@ -60,11 +65,11 @@ const QUERY_PARAMETRICAS = gql`
   }
 `
 
-/* ---------------------------------------------
+/* -----------------------
  * HELPERS
- * --------------------------------------------- */
+ * ----------------------- */
 const fmtDate = (d) => {
-  if (!d) return ''
+  if (!d) return '-'
   try {
     const date = new Date(d)
     return date.toLocaleString('es-ES', {
@@ -93,34 +98,44 @@ const parseAlmacenamiento = (value) => {
 const uniqueById = (arr = []) => {
   const map = new Map()
   arr.forEach((it) => {
-    if (it && it.id != null && !map.has(it.id)) map.set(it.id, it)
+    if (it?.id != null && !map.has(it.id)) map.set(it.id, it)
   })
   return Array.from(map.values())
 }
 
-const RowItem = ({ label, value, icon }) => (
+/* -----------------------
+ * ROW ITEM — Igual que Servidor.jsx
+ * ----------------------- */
+const RowItem = ({ label, value, icon, isLast }) => (
   <Box
     sx={{
       display: 'flex',
-      py: 1,
-      borderBottom: '1px solid',
+      alignItems: 'center',
+      py: 0.75,
+      borderBottom: isLast ? 'none' : '1px solid',
       borderColor: 'divider',
-      '&:last-child': { borderBottom: 'none' },
+      width: '100%',
       '&:hover': { bgcolor: 'action.hover' },
     }}
   >
     <Typography
       variant="body2"
       color="text.secondary"
-      sx={{ width: '50%', pr: 2, display: 'flex', alignItems: 'center' }}
+      sx={{ width: '50%', pr: 2, display: 'flex', alignItems: 'center', fontSize: '0.85rem' }}
     >
-      {icon && <Box component="span" sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+      {icon && (
+        <Box component="span" sx={{ mr: 1, display: 'flex', color: 'action.active' }}>
+          {icon}
+        </Box>
+      )}
       {label}
     </Typography>
 
     <Box sx={{ width: '50%', display: 'flex', alignItems: 'center' }}>
       {typeof value === 'string' || typeof value === 'number' ? (
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>{value ?? ''}</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
+          {value ?? ''}
+        </Typography>
       ) : (
         value ?? <Typography variant="body2"> </Typography>
       )}
@@ -128,247 +143,413 @@ const RowItem = ({ label, value, icon }) => (
   </Box>
 )
 
+/* -----------------------
+ * SECTION CARD — Igual que Servidor.jsx
+ * ----------------------- */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+
   return (
     <Card
       sx={{
         borderRadius: 2,
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.12)',
+        borderTop: `3px solid ${activeColor}`,
+        borderLeft: `1px solid ${theme.palette.divider}`,
+        borderRight: `1px solid ${theme.palette.divider}`,
+        borderBottom: `1px solid ${theme.palette.divider}`,
       }}
     >
       <CardHeader
         avatar={
-          <Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main, width: 36, height: 36 }}>
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
             {icon}
           </Avatar>
         }
-        title={<Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{title}</Typography>}
+        title={
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '1rem' }}>
+            {title}
+          </Typography>
+        }
         sx={{
-          py: 1.2,
+          py: 1,
           px: 2,
           borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       />
-      <CardContent sx={{ flex: 1, py: 1, px: 2 }}>{children}</CardContent>
+      <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>{children}</CardContent>
     </Card>
   )
 }
 
-/* ---------------------------------------------
- * MAQUINA COMPONENT
- * --------------------------------------------- */
-const Maquina = ({ maquina = {} }) => {
+/* -----------------------
+ * MAQUINA DETALLE (igual al diseño de Servidor.jsx)
+ * ----------------------- */
+const Maquina = ({ maquina }) => {
   const theme = useTheme()
   const [tab, setTab] = useState(0)
 
-  // Consultas de Lookup
   const { data: paramData } = useQuery(QUERY_PARAMETRICAS)
   const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
 
-  // Extracción de Relaciones
-  const servidor = maquina?.servidores || null
-  const maquinaClusterNodos = maquina?.cluster_nodos || []
+  const servidor = maquina?.servidores
   const usuarioRoles = maquina?.usuario_roles || []
   const despliegues = maquina?.despliegue || []
   const infraAfectada = maquina?.infra_afectada || []
+  const maquinaClusterNodos = maquina?.cluster_nodos || []
 
-  // Mapas de Lookup
-  const usuariosMap = useMemo(() => {
-    return (
-      usuariosData?.usuarios?.reduce((map, usuario) => {
-        map[usuario.id] = [usuario.nombres, usuario.primer_apellido, usuario.segundo_apellido].filter(Boolean).join(' ')
+  /* ----- MAPAS ------- */
+  const usuariosMap = useMemo(
+    () =>
+      usuariosData?.usuarios?.reduce((map, u) => {
+        map[u.id] = `${u.nombres} ${u.primer_apellido}`.trim()
         return map
-      }, {}) || {}
-    )
-  }, [usuariosData])
+      }, {}) || {},
+    [usuariosData]
+  )
 
-  const parametrosMap = useMemo(() => {
-    return (
-      paramData?.parametros?.reduce((map, param) => {
-        if (param.grupo === 'PLATAFORMA') {
-            map[param.codigo] = param.nombre;
-        }
-        return map;
-      }, {}) || {}
-    )
-  }, [paramData])
+  const parametrosMap = useMemo(
+    () =>
+      paramData?.parametros?.reduce((map, p) => {
+        map[p.codigo] = p.nombre
+        return map
+      }, {}) || {},
+    [paramData]
+  )
 
-  const getNombrePlataforma = (codigo) => parametrosMap[codigo] || codigo || '-'
-  const getUserFullName = (userId) => usuariosMap[userId] || 'N/A'
-
-  // Lógica de Sistemas
+  const getNombrePlataforma = (c) => parametrosMap[c] || c || '-'
+  const getUserFullName = (id) => usuariosMap[id] || 'Sistema'
   const sistemasFromDespliegues = useMemo(() => {
     const arr = (despliegues || []).flatMap((d) => {
-      const comps = Array.isArray(d.componentes) ? d.componentes : d.componentes ? [d.componentes] : []
-      return comps.flatMap((c) => Array.isArray(c.sistemas) ? c.sistemas : c.sistemas ? [c.sistemas] : [])
+      const comps = Array.isArray(d.componentes)
+        ? d.componentes
+        : d.componentes
+        ? [d.componentes]
+        : []
+
+      return comps.flatMap((c) =>
+        Array.isArray(c.sistemas)
+          ? c.sistemas
+          : c.sistemas
+          ? [c.sistemas]
+          : []
+      )
     })
+
     return uniqueById(arr)
   }, [despliegues])
 
-  // Lógica de Cluster/Host
+  /* ----- Cluster info ----- */
   const clusterInfo = useMemo(() => {
-    const info = []
-
-    // 1. Host Físico (Proxmox)
+    const arr = []
     if (servidor) {
-      info.push({
+      arr.push({
         titulo: 'Host de Virtualización',
-        clusterName: servidor.data_centers?.nombre || 'Data Center',
+        clusterName: servidor?.data_centers?.nombre,
         nodoName: servidor.nombre,
         link: routes.servidor({ id: servidor.id }),
-        tipo: 'PROXMOX'
+        tipo: 'PROXMOX',
       })
     }
-
-    // 2. Nodos Kubernetes (si esta VM es un worker/master)
-    maquinaClusterNodos.forEach(nodo => {
-      if (nodo.cluster) {
-        info.push({
+    maquinaClusterNodos.forEach((n) => {
+      if (n.cluster) {
+        arr.push({
           titulo: 'Nodo de Cluster',
-          clusterName: nodo.cluster.nombre,
-          nodoName: nodo.nombre || maquina.nombre,
-          link: routes.cluster({ id: nodo.cluster.id }),
-          tipo: nodo.cluster.cod_tipo_cluster,
-          rol: nodo.rol
+          clusterName: n.cluster.nombre,
+          nodoName: n.nombre || maquina.nombre,
+          tipo: n.cluster.cod_tipo_cluster,
+          rol: n.rol,
+          link: routes.cluster({ id: n.cluster.id }),
         })
       }
     })
-
-    return info
+    return arr
   }, [servidor, maquinaClusterNodos, maquina])
 
-  const handleTabChange = (_e, v) => setTab(v)
+  /* ----- Tabs ----- */
+  const handleTabChange = (_, v) => setTab(v)
 
   return (
     <Box sx={{ width: '100%', maxWidth: 1600, mx: 'auto' }}>
-      {/* GRID SUPERIOR */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 3 }}>
-
-        {/* CARD 1: DETALLES DE MÁQUINA */}
-        <SectionCard
-          icon={<MachineIcon sx={{ fontSize: 18 }} />}
-          title="Detalles de la Máquina Virtual"
-          bgcolor={theme.palette.primary.main}
+      {/* CARD PRINCIPAL (idéntico a Servidor.jsx) */}
+      <Card elevation={3} sx={{ borderRadius: 2, mb: 3, overflow: 'hidden' }}>
+        {/* HEADER con gradient y botón volver */}
+        <Box
+          sx={{
+            px: 4,
+            py: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+          }}
         >
-          <RowItem label="Nombre" value={maquina?.nombre || ''} />
+          <Tooltip title="Volver">
+            <IconButton
+              onClick={() => navigate(routes.maquinas())}
+              size="small"
+              sx={{
+                mr: 1,
+                bgcolor: 'rgba(63, 81, 181, 0.15)',
+                color: '#3f51b5',
+                border: '1px solid rgba(63, 81, 181, 0.3)',
+                '&:hover': {
+                  bgcolor: 'rgba(63, 81, 181, 0.25)',
+                  color: '#303f9f',
+                  borderColor: 'rgba(63, 81, 181, 0.6)',
+                },
+              }}
+            >
+              <BackIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
 
-          {/* Campos de Sincronización */}
-          <RowItem label="VM ID (Proxmox)" value={maquina?.proxmox_vmid || 'N/A'} icon={<ProxmoxIcon fontSize="inherit" />} />
-          <RowItem label="MAC Address" value={maquina?.mac_address || 'N/A'} icon={<MacIcon fontSize="inherit" />} />
-          <RowItem label="UUID" value={maquina?.uuid || 'N/A'} icon={<UuidIcon fontSize="inherit" />} />
-
-          <RowItem label="IP" value={maquina?.ip || ''} />
-          <RowItem label="Sistema Operativo" value={maquina?.so || ''} icon={<OSIcon fontSize="inherit" />} />
-          <RowItem label="Plataforma" value={getNombrePlataforma(maquina?.cod_plataforma)} />
-
-          <RowItem
-            label="Estado"
-            value={
-              <Chip
-                label={fmtEnum(maquina?.estado)}
-                size="small"
-                sx={{
-                  bgcolor: maquina?.estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main,
-                  color: '#fff',
-                  height: 22,
-                  fontSize: '0.75rem',
-                }}
-              />
-            }
-          />
-
-          <RowItem label="Fecha creación" value={fmtDate(maquina?.fecha_creacion)} />
-          <RowItem label="Creado por" value={getUserFullName(maquina?.usuario_creacion)} />
-          <RowItem label="Última modif." value={fmtDate(maquina?.fecha_modificacion)} />
-          <RowItem label="Modificado por" value={getUserFullName(maquina?.usuario_modificacion)} />
-        </SectionCard>
-
-        {/* COLUMNA DERECHA */}
-        <Stack spacing={2}>
-
-          {/* CARD 2: ORQUESTACIÓN */}
-          <SectionCard
-            icon={<ClusterIcon sx={{ fontSize: 18 }} />}
-            title="Infraestructura y Orquestación"
-            bgcolor={theme.palette.info.main}
+          <Avatar
+            sx={{
+              width: 40,
+              height: 40,
+              background: 'linear-gradient(135deg, #0097a7, #26c6da)',
+              color: 'white',
+            }}
           >
-            {clusterInfo.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>No está vinculada a ningún Host o Cluster.</Typography>
-            ) : (
-              clusterInfo.map((info, idx) => (
-                <Box key={idx} sx={{ mb: 2, pb: 1, borderBottom: idx < clusterInfo.length -1 ? '1px dashed #eee' : 'none' }}>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5 }}>
-                    {info.titulo.toUpperCase()}
+            <MachineIcon />
+          </Avatar>
+
+          <Box>
+            <Typography
+              variant="h5"
+              fontWeight={700}
+              sx={{
+                lineHeight: 1.2,
+                background: 'linear-gradient(90deg, #0097a7 0%, #26c6da 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontWeight: 800,
+              }}
+            >
+              {maquina.nombre}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Ficha técnica de máquina virtual
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* CONTENIDO */}
+        <CardContent sx={{ px: 4, py: 0 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+            {/* COLUMNA IZQUIERDA */}
+            <Stack spacing={2}>
+              {/* CARD — Info General */}
+              <SectionCard
+                icon={<GeneralIcon fontSize="small" />}
+                title="Información General"
+                bgcolor={theme.palette.primary.main}
+              >
+                <RowItem label="Nombre" value={maquina.nombre} />
+                <RowItem label="VMID" value={maquina.proxmox_vmid} icon={<ProxmoxIcon fontSize="inherit" />} />
+                <RowItem label="Identificador" value={maquina.identity_key} icon={<MacIcon fontSize="inherit" />} />
+                <RowItem label="UUID" value={maquina.uuid} icon={<UuidIcon fontSize="inherit" />} />
+                <RowItem label="Dirección IP" value={maquina.ip} />
+                <RowItem label="Sistema Operativo" value={maquina.so} icon={<OSIcon fontSize="inherit" />} />
+                <RowItem label="Plataforma" value={getNombrePlataforma(maquina.cod_plataforma)} />
+                <RowItem
+                  label="Estado Operativo"
+                  isLast
+                  value={
+                    <Chip
+                      label={fmtEnum(maquina.estado_operativo)}
+                      size="small"
+                      color={maquina.estado_operativo === 'OPERATIVO' ? 'success' : 'error'}
+                      sx={{
+                        height: 20,
+                        fontWeight: 600,
+                        fontSize: '0.7rem',
+                        textTransform: 'uppercase',
+                      }}
+                    />
+                  }
+                />
+              </SectionCard>
+
+              {/* CARD — Recursos */}
+              <SectionCard
+                icon={<MemoryIcon fontSize="small" />}
+                title="Recursos Asignados"
+                bgcolor={theme.palette.success.main}
+              >
+                <RowItem label="vCPUs" value={`${maquina.cpu} Core(s)`} />
+                <RowItem label="RAM" value={`${maquina.ram} GB`} />
+                <RowItem
+                  label="Almacenamiento"
+                  isLast
+                  value={
+                    parseAlmacenamiento(maquina.almacenamiento).length > 0 ? (
+                      <Stack direction="row" spacing={1} flexWrap="wrap">
+                        {parseAlmacenamiento(maquina.almacenamiento).map((d, i) => (
+                          <Chip
+                            key={i}
+                            size="small"
+                            label={`D${d.Disco}: ${d.Valor} GB`}
+                            variant="outlined"
+                            sx={{ height: 20, fontSize: '0.7rem' }}
+                          />
+                        ))}
+                      </Stack>
+                    ) : (
+                      'Sin información'
+                    )
+                  }
+                />
+              </SectionCard>
+            </Stack>
+
+            {/* COLUMNA DERECHA */}
+            <Stack spacing={2}>
+              {/* CARD — Infraestructura */}
+              <SectionCard
+                icon={<ClusterIcon fontSize="small" />}
+                title="Infraestructura y Orquestación"
+                bgcolor={theme.palette.info.main}
+              >
+                {clusterInfo.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No vinculada a ningún host.
                   </Typography>
-
-                  <RowItem
-                    label={info.tipo === 'PROXMOX' ? 'Ubicación' : 'Cluster'}
-                    value={
-                      <Link to={info.link} style={{ textDecoration: 'none', color: theme.palette.primary.main, fontWeight: 600 }}>
-                        {info.clusterName}
-                      </Link>
-                    }
-                  />
-                  <RowItem label="Nodo / Host" value={info.nodoName} />
-                  {info.rol && <RowItem label="Rol Asignado" value={<Chip label={info.rol} size="small" variant="outlined" />} />}
-                </Box>
-              ))
-            )}
-          </SectionCard>
-
-          {/* CARD 3: RECURSOS */}
-          <SectionCard icon={<MemoryIcon sx={{ fontSize: 18 }} />} title="Recursos Asignados" bgcolor={theme.palette.success.main}>
-            <RowItem label="CPUs Virtuales" value={`${maquina?.cpu ?? 0} vCores`} />
-            <RowItem label="Memoria RAM" value={`${maquina?.ram ?? 0} GB`} />
-
-            <RowItem
-              label="Discos"
-              value={
-                parseAlmacenamiento(maquina?.almacenamiento).length > 0 ? (
-                  <Stack direction="row" spacing={1} flexWrap="wrap">
-                    {parseAlmacenamiento(maquina.almacenamiento).map((d, i) => (
-                      <Chip
-                        key={i}
-                        size="small"
-                        label={`D${d.Disco || i+1}: ${d.Valor} GB`}
-                        variant="outlined"
-                        sx={{ height: 22, fontSize: '0.75rem' }}
-                      />
-                    ))}
-                  </Stack>
                 ) : (
-                  <Typography variant="caption" color="text.secondary">Sin información</Typography>
-                )
-              }
-            />
-          </SectionCard>
+                  clusterInfo.map((info, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        mb: 2,
+                        pb: 1,
+                        borderBottom: idx < clusterInfo.length - 1 ? '1px dashed #ddd' : 'none',
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ fontWeight: 700, color: 'text.secondary', mb: 0.5, display: 'block' }}
+                      >
+                        {info.titulo.toUpperCase()}
+                      </Typography>
+                      <RowItem
+                        label="Cluster"
+                        value={
+                          <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main }}>
+                            {info.clusterName}
+                          </Link>
+                        }
+                      />
+                      <RowItem label="Nodo / Host" value={info.nodoName} />
+                      {info.rol && (
+                        <RowItem
+                          label="Rol"
+                          value={<Chip size="small" variant="outlined" label={info.rol} />}
+                          isLast
+                        />
+                      )}
+                    </Box>
+                  ))
+                )}
+              </SectionCard>
 
-        </Stack>
-      </Box>
+              {/* CARD — Auditoría */}
+              <SectionCard
+                icon={<AuditIcon fontSize="small" />}
+                title="Auditoría del Registro"
+                bgcolor={theme.palette.warning.dark}
+              >
+                <RowItem
+                  label="Estado Registro"
+                  value={
+                    <Chip
+                      label={fmtEnum(maquina.estado)}
+                      size="small"
+                      color={maquina.estado === 'ACTIVO' ? 'success' : 'error'}
+                      sx={{ height: 20, fontWeight: 600, fontSize: '0.7rem' }}
+                    />
+                  }
+                />
+                <RowItem label="Fecha Creación" value={fmtDate(maquina.fecha_creacion)} />
+                <RowItem label="Creado por" value={getUserFullName(maquina.usuario_creacion)} />
+                <RowItem label="Última Modificación" value={fmtDate(maquina.fecha_modificacion)} />
+                <RowItem label="Modificado por" value={getUserFullName(maquina.usuario_modificacion)} isLast />
+              </SectionCard>
+            </Stack>
+          </Box>
+        </CardContent>
+      </Card>
 
-      {/* TABS INFERIORES */}
-      <Card sx={{ borderRadius: 1 }}>
+      {/* TABS PRINCIPALES */}
+      <Card sx={{ borderRadius: 2 }}>
         <Tabs
           value={tab}
           onChange={handleTabChange}
           indicatorColor="primary"
           textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
           sx={{ borderBottom: `1px solid ${theme.palette.divider}`, minHeight: 42 }}
         >
-          <Tab label={<Stack direction="row" spacing={1} alignItems="center"><UsersIcon fontSize="small" /><span>Usuarios</span><Chip label={usuarioRoles.length} size="small" /></Stack>} />
-          <Tab label={<Stack direction="row" spacing={1} alignItems="center"><DeploymentIcon fontSize="small" /><span>Despliegues</span><Chip label={despliegues.length} size="small" /></Stack>} />
-          <Tab label={<Stack direction="row" spacing={1} alignItems="center"><SystemIcon fontSize="small" /><span>Sistemas</span><Chip label={sistemasFromDespliegues.length} size="small" /></Stack>} />
-          <Tab label={<Stack direction="row" spacing={1} alignItems="center"><InfraIcon fontSize="small" /><span>Eventos</span><Chip label={infraAfectada.length} size="small" /></Stack>} />
+          <Tab
+            sx={{ minHeight: 42, py: 0 }}
+            label={
+              <Stack direction="row" spacing={1} alignItems="center">
+                <UsersIcon fontSize="small" />
+                <span>Usuarios</span>
+                <Chip label={usuarioRoles.length} size="small" sx={{ height: 18, fontSize: '0.7rem' }} />
+              </Stack>
+            }
+          />
+
+          <Tab
+            sx={{ minHeight: 42, py: 0 }}
+            label={
+              <Stack direction="row" spacing={1} alignItems="center">
+                <DeploymentIcon fontSize="small" />
+                <span>Despliegues</span>
+                <Chip label={despliegues.length} size="small" sx={{ height: 18, fontSize: '0.7rem' }} />
+              </Stack>
+            }
+          />
+
+          <Tab
+            sx={{ minHeight: 42, py: 0 }}
+            label={
+              <Stack direction="row" spacing={1} alignItems="center">
+                <SystemIcon fontSize="small" />
+                <span>Sistemas</span>
+                <Chip
+                  label={uniqueById(
+                    despliegues.flatMap((d) =>
+                      d.componentes?.sistemas ? [d.componentes.sistemas] : []
+                    )
+                  ).length}
+                  size="small"
+                  sx={{ height: 18, fontSize: '0.7rem' }}
+                />
+              </Stack>
+            }
+          />
+
+          <Tab
+            sx={{ minHeight: 42, py: 0 }}
+            label={
+              <Stack direction="row" spacing={1} alignItems="center">
+                <InfraIcon fontSize="small" />
+                <span>Eventos</span>
+                <Chip label={infraAfectada.length} size="small" sx={{ height: 18, fontSize: '0.7rem' }} />
+              </Stack>
+            }
+          />
         </Tabs>
 
+        {/* TAB CONTENT */}
         <CardContent sx={{ p: 2 }}>
-
-          {/* TAB 0: USUARIOS */}
-          {tab === 0 && (
-            usuarioRoles.length > 0 ? (
+          {/* TAB 0: Usuarios */}
+          {tab === 0 &&
+            (usuarioRoles.length > 0 ? (
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
@@ -381,18 +562,21 @@ const Maquina = ({ maquina = {} }) => {
                     {usuarioRoles.map((ur) => (
                       <TableRow key={ur.id} hover>
                         <TableCell>{getUserFullName(ur.usuarios?.[0]?.id)}</TableCell>
-                        <TableCell>{ur.roles?.nombre || 'N/A'}</TableCell>
+                        <TableCell>{ur.roles?.nombre}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </TableContainer>
-            ) : <Typography align="center" color="text.secondary" sx={{ py: 4 }}>No hay usuarios asociados.</Typography>
-          )}
+            ) : (
+              <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
+                No hay usuarios asociados.
+              </Typography>
+            ))}
 
-          {/* TAB 1: DESPLIEGUES */}
-          {tab === 1 && (
-            despliegues.length > 0 ? (
+          {/* TAB 1: Despliegues */}
+          {tab === 1 &&
+            (despliegues.length > 0 ? (
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
@@ -406,39 +590,53 @@ const Maquina = ({ maquina = {} }) => {
                   <TableBody>
                     {despliegues.map((d) => (
                       <TableRow key={d.id} hover>
-                        <TableCell>{d.componentes?.nombre || 'N/A'}</TableCell>
-                        <TableCell>{d.componentes?.sistemas?.nombre || 'N/A'}</TableCell>
+                        <TableCell>{d.componentes?.nombre}</TableCell>
+                        <TableCell>{d.componentes?.sistemas?.nombre}</TableCell>
                         <TableCell>{fmtDate(d.fecha_despliegue)}</TableCell>
-                        <TableCell><Chip size="small" label={d.estado_despliegue} /></TableCell>
+                        <TableCell>
+                          <Chip label={d.estado_despliegue} size="small" sx={{ height: 20 }} />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </TableContainer>
-            ) : <Typography align="center" color="text.secondary" sx={{ py: 4 }}>No hay despliegues registrados.</Typography>
-          )}
+            ) : (
+              <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
+                No hay despliegues registrados.
+              </Typography>
+            ))}
 
-          {/* TAB 2: SISTEMAS */}
-          {tab === 2 && (
-            sistemasFromDespliegues.length > 0 ? (
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 2 }}>
+          {/* TAB 2: Sistemas */}
+          {tab === 2 &&
+            (sistemasFromDespliegues.length > 0 ? (
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                  gap: 2,
+                }}
+              >
                 {sistemasFromDespliegues.map((s) => (
                   <Paper key={s.id} variant="outlined" sx={{ p: 2 }}>
                     <Typography variant="subtitle2" color="primary" fontWeight={700}>
-                      {s.nombre} {s.sigla ? `(${s.sigla})` : ''}
+                      {s.nombre} {s.sigla && `(${s.sigla})`}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {s.descripcion?.substring(0, 100)}...
+                      {s.descripcion?.substring(0, 150)}
                     </Typography>
                   </Paper>
                 ))}
               </Box>
-            ) : <Typography align="center" color="text.secondary" sx={{ py: 4 }}>No hay sistemas relacionados.</Typography>
-          )}
+            ) : (
+              <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
+                No hay sistemas asociados.
+              </Typography>
+            ))}
 
-          {/* TAB 3: EVENTOS */}
-          {tab === 3 && (
-            infraAfectada.length > 0 ? (
+          {/* TAB 3: Eventos */}
+          {tab === 3 &&
+            (infraAfectada.length > 0 ? (
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
@@ -451,22 +649,26 @@ const Maquina = ({ maquina = {} }) => {
                   </TableHead>
                   <TableBody>
                     {infraAfectada.map((ia) => {
-                      const ev = ia.eventos?.[0]; // Asumiendo relación 1-N simplificada para la vista
+                      const ev = ia.eventos?.[0]
                       return (
                         <TableRow key={ia.id} hover>
-                          <TableCell>{ev?.cod_tipo_evento || 'N/A'}</TableCell>
-                          <TableCell>{ev?.descripcion || 'N/A'}</TableCell>
+                          <TableCell>{ev?.cod_tipo_evento}</TableCell>
+                          <TableCell>{ev?.descripcion}</TableCell>
                           <TableCell>{fmtDate(ev?.fecha_evento)}</TableCell>
-                          <TableCell><Chip size="small" label={ia.estado} /></TableCell>
+                          <TableCell>
+                            <Chip label={ia.estado} size="small" sx={{ height: 20 }} />
+                          </TableCell>
                         </TableRow>
                       )
                     })}
                   </TableBody>
                 </Table>
               </TableContainer>
-            ) : <Typography align="center" color="text.secondary" sx={{ py: 4 }}>No hay eventos de infraestructura.</Typography>
-          )}
-
+            ) : (
+              <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
+                No hay eventos registrados.
+              </Typography>
+            ))}
         </CardContent>
       </Card>
     </Box>

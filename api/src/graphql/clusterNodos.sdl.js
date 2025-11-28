@@ -8,7 +8,7 @@ export const schema = gql`
     servidorId: Int
     rol: String
     estado: estado!
-    k8s_uid: String
+    identity_key: String!
     fecha_creacion: DateTime!
     usuario_creacion: Int!
     fecha_modificacion: DateTime
@@ -41,9 +41,8 @@ export const schema = gql`
     servidorId: Int
     rol: String
     estado: estado!
-    k8s_uid: String
+    identity_key: String!
     usuario_creacion: Int!
-    # fecha_creacion se elimina porque la DB tiene @default(now())
   }
 
   input UpdateClusterNodoInput {
@@ -54,9 +53,8 @@ export const schema = gql`
     servidorId: Int
     rol: String
     estado: estado
-    k8s_uid: String
+    identity_key: String
     usuario_modificacion: Int
-    # fecha_modificacion se maneja en el servicio
   }
 
   type Mutation {

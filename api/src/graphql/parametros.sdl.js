@@ -18,13 +18,9 @@ export const schema = gql`
   }
 
   type Query {
-    # ✔ CORRECCIÓN: Permite el argumento 'grupo' como array de Strings (nullable)
     parametros(grupo: [String]): [Parametro!]! @requireAuth
-
     parametro(id: Int!): Parametro @requireAuth
     parametroByCodigo(codigo: String!): Parametro @requireAuth
-
-    # ❌ ELIMINADA: La consulta parametroByGrupo ya no es necesaria aquí
   }
 
   input CreateParametroInput {

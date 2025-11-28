@@ -27,13 +27,12 @@ const ScaffoldLayout = ({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
-      <Toaster toastOptions={{ className: 'rw-toast', duration: 6000 }} />
 
       {/* Header: Breadcrumbs + Actions */}
       <Box
         sx={{
           px: { xs: 2, sm: 3, md: 4 },
-          py: 3,
+          py: 2,
           mt: 1,
           mb: 2,
           mx: { xs: 2, sm: 3, md: 4 },

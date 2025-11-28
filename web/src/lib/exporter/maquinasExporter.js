@@ -2,92 +2,128 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx-js-style'
 
+/* ========================================================
+   HELPERS DE FORMATEO
+======================================================== */
 const formatDateTime = (value) => {
   if (!value) return ''
-  return new Date(value).toLocaleString('es-ES')
+  return new Date(value).toLocaleString('es-BO')
+}
+
+const getNestedValue = (obj, path) => {
+  if (!path) return null
+  return path.split('.').reduce((o, k) => (o || {})[k], obj)
 }
 
 export const formatCell = (columnId, value, helpers) => {
-  if (!value) return 'N/A'
+  if (value === null || value === undefined) return ''
 
+  // 1. Almacenamiento
   if (columnId === 'almacenamiento') {
     const discos = Array.isArray(value) ? value : JSON.parse(value || '[]')
-    return discos.map((d) => `Disco ${d.Disco}: ${d.Valor}GB`).join(', ')
+    return discos.map((d) => `D${d.Disco}:${d.Valor}GB`).join(', ')
   }
 
+  // 2. Fechas
   if (columnId.includes('fecha')) return formatDateTime(value)
-  if (columnId === 'estado')
-    return value === 'ACTIVO' ? 'Activo' : 'Inactivo'
 
-  if (columnId === 'cod_plataforma')
-    return helpers.getNombrePlataforma(value)
+  // 3. Estados
+  if (columnId === 'estado')
+    return value === 'ACTIVO' ? 'Activo' : 'Inactivo (Eliminado)'
+
+  if (columnId === 'estado_operativo') {
+    const map = { running: 'Encendida', stopped: 'Apagada', paused: 'Pausada' }
+    return map[value] || value
+  }
+
+  // 4. Lookups
+  if (columnId === 'cod_plataforma') return helpers.getNombrePlataforma(value)
 
   if (columnId === 'usuario_creacion' || columnId === 'usuario_modificacion') {
-    const u = helpers.getUsuarioById(value)
-    return u ? `${u.nombres} ${u.primer_apellido}` : 'N/A'
+    return helpers.getUsuarioNombre(value)
   }
 
   return String(value)
 }
 
-export const exportToPDF = (rows, table, helpers) => {
-  const visible = table.getVisibleLeafColumns()
-    .filter(c => !['mrt-row-actions','mrt-row-select'].includes(c.id))
+/* ========================================================
+   PREPARACIÓN DE DATOS (COMÚN)
+======================================================== */
+const prepareExportData = (rows, columns, helpers) => {
+  // 1. Cabeceras
+  const headers = columns.map((c) => c.columnDef.header)
 
-  const headers = visible.map(c => c.columnDef.header)
-  const data = rows.map(r =>
-    visible.map(c => formatCell(c.id, r.original[c.id], helpers))
-  )
+  // 2. Cuerpo
+  const body = rows.map((row) => {
+    return columns.map((col) => {
+      const key = col.id
+      const rawValue = getNestedValue(row.original, key)
+      return formatCell(key, rawValue, helpers)
+    })
+  })
 
+  return { headers, body }
+}
+
+const getFileName = (suffix, ext) => 
+  `maquinas${suffix}_${new Date().getTime()}.${ext}`
+
+/* ========================================================
+   EXPORTADORES INDIVIDUALES
+======================================================== */
+
+// --- 1. EXCEL ---
+export const exportToExcel = (rows, columns, helpers, suffix = '') => {
+  const { headers, body } = prepareExportData(rows, columns, helpers)
+
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...body])
+
+  ws['!cols'] = headers.map(() => ({ wch: 20 }))
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Máquinas')
+  XLSX.writeFile(wb, getFileName(suffix, 'xlsx'))
+}
+
+// --- 2. PDF ---
+export const exportToPDF = (rows, columns, helpers, suffix = '') => {
+  const { headers, body } = prepareExportData(rows, columns, helpers)
   const doc = new jsPDF({ orientation: 'landscape' })
 
-  doc.text('Reporte de Máquinas', 14, 12)
+  // Título
+  doc.setFontSize(14)
+  doc.text(`Reporte de Máquinas ${suffix.replace('-', '')}`, 14, 15)
+  
+  // Fecha
+  doc.setFontSize(10)
+  doc.text(`Generado: ${new Date().toLocaleString('es-BO')}`, 14, 22)
 
   autoTable(doc, {
     head: [headers],
-    body: data,
-    startY: 20,
-    styles: { fontSize: 9 }
+    body: body,
+    startY: 26,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [66, 66, 66] }, // Gris oscuro
+    theme: 'grid'
   })
 
-  doc.save(`maquinas-${new Date().toISOString()}.pdf`)
+  doc.save(getFileName(suffix, 'pdf'))
 }
 
-export const exportToExcel = (rows, table, helpers) => {
-  const visible = table.getVisibleLeafColumns()
-    .filter(c => !['mrt-row-actions','mrt-row-select'].includes(c.id))
+// --- 3. CSV ---
+export const exportToCSV = (rows, columns, helpers, suffix = '') => {
+  const { headers, body } = prepareExportData(rows, columns, helpers)
 
-  const headers = visible.map(c => c.columnDef.header)
-  const data = rows.map(r =>
-    visible.map(c => formatCell(c.id, r.original[c.id], helpers))
-  )
-
-  const wb = XLSX.utils.book_new()
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
-
-  ws['!cols'] = headers.map(h => ({ wch: h.length + 15 }))
-
-  XLSX.utils.book_append_sheet(wb, ws, 'Máquinas')
-  XLSX.writeFile(wb, `maquinas-${new Date().toISOString()}.xlsx`)
-}
-
-export const exportToCSV = (rows, table, helpers) => {
-  const visible = table.getVisibleLeafColumns()
-    .filter(c => !['mrt-row-actions','mrt-row-select'].includes(c.id))
-
-  const headers = visible.map(c => c.columnDef.header)
-  const data = rows.map(r =>
-    visible.map(c => `"${formatCell(c.id, r.original[c.id], helpers)}"`)
-  )
-
-  const csv = [
+  const csvContent = [
     headers.join(','),
-    ...data.map(row => row.join(','))
+    ...body.map((row) =>
+      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ),
   ].join('\n')
 
-  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
+  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `maquinas-${new Date().toISOString()}.csv`
+  link.download = getFileName(suffix, 'csv')
   link.click()
 }

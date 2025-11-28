@@ -1,317 +1,390 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { navigate, routes } from '@redwoodjs/router'
+
 import {
   Box,
-  Paper,
+  Card,
+  CardContent,
+  CardHeader,
   Typography,
   TextField,
-  Select,
-  MenuItem,
   FormControl,
   FormLabel,
-  FormHelperText,
+  Stack,
+  Avatar,
+  Button,
+  useTheme,
+  Paper,
   Checkbox,
   FormControlLabel,
+  InputAdornment,
+  IconButton
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 
-import LanIcon from '@mui/icons-material/Lan'
-import TokenIcon from '@mui/icons-material/VpnKey'
-import InfoIcon from '@mui/icons-material/Info'
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+// Iconos
+import {
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  AddCircle as AddIcon,
+  Edit as EditIcon,
+  ErrorOutline as ErrorIcon,
+  Lan as ConnectionIcon,
+  VpnKey as AuthIcon,
+  Visibility,
+  VisibilityOff
+} from '@mui/icons-material'
 
 /* ---------------------------------------------
- * Default form values
+ * 1. COMPONENTE HELPER: SectionCard
  * --------------------------------------------- */
-const getDefaultValues = () => ({
-  nombre: '',
-  dominio: '',
-  ip: '',
-  puerto: '',
-  ssl: true,
-  usuario: '',
-  token_id: '',
-  token_secret: '',
-  descripcion: '',
-  estado: 'ACTIVO',
-})
-
-/* ---------------------------------------------
- * Section Card UI
- * --------------------------------------------- */
-const SectionCard = ({ title, icon, children }) => (
-  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-      {icon}
-      <Typography sx={{ fontWeight: 600 }}>{title}</Typography>
-    </Box>
-    {children}
-  </Paper>
-)
-
-/* ---------------------------------------------
- * MAIN COMPONENT
- * --------------------------------------------- */
-export default function ProxmoxEndpointForm({ proxmoxEndpoint, onSave, loading, error }) {
-  const isEdit = Boolean(proxmoxEndpoint?.id)
-  const [form, setForm] = useState(getDefaultValues())
-  const [errors, setErrors] = useState({})
-  const [submitting, setSubmitting] = useState(false)
-
-  /* Cargar datos en modo edición */
-  useEffect(() => {
-    if (isEdit) {
-      setForm({
-        nombre: proxmoxEndpoint.nombre ?? '',
-        dominio: proxmoxEndpoint.dominio ?? '',
-        ip: proxmoxEndpoint.ip ?? '',
-        puerto: proxmoxEndpoint.puerto ?? '',
-        ssl: proxmoxEndpoint.ssl ?? true,
-        usuario: proxmoxEndpoint.usuario ?? '',
-        token_id: proxmoxEndpoint.token_id ?? '',
-        token_secret: proxmoxEndpoint.token_secret ?? '',
-        descripcion: proxmoxEndpoint.descripcion ?? '',
-        estado: proxmoxEndpoint.estado ?? 'ACTIVO',
-      })
-    }
-  }, [proxmoxEndpoint, isEdit])
-
-  /* Helper para actualizar campos */
-  const handleChange = (field, value) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
-    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }))
-  }
-
-  /* Validación */
-  const validate = () => {
-    const e = {}
-
-    if (!form.nombre.trim()) e.nombre = 'El nombre es obligatorio'
-    if (!form.usuario.trim()) e.usuario = 'Usuario API requerido'
-    if (!form.token_id.trim()) e.token_id = 'Token ID requerido'
-    if (!form.token_secret.trim()) e.token_secret = 'Token Secret requerido'
-
-    const ipv4 =
-      /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
-
-    if (!form.ip.trim() || !ipv4.test(form.ip)) e.ip = 'IP inválida'
-
-    if (!form.puerto || Number(form.puerto) <= 0) e.puerto = 'Puerto inválido'
-
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
-  /* Submit */
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (submitting) return
-
-    if (!validate()) return
-
-    const payload = {
-      ...form,
-      puerto: Number(form.puerto),
-      ssl: Boolean(form.ssl),
-      estado: form.estado,
-    }
-
-    setSubmitting(true)
-    try {
-      if (isEdit) {
-        payload.usuario_modificacion = 1 // usar currentUser.id
-        await onSave(payload, proxmoxEndpoint.id)
-      } else {
-        payload.usuario_creacion = 1
-        await onSave(payload)
-      }
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  /* ---------------------------------------------
-   * RENDER
-   * --------------------------------------------- */
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
   return (
-    <Box component="form" onSubmit={handleSubmit} noValidate>
-      <Paper elevation={1} sx={{ p: 3, borderRadius: 3 }}>
+    <Card
+      variant="outlined"
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
+    </Card>
+  )
+}
 
-        {/* Header */}
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 3 }}>
-          <LanIcon fontSize="large" color="primary" />
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              {isEdit ? `Editar Endpoint Proxmox` : 'Crear Endpoint Proxmox'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Complete los campos obligatorios marcados con *
-            </Typography>
-          </Box>
+/* ---------------------------------------------
+ * 2. COMPONENTE PRINCIPAL
+ * --------------------------------------------- */
+const ProxmoxEndpointForm = (props) => {
+  const theme = useTheme()
+  const isEdit = Boolean(props.proxmoxEndpoint?.id)
+  const [showSecret, setShowSecret] = useState(false)
+
+  // Configuración del Formulario
+  const formMethods = useForm({
+    defaultValues: {
+      nombre: props.proxmoxEndpoint?.nombre || '',
+      dominio: props.proxmoxEndpoint?.dominio || '',
+      ip: props.proxmoxEndpoint?.ip || '',
+      puerto: props.proxmoxEndpoint?.puerto || '8006',
+      ssl: props.proxmoxEndpoint?.ssl ?? true,
+      usuario: props.proxmoxEndpoint?.usuario || 'root@pam',
+      token_id: props.proxmoxEndpoint?.token_id || '',
+      token_secret: props.proxmoxEndpoint?.token_secret || '',
+      descripcion: props.proxmoxEndpoint?.descripcion || '',
+      estado: props.proxmoxEndpoint?.estado || 'ACTIVO', // Se mantiene interno
+    },
+  })
+
+  const { control, handleSubmit, formState: { errors } } = formMethods
+
+  const onSubmit = (data) => {
+    const formData = {
+      ...data,
+      puerto: Number(data.puerto),
+      usuario_modificacion: 2,
+      usuario_creacion: isEdit ? undefined : 3,
+    }
+    props.onSave(formData, props?.proxmoxEndpoint?.id)
+  }
+
+  return (
+    <Box sx={{ width: '100%', maxWidth: 1200, mx: 'auto', p: 2 }}>
+      
+      {/* CONTENEDOR PRINCIPAL */}
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        
+        {/* HEADER */}
+        <Box sx={{ 
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+          }}>
+            <Avatar sx={{
+                  width: 48, height: 48,
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                }}>
+              {isEdit ? <EditIcon /> : <AddIcon />}
+            </Avatar>
+            
+            <Box>
+              <Typography variant="h5" fontWeight={800} sx={{
+                  lineHeight: 1.2,
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>
+                {isEdit ? 'Editar Endpoint' : 'Nuevo Endpoint Proxmox'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isEdit ? 'Modificar datos de conexión al cluster' : 'Registrar nuevo punto de conexión Proxmox'}
+              </Typography>
+            </Box>
         </Box>
 
-        {/* Error global */}
-        {error && (
-          <Paper
-            variant="outlined"
-            sx={{
-              p: 2,
-              mb: 2,
-              backgroundColor: '#ffe5e5',
-              color: '#b71c1c',
-              display: 'flex',
-              gap: 1,
-              alignItems: 'center',
-            }}
-          >
-            <ErrorOutlineIcon />
-            <Typography>{error?.message || String(error)}</Typography>
-          </Paper>
-        )}
+        {/* CONTENIDO */}
+        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          
+          <form onSubmit={handleSubmit(onSubmit)}>
+            
+            {/* Mensaje de Error */}
+            {props.error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorOutlineIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+              </Paper>
+            )}
 
-        {/* GRID DE 3 COLUMNAS */}
-        <Box
-          sx={{
-            display: 'grid',
-            gap: 2,
-            gridTemplateColumns: '1fr 1fr 1fr',
-            '@media (max-width: 1400px)': { gridTemplateColumns: '1fr 1fr' },
-            '@media (max-width: 900px)': { gridTemplateColumns: '1fr' },
-          }}
-        >
-          {/* Datos del servidor */}
-          <SectionCard title="Datos del Servidor" icon={<LanIcon />}>
-            <Box sx={{ display: 'grid', gap: 2 }}>
-              <FormControl fullWidth error={!!errors.nombre}>
-                <FormLabel>Nombre *</FormLabel>
-                <TextField
-                  size="small"
-                  value={form.nombre}
-                  onChange={(e) => handleChange('nombre', e.target.value)}
-                />
-                {errors.nombre && <FormHelperText>{errors.nombre}</FormHelperText>}
-              </FormControl>
+            {/* GRID DE 2 COLUMNAS (Ajustado porque eliminamos el 3er card) */}
+            <Box sx={{ 
+              display: 'grid', 
+              gap: 3, 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', // Aumentado ligeramente el min-width
+              alignItems: 'start'
+            }}>
+              
+              {/* --- CARD 1: CONEXIÓN + DESCRIPCIÓN --- */}
+              <SectionCard 
+                icon={<ConnectionIcon sx={{ fontSize: 20 }} />} 
+                title="Datos Generales y Conexión"
+                bgcolor={theme.palette.primary.main}
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* FILA 1: Nombre y Dominio */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <FormControl fullWidth error={!!errors.nombre}>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre del Nodo *</FormLabel>
+                      <Controller
+                        name="nombre"
+                        control={control}
+                        rules={{ required: 'El nombre es requerido' }}
+                        render={({ field }) => (
+                          <TextField 
+                            {...field} 
+                            size="small" 
+                            placeholder="Ej. PVE-Cluster-01" 
+                            error={!!errors.nombre}
+                            helperText={errors.nombre?.message}
+                          />
+                        )}
+                      />
+                    </FormControl>
 
-              <FormControl fullWidth error={!!errors.ip}>
-                <FormLabel>IP *</FormLabel>
-                <TextField
-                  size="small"
-                  value={form.ip}
-                  onChange={(e) => handleChange('ip', e.target.value)}
-                />
-                {errors.ip && <FormHelperText>{errors.ip}</FormHelperText>}
-              </FormControl>
+                    <FormControl fullWidth>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Dominio (FQDN)</FormLabel>
+                      <Controller
+                        name="dominio"
+                        control={control}
+                        render={({ field }) => (
+                          <TextField {...field} size="small" placeholder="Ej. pve.midominio.com" />
+                        )}
+                      />
+                    </FormControl>
+                  </Box>
 
-              <FormControl fullWidth error={!!errors.puerto}>
-                <FormLabel>Puerto *</FormLabel>
-                <TextField
-                  type="number"
-                  size="small"
-                  value={form.puerto}
-                  onChange={(e) => handleChange('puerto', e.target.value)}
-                />
-                {errors.puerto && <FormHelperText>{errors.puerto}</FormHelperText>}
-              </FormControl>
+                  {/* Descripción (Movida aquí) */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
+                    <Controller
+                      name="descripcion"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          multiline 
+                          rows={2} // Reducido un poco para que cuadre mejor
+                          size="small" 
+                          placeholder="Notas adicionales sobre este endpoint..." 
+                        />
+                      )}
+                    />
+                  </FormControl>
 
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={form.ssl}
-                    onChange={(e) => handleChange('ssl', e.target.checked)}
+                  {/* FILA: IP y Puerto */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 2 }}>
+                    <FormControl fullWidth error={!!errors.ip}>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Dirección IP *</FormLabel>
+                      <Controller
+                        name="ip"
+                        control={control}
+                        rules={{ 
+                          required: 'IP requerida',
+                          pattern: {
+                            value: /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/,
+                            message: "IP inválida"
+                          }
+                        }}
+                        render={({ field }) => (
+                          <TextField {...field} size="small" placeholder="192.168.x.x" error={!!errors.ip} />
+                        )}
+                      />
+                    </FormControl>
+
+                    <FormControl fullWidth error={!!errors.puerto}>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Puerto *</FormLabel>
+                      <Controller
+                        name="puerto"
+                        control={control}
+                        rules={{ required: 'Requerido' }}
+                        render={({ field }) => (
+                          <TextField {...field} size="small" type="number" placeholder="8006" error={!!errors.puerto} />
+                        )}
+                      />
+                    </FormControl>
+                  </Box>
+
+                  {/* SSL Checkbox */}
+                  <FormControlLabel
+                    control={
+                      <Controller
+                        name="ssl"
+                        control={control}
+                        render={({ field }) => (
+                          <Checkbox {...field} checked={field.value} />
+                        )}
+                      />
+                    }
+                    label={<Typography variant="body2">Habilitar conexión SSL (HTTPS)</Typography>}
                   />
-                }
-                label="SSL Habilitado"
-              />
+
+                </Stack>
+              </SectionCard>
+
+              {/* --- CARD 2: AUTENTICACIÓN --- */}
+              <SectionCard 
+                icon={<AuthIcon sx={{ fontSize: 20 }} />} 
+                title="Autenticación API"
+                bgcolor={theme.palette.secondary.main}
+              >
+                <Stack spacing={2.5}>
+                  
+                  {/* Usuario */}
+                  <FormControl fullWidth error={!!errors.usuario}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Usuario API *</FormLabel>
+                    <Controller
+                      name="usuario"
+                      control={control}
+                      rules={{ required: 'Usuario requerido' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. root@pam" 
+                          error={!!errors.usuario}
+                          helperText={errors.usuario?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
+
+                  {/* Token ID */}
+                  <FormControl fullWidth error={!!errors.token_id}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Token ID *</FormLabel>
+                    <Controller
+                      name="token_id"
+                      control={control}
+                      rules={{ required: 'Token ID requerido' }}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          size="small" 
+                          placeholder="Ej. mytoken" 
+                          error={!!errors.token_id}
+                          helperText={errors.token_id?.message}
+                        />
+                      )}
+                    />
+                  </FormControl>
+
+                  {/* Token Secret */}
+                  <FormControl fullWidth error={!!errors.token_secret}>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Token Secret *</FormLabel>
+                    <Controller
+                      name="token_secret"
+                      control={control}
+                      rules={{ required: 'Token Secret requerido' }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          size="small"
+                          type={showSecret ? 'text' : 'password'}
+                          placeholder="••••••••-••••-••••-••••-••••••••••••"
+                          error={!!errors.token_secret}
+                          helperText={errors.token_secret?.message}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton
+                                  aria-label="toggle secret visibility"
+                                  onClick={() => setShowSecret(!showSecret)}
+                                  edge="end"
+                                  size="small"
+                                >
+                                  {showSecret ? <VisibilityOff /> : <Visibility />}
+                                </IconButton>
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+                      )}
+                    />
+                  </FormControl>
+
+                </Stack>
+              </SectionCard>
+
             </Box>
-          </SectionCard>
 
-          {/* Autenticación */}
-          <SectionCard title="Autenticación API" icon={<TokenIcon />}>
-            <Box sx={{ display: 'grid', gap: 2 }}>
-              <FormControl fullWidth error={!!errors.usuario}>
-                <FormLabel>Usuario *</FormLabel>
-                <TextField
-                  size="small"
-                  value={form.usuario}
-                  onChange={(e) => handleChange('usuario', e.target.value)}
-                />
-                {errors.usuario && <FormHelperText>{errors.usuario}</FormHelperText>}
-              </FormControl>
+            {/* BOTONES */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button
+                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.proxmoxEndpoints())}
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+              >
+                Cancelar
+              </Button>
 
-              <FormControl fullWidth error={!!errors.token_id}>
-                <FormLabel>Token ID *</FormLabel>
-                <TextField
-                  size="small"
-                  value={form.token_id}
-                  onChange={(e) => handleChange('token_id', e.target.value)}
-                />
-                {errors.token_id && <FormHelperText>{errors.token_id}</FormHelperText>}
-              </FormControl>
-
-              <FormControl fullWidth error={!!errors.token_secret}>
-                <FormLabel>Token Secret *</FormLabel>
-                <TextField
-                  type="password"
-                  size="small"
-                  value={form.token_secret}
-                  onChange={(e) => handleChange('token_secret', e.target.value)}
-                />
-                {errors.token_secret && <FormHelperText>{errors.token_secret}</FormHelperText>}
-              </FormControl>
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={props.loading}
+                startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
+                  boxShadow: 4, 
+                  px: 4, 
+                  minWidth: 160, 
+                  borderRadius: 2, 
+                  textTransform: 'none', 
+                  fontWeight: 700 
+                }}
+              >
+                {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar Endpoint')}
+              </LoadingButton>
             </Box>
-          </SectionCard>
 
-          {/* Info adicional */}
-          <SectionCard title="Información Adicional" icon={<InfoIcon />}>
-            <Box sx={{ display: 'grid', gap: 2 }}>
-              <FormControl fullWidth>
-                <FormLabel>Dominio</FormLabel>
-                <TextField
-                  size="small"
-                  value={form.dominio}
-                  onChange={(e) => handleChange('dominio', e.target.value)}
-                />
-              </FormControl>
-
-              <FormControl fullWidth>
-                <FormLabel>Descripción</FormLabel>
-                <TextField
-                  multiline
-                  rows={2}
-                  size="small"
-                  value={form.descripcion}
-                  onChange={(e) => handleChange('descripcion', e.target.value)}
-                />
-              </FormControl>
-
-              <FormControl fullWidth>
-                <FormLabel>Estado</FormLabel>
-                <Select
-                  size="small"
-                  value={form.estado}
-                  onChange={(e) => handleChange('estado', e.target.value)}
-                >
-                  <MenuItem value="ACTIVO">ACTIVO</MenuItem>
-                  <MenuItem value="INACTIVO">INACTIVO</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-          </SectionCard>
+          </form>
         </Box>
-
-        {/* Botón Guardar */}
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-          <LoadingButton
-            type="submit"
-            variant="contained"
-            startIcon={<CheckCircleOutlineIcon />}
-            loading={loading || submitting}
-            sx={{ textTransform: 'none', fontWeight: 700 }}
-          >
-            {loading || submitting ? 'Guardando…' : 'Guardar'}
-          </LoadingButton>
-        </Box>
-      </Paper>
+      </Card>
     </Box>
   )
 }
+
+export default ProxmoxEndpointForm

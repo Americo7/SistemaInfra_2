@@ -7,20 +7,13 @@ import { db } from 'src/lib/db'
 export const getK8sClient = async (endpointId) => {
   console.log(`[K8s] Iniciando cliente para Endpoint ID: ${endpointId}`)
 
-  // 1. Obtener credenciales de la BD
   const ep = await db.k8sEndpoint.findUnique({
     where: { id: endpointId },
   })
 
-  if (!ep) {
-    throw new Error('K8sEndpoint no encontrado en la base de datos')
-  }
+  if (!ep) throw new Error('K8sEndpoint no encontrado en la base de datos')
+  if (!ep.url_api || !ep.token_bearer) throw new Error('Configuración K8s incompleta')
 
-  if (!ep.url_api || !ep.token_bearer) {
-    throw new Error('Configuración K8s incompleta: Falta URL o Token')
-  }
-
-  // 2. Configurar KubeConfig manualmente (sin archivo .yaml)
   const kc = new KubeConfig()
 
   kc.loadFromOptions({
@@ -28,7 +21,7 @@ export const getK8sClient = async (endpointId) => {
       {
         name: `cluster-${ep.id}`,
         server: ep.url_api,
-        skipTLSVerify: true, // Importante para IPs privadas o certs autofirmados
+        skipTLSVerify: true,
       },
     ],
     users: [
@@ -47,10 +40,7 @@ export const getK8sClient = async (endpointId) => {
     currentContext: `context-${ep.id}`,
   })
 
-  // 3. Crear instancia de la API
   const k8sApi = kc.makeApiClient(CoreV1Api)
-  console.log('[K8s] Cliente creado exitosamente')
-
   return { k8sApi, endpoint: ep }
 }
 
@@ -62,18 +52,31 @@ export const listarNodosK8s = async (endpointId) => {
 
   try {
     console.log('[K8s] Solicitando lista de nodos...')
+    
+    // Hacemos la llamada
     const res = await k8sApi.listNode()
 
-    console.log(`[K8s] Se encontraron ${res.body.items.length} nodos.`)
+    // --- CORRECCIÓN DE BUG ---
+    // Determinamos dónde está la lista de items.
+    // A veces está en res.body.items, a veces en res.items directo.
+    const data = res.body || res
+    const items = data.items
 
-    // Mapeamos solo la info útil para no saturar logs
-    return res.body.items.map((node) => ({
+    // Debug para ver qué estamos recibiendo si vuelve a fallar
+    if (!items) {
+      console.error('[K8s] Estructura inesperada:', Object.keys(res))
+      throw new Error('La respuesta de Kubernetes no contiene la lista de "items"')
+    }
+
+    console.log(`[K8s] Se encontraron ${items.length} nodos.`)
+
+    return items.map((node) => ({
       name: node.metadata.name,
       uid: node.metadata.uid,
-      roles: Object.keys(node.metadata.labels)
+      roles: Object.keys(node.metadata?.labels || {})
         .filter((key) => key.startsWith('node-role.kubernetes.io/'))
         .map((key) => key.split('/')[1])
-        .join(', '),
+        .join(', ') || 'worker', // Default a worker si no hay etiqueta
       status: node.status.conditions.find((c) => c.type === 'Ready')?.status,
       cpu: node.status.capacity.cpu,
       memory: node.status.capacity.memory,
@@ -84,6 +87,8 @@ export const listarNodosK8s = async (endpointId) => {
     }))
   } catch (error) {
     console.error('[K8s] Error listando nodos:', error)
-    throw new Error(`Error Kubernetes: ${error.message}`)
+    // Extraemos mensaje limpio si es error de Axios/K8s
+    const msg = error.response?.body?.message || error.message
+    throw new Error(`Error Kubernetes: ${msg}`)
   }
 }

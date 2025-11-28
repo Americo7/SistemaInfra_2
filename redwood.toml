@@ -6,7 +6,10 @@
   port = "${WEB_PORT:8910}"
   apiUrl = "/api"
   includeEnvironmentVariables = [
-    "API_URL"
+    "API_URL",
+    "KEYCLOAK_URL",
+    "KEYCLOAK_REALM",
+    "KEYCLOAK_CLIENT_ID"
   ]
 
 [api]
