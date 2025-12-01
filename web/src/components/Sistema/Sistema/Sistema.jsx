@@ -1,127 +1,243 @@
-// src/components/Sistema/Sistema.jsx
+import React, { useState, useMemo } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useQuery, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
-import { useState } from 'react'
 
-// Importar funciones del exportador de reportes
-import {
-  generatePDF,
-  getMachineAdmins,
-  formatTecnologia,
-  mapEstadoDespliegue
-} from 'src/lib/exporter/sistemaDetalleExporter'
+// Importar funciones de exportación
+import { generatePDF } from 'src/lib/exporter/sistemaDetalleExporter'
 
-// Material-UI Components
 import {
   Box,
   Typography,
+  Card,
+  CardContent,
+  CardHeader,
+  Avatar,
+  Chip,
   Paper,
-  Grid,
+  Stack,
+  Tabs,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Button,
-  IconButton,
-  Chip,
-  Card,
-  CardContent,
-  CardHeader,
-  Avatar,
-  Tabs,
-  Tab,
-  Stack,
-  Tooltip,
   useTheme,
-  Link as MuiLink,
+  IconButton,
+  Tooltip,
+  Button,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   CircularProgress,
-  Divider,
-  Badge,
-  LinearProgress,
 } from '@mui/material'
+
 import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
   Dns as SystemIcon,
-  Event as EventIcon,
-  ArrowBack as BackIcon,
-  Info as InfoIcon,
   DeveloperBoard as ComponentIcon,
-  Group as PeopleIcon,
+  People as UsersIcon,
   Cloud as DeployIcon,
-  Business as EntityIcon,
-  CalendarToday as CalendarIcon,
-  Person as PersonIcon,
-  Update as UpdateIcon,
-  MoreVert as MoreIcon,
-  OpenInNew as OpenInNewIcon,
-  Code as CodeIcon,
+  Computer as MachineIcon,
   PictureAsPdf as PdfIcon,
   Download as DownloadIcon,
-  Assessment as StatsIcon,
-  SettingsInputComponent as MachineAdminIcon,
+  ArrowBack as BackIcon,
+  Info as GeneralIcon,
+  History as AuditIcon,
+  Business as EntityIcon,
+  VpnKey as KeyIcon,
+  Description as DescIcon,
+  CalendarToday as DateIcon,
+  OpenInNew as OpenInNewIcon,
+  Label as TagIcon,
 } from '@mui/icons-material'
 
-const DELETE_SISTEMA_MUTATION = gql`
-  mutation DeleteSistemaMutation($id: Int!) {
-    deleteSistema(id: $id) {
+/* -----------------------
+ * CONSULTAS (QUERIES)
+ * ----------------------- */
+const GET_USUARIOS_QUERY = gql`
+  query UsuariosLookupForSistema {
+    usuarios {
       id
+      nombres
+      primer_apellido
+      segundo_apellido
     }
   }
 `
 
+/* -----------------------
+ * HELPERS
+ * ----------------------- */
+const fmtDate = (d) => {
+  if (!d) return '-'
+  try {
+    const date = new Date(d)
+    return date.toLocaleString('es-ES', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return String(d)
+  }
+}
+
+const fmtEnum = (val) => (val ? String(val).toUpperCase() : '')
+
+const uniqueById = (arr = []) => {
+  const map = new Map()
+  arr.forEach((it) => {
+    if (it?.id != null && !map.has(it.id)) map.set(it.id, it)
+  })
+  return Array.from(map.values())
+}
+
+/* -----------------------
+ * SUB-COMPONENTES UI
+ * ----------------------- */
+const RowItem = ({ label, value, icon, isLast, multiline }) => (
+  <Box
+    sx={{
+      display: multiline ? 'block' : 'flex',
+      alignItems: multiline ? 'flex-start' : 'center',
+      py: 1.2, // Espacio vertical cómodo
+      borderBottom: isLast ? 'none' : '1px solid',
+      borderColor: 'divider',
+      width: '100%',
+      '&:hover': { bgcolor: 'action.hover' },
+    }}
+  >
+    <Typography
+      variant="body2"
+      color="text.secondary"
+      sx={{
+        width: multiline ? '100%' : '40%',
+        pr: 2,
+        display: 'flex',
+        alignItems: 'center',
+        fontSize: '0.95rem', // Letra grande para etiqueta
+        mb: multiline ? 0.5 : 0,
+        fontWeight: 500,
+      }}
+    >
+      {icon && (
+        <Box component="span" sx={{ mr: 1, display: 'flex', color: 'action.active' }}>
+          {icon}
+        </Box>
+      )}
+      {label}
+    </Typography>
+
+    <Box sx={{ width: multiline ? '100%' : '60%', display: 'flex', alignItems: 'center' }}>
+      {typeof value === 'string' || typeof value === 'number' ? (
+        <Typography
+          variant="body1"
+          sx={{
+            fontWeight: 600,
+            fontSize: '1rem', // Letra grande para el valor
+            whiteSpace: multiline ? 'pre-wrap' : 'normal',
+            color: 'text.primary'
+          }}
+        >
+          {value ?? ''}
+        </Typography>
+      ) : (
+        value ?? <Typography variant="body1"> </Typography>
+      )}
+    </Box>
+  </Box>
+)
+
+// Diseño Original: Borde superior de color
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  const activeColor = bgcolor || theme.palette.primary.main
+
+  return (
+    <Card
+      sx={{
+        borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`, // Mantenemos el borde de color
+        borderLeft: `1px solid ${theme.palette.divider}`,
+        borderRight: `1px solid ${theme.palette.divider}`,
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        height: '100%',
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
+            {title}
+          </Typography>
+        }
+        sx={{
+          py: 1.5,
+          px: 2,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+        }}
+      />
+      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* -----------------------
+ * COMPONENTE PRINCIPAL
+ * ----------------------- */
 const Sistema = ({ sistema }) => {
   const theme = useTheme()
-  const [activeTab, setActiveTab] = useState(0)
+  const [tab, setTab] = useState(0)
   const [pdfData, setPdfData] = useState(null)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
 
-  const [deleteSistema] = useMutation(DELETE_SISTEMA_MUTATION, {
-    onCompleted: () => {
-      toast.success('Sistema eliminado correctamente')
-      navigate(routes.sistemas())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar sistema: ${error.message}`)
-    },
-  })
+  // -- Queries --
+  const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
 
-  // Funciones auxiliares
-  const confirmDelete = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar el sistema ${sistema.nombre}?`)) {
-      deleteSistema({ variables: { id } })
-    }
-  }
+  // -- Data Processing (Memo) --
+  const componentes = sistema?.componentes || []
+  const usuariosRoles = sistema?.usuario_roles || []
 
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue)
-  }
+  const usuariosMap = useMemo(
+    () =>
+      usuariosData?.usuarios?.reduce((map, u) => {
+        map[u.id] = `${u.nombres} ${u.primer_apellido}`.trim()
+        return map
+      }, {}) || {},
+    [usuariosData]
+  )
 
-  const getEstadoColor = (estado) => {
-    return estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main
-  }
+  const getUserFullName = (id) => (!id ? '-' : usuariosMap[id] || `ID: ${id}`)
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '-'
-    const date = new Date(dateString)
-    return date.toLocaleString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
+  // 1. Historial Despliegues
+  const historialDespliegues = useMemo(() => {
+    const all = componentes.flatMap((c) =>
+      (c.despliegue || []).map((d) => ({ ...d, componente: c }))
+    )
+    return all.sort((a, b) => new Date(b.fecha_despliegue) - new Date(a.fecha_despliegue))
+  }, [componentes])
 
-  // Funciones para generar PDF usando el exportador
+  // 2. Máquinas Únicas
+  const maquinasInvolucradas = useMemo(() => {
+    const rawMaquinas = historialDespliegues.flatMap((d) => (d.maquina ? [d.maquina] : []))
+    return uniqueById(rawMaquinas)
+  }, [historialDespliegues])
+
+  // -- Handlers --
+  const handleTabChange = (_, v) => setTab(v)
+
   const generatePDFHandler = async () => {
     setGeneratingPdf(true)
     try {
@@ -136,646 +252,412 @@ const Sistema = ({ sistema }) => {
   }
 
   const downloadPDF = () => {
-    if (!pdfData) {
-      toast.error('No hay PDF generado para descargar')
-      return
-    }
-
+    if (!pdfData) return
     const link = document.createElement('a')
     link.href = pdfData
-    link.download = `Registro_Sistema_${sistema.codigo || sistema.id}_${new Date().toISOString().slice(0,10)}.pdf`
+    link.download = `Sistema_${sistema.codigo || sistema.id}.pdf`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
-  // Contadores para las pestañas
-  const componentesCount = sistema.componentes?.length || 0
-  const responsablesCount = sistema.usuario_roles?.length || 0
-  const machineAdmins = getMachineAdmins(sistema)
-  const machineAdminsCount = machineAdmins.length || 0
-
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Encabezado */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Tooltip title="Volver a la lista">
-          <IconButton
-            onClick={() => navigate(routes.sistemas())}
-            sx={{
-              mr: 2,
-              backgroundColor: theme.palette.action.hover,
-              '&:hover': {
-                backgroundColor: theme.palette.action.selected,
-              }
-            }}
-          >
-            <BackIcon />
-          </IconButton>
-        </Tooltip>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
-          {sistema.nombre}
-          {sistema.sigla && (
-            <Typography variant="h5" component="span" sx={{ ml: 2, color: 'text.secondary' }}>
-              ({sistema.sigla})
-            </Typography>
-          )}
-        </Typography>
-        <Box sx={{ flexGrow: 1 }} />
-        <Stack direction="row" spacing={2}>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<EditIcon />}
-            component={Link}
-            to={routes.editSistema({ id: sistema.id })}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Editar Sistema
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => confirmDelete(sistema.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={generatingPdf ? <CircularProgress size={20} /> : <PdfIcon />}
-            onClick={generatePDFHandler}
-            disabled={generatingPdf}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            {generatingPdf ? 'Generando...' : 'Generar PDF'}
-          </Button>
-        </Stack>
-      </Box>
-
-      {/* Tarjeta principal de información */}
-      <Card sx={{ mb: 3, borderRadius: 3, boxShadow: theme.shadows[3] }}>
-        <CardHeader
-          avatar={
-            <Avatar sx={{
-              bgcolor: theme.palette.primary.main,
-              width: 56,
-              height: 56,
-            }}>
-              <SystemIcon fontSize="large" />
-            </Avatar>
-          }
-          title={
-            <Typography variant="h5" component="div" sx={{ fontWeight: 600 }}>
-              {sistema.nombre}
-              <Chip
-                label={sistema.estado}
-                size="small"
-                sx={{
-                  ml: 2,
-                  backgroundColor: getEstadoColor(sistema.estado),
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '0.75rem',
-                  height: 24,
-                }}
-              />
-            </Typography>
-          }
-          subheader={
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <Typography variant="subtitle1" color="text.secondary">
-                Código: {sistema.codigo || 'N/A'} • Entidad: {sistema.entidades?.sigla || 'AGETIC'}
-              </Typography>
-            </Box>
-          }
-          action={
-            <IconButton>
-              <MoreIcon />
-            </IconButton>
-          }
+    <Box sx={{ width: '100%', maxWidth: 1600, mx: 'auto' }}>
+      {/* HEADER CARD */}
+      <Card elevation={3} sx={{ borderRadius: 2, mb: 3, overflow: 'hidden' }}>
+        <Box
           sx={{
-            pb: 0,
-            borderBottom: `1px solid ${theme.palette.divider}`,
+            px: 4,
+            py: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+            flexWrap: 'wrap',
           }}
-        />
-        <CardContent>
-          <Grid container spacing={3}>
-            {/* Columna izquierda - Detalles del sistema */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <InfoIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Detalles del Sistema
-              </Typography>
+        >
+          {/* Back Button */}
+          <Tooltip title="Volver">
+            <IconButton
+              onClick={() => navigate(routes.sistemas())}
+              size="small"
+              sx={{
+                mr: 1,
+                bgcolor: 'rgba(63, 81, 181, 0.15)',
+                color: '#3f51b5',
+                border: '1px solid rgba(63, 81, 181, 0.3)',
+                '&:hover': {
+                  bgcolor: 'rgba(63, 81, 181, 0.25)',
+                  color: '#303f9f',
+                  borderColor: 'rgba(63, 81, 181, 0.6)',
+                },
+              }}
+            >
+              <BackIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
 
-              <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                <Table size="small">
-                  <TableBody>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600, width: '40%' }}>Nombre</TableCell>
-                      <TableCell>{sistema.nombre}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Sigla</TableCell>
-                      <TableCell>{sistema.sigla || '-'}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Código</TableCell>
-                      <TableCell>{sistema.codigo || '-'}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Entidad</TableCell>
-                      <TableCell>
-                        {sistema.entidades ? (
-                          <Stack direction="row" alignItems="center" spacing={1}>
-                            <EntityIcon fontSize="small" color="action" />
-                            <span>
-                              {sistema.entidades.nombre} ({sistema.entidades.sigla})
-                            </span>
-                          </Stack>
-                        ) : '-'}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>RA Creación</TableCell>
-                      <TableCell>{sistema.ra_creacion || '-'}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
+          {/* Avatar Identidad (Mantenemos Colores/Gradientes) */}
+          <Avatar
+            sx={{
+              width: 48,
+              height: 48,
+              background: 'linear-gradient(135deg, #1976d2, #42a5f5)',
+              color: 'white',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+            }}
+          >
+            <SystemIcon fontSize="medium" />
+          </Avatar>
 
-              <Typography variant="h6" sx={{
-                mt: 3,
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <CodeIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Descripción
-              </Typography>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-                <Typography variant="body2">
-                  {sistema.descripcion || 'No hay descripción disponible para este sistema.'}
-                </Typography>
-              </Paper>
-            </Grid>
+          {/* Títulos */}
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 800,
+                lineHeight: 1.2,
+                // CAMBIO: Color negro (text.primary)
+                color: 'text.primary',
+              }}
+            >
+              {sistema.nombre}
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
+              Ficha técnica del sistema
+            </Typography>
+          </Box>
 
-            {/* Columna derecha - Estado y auditoría */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <EventIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Auditoría
-              </Typography>
+          {/* Botones de Acción (Solo Reporte) */}
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="contained"
+              size="medium"
+              disableElevation
+              startIcon={generatingPdf ? <CircularProgress size={20} color="inherit" /> : <PdfIcon />}
+              onClick={generatePDFHandler}
+              disabled={generatingPdf}
+              sx={{ fontWeight: 700 }}
+            >
+              Reporte
+            </Button>
+          </Stack>
+        </Box>
 
-              <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <PersonIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Creado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {sistema.usuario_creacion || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <CalendarIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Fecha Creación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDate(sistema.fecha_creacion)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <PersonIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Modificado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {sistema.usuario_modificacion || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <UpdateIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Última Modificación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDate(sistema.fecha_modificacion)}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
+        {/* CONTENIDO PRINCIPAL (GRID 2 COLUMNAS) */}
+        <CardContent sx={{ px: 4, py: 4 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
 
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <StatsIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Resumen
-              </Typography>
+            {/* IZQUIERDA: Información General */}
+            <SectionCard
+              icon={<GeneralIcon fontSize="small" />}
+              title="Información General"
+              bgcolor={theme.palette.primary.main}
+            >
+              <RowItem
+                label="Entidad"
+                icon={<EntityIcon fontSize="inherit" />}
+                value={
+                  sistema.entidades ? (
+                    <Typography variant="body1" fontWeight={700} color="primary.main">
+                      {sistema.entidades.nombre}
+                    </Typography>
+                  ) : 'No asignada'
+                }
+              />
+              <RowItem label="Código" value={sistema.codigo} icon={<KeyIcon fontSize="inherit" />} />
+              <RowItem label="Sigla" value={sistema.sigla} icon={<TagIcon fontSize="inherit" />} />
+              <RowItem label="RA Creación" value={sistema.ra_creacion} />
+              <RowItem
+                label="Descripción"
+                multiline
+                isLast
+                icon={<DescIcon fontSize="inherit" />}
+                value={sistema.descripcion || 'Sin descripción detallada.'}
+              />
+            </SectionCard>
 
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Componentes
-                    </Typography>
-                    <Badge badgeContent={componentesCount} color="primary" max={999}>
-                      <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                        <ComponentIcon fontSize="large" color="action" />
-                      </Typography>
-                    </Badge>
-                  </Paper>
-                </Grid>
-                <Grid item xs={6}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Responsables
-                    </Typography>
-                    <Badge badgeContent={responsablesCount} color="primary" max={999}>
-                      <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                        <PeopleIcon fontSize="large" color="action" />
-                      </Typography>
-                    </Badge>
-                  </Paper>
-                </Grid>
-                <Grid item xs={6}>
-                  <Paper variant="outlined" sx={{ p: 2, textAlign: 'center', borderRadius: 2 }}>
-                    <Typography variant="subtitle2" color="text.secondary">
-                      Admin. Máquinas
-                    </Typography>
-                    <Badge badgeContent={machineAdminsCount} color="primary" max={999}>
-                      <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                        <MachineAdminIcon fontSize="large" color="action" />
-                      </Typography>
-                    </Badge>
-                  </Paper>
-                </Grid>
-              </Grid>
-            </Grid>
-          </Grid>
+            {/* DERECHA: Auditoría y Stats */}
+            <Stack spacing={3}>
+              <SectionCard
+                icon={<AuditIcon fontSize="small" />}
+                title="Auditoría del Registro"
+                bgcolor={theme.palette.warning.dark}
+              >
+                <RowItem
+                  label="Estado Registro"
+                  value={
+                    <Chip
+                      label={fmtEnum(sistema.estado)}
+                      size="small"
+                      color={sistema.estado === 'ACTIVO' ? 'success' : 'error'}
+                      sx={{ height: 24, fontWeight: 700, fontSize: '0.75rem' }}
+                    />
+                  }
+                />
+                <RowItem label="Fecha Creación" value={fmtDate(sistema.fecha_creacion)} icon={<DateIcon fontSize="inherit" />} />
+                <RowItem label="Creado por" value={getUserFullName(sistema.usuario_creacion)} />
+                <RowItem label="Última Modificación" value={fmtDate(sistema.fecha_modificacion)} />
+                <RowItem label="Modificado por" value={getUserFullName(sistema.usuario_modificacion)} isLast />
+              </SectionCard>
+
+              {/* Stats Rápidos (Bordes de Colores mantenidos) */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2 }}>
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 2, textAlign: 'center', borderColor: theme.palette.info.main, borderTopWidth: 3 }}
+                >
+                  <Typography variant="h5" color="primary.main" fontWeight={800}>
+                    {componentes.length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                    Componentes
+                  </Typography>
+                </Paper>
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 2, textAlign: 'center', borderColor: theme.palette.success.main, borderTopWidth: 3 }}
+                >
+                  <Typography variant="h5" color="success.main" fontWeight={800}>
+                    {maquinasInvolucradas.length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                    Máquinas
+                  </Typography>
+                </Paper>
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 2, textAlign: 'center', borderColor: theme.palette.warning.main, borderTopWidth: 3 }}
+                >
+                  <Typography variant="h5" color="warning.main" fontWeight={800}>
+                    {historialDespliegues.length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" fontWeight={600}>
+                    Despliegues
+                  </Typography>
+                </Paper>
+              </Box>
+            </Stack>
+          </Box>
         </CardContent>
       </Card>
 
-      {/* Sección de pestañas */}
-      <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3] }}>
+      {/* TABS */}
+      <Card sx={{ borderRadius: 2 }}>
         <Tabs
-          value={activeTab}
+          value={tab}
           onChange={handleTabChange}
           indicatorColor="primary"
           textColor="primary"
-          variant="fullWidth"
-          sx={{
-            '& .MuiTabs-flexContainer': {
-              borderBottom: `1px solid ${theme.palette.divider}`,
-            }
-          }}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ borderBottom: `1px solid ${theme.palette.divider}`, minHeight: 54 }}
         >
           <Tab
+            sx={{ minHeight: 54 }}
             label={
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <ComponentIcon fontSize="small" />
-                <span>Componentes</span>
-                <Chip
-                  label={componentesCount}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.7rem' }}
-                />
+              <Stack direction="row" spacing={1} alignItems="center">
+                <ComponentIcon />
+                <Typography variant="subtitle2" fontWeight={600}>Componentes</Typography>
+                <Chip label={componentes.length} size="small" sx={{ height: 20, fontSize: '0.75rem', fontWeight: 700 }} />
               </Stack>
             }
           />
           <Tab
+            sx={{ minHeight: 54 }}
             label={
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <PeopleIcon fontSize="small" />
-                <span>Responsables</span>
-                <Chip
-                  label={responsablesCount}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.7rem' }}
-                />
+              <Stack direction="row" spacing={1} alignItems="center">
+                <DeployIcon />
+                <Typography variant="subtitle2" fontWeight={600}>Despliegues</Typography>
+                <Chip label={historialDespliegues.length} size="small" sx={{ height: 20, fontSize: '0.75rem', fontWeight: 700 }} />
               </Stack>
             }
           />
           <Tab
+            sx={{ minHeight: 54 }}
             label={
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <MachineAdminIcon fontSize="small" />
-                <span>Admin. Máquinas</span>
-                <Chip
-                  label={machineAdminsCount}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.7rem' }}
-                />
+              <Stack direction="row" spacing={1} alignItems="center">
+                <MachineIcon />
+                <Typography variant="subtitle2" fontWeight={600}>Máquinas</Typography>
+                <Chip label={maquinasInvolucradas.length} size="small" sx={{ height: 20, fontSize: '0.75rem', fontWeight: 700 }} />
               </Stack>
             }
           />
           <Tab
+            sx={{ minHeight: 54 }}
             label={
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <DeployIcon fontSize="small" />
-                <span>Despliegues</span>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <UsersIcon />
+                <Typography variant="subtitle2" fontWeight={600}>Usuarios</Typography>
+                <Chip label={usuariosRoles.length} size="small" sx={{ height: 20, fontSize: '0.75rem', fontWeight: 700 }} />
               </Stack>
             }
           />
         </Tabs>
 
-        <Divider />
-
-        <CardContent>
-          {activeTab === 0 && (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                Componentes asociados a este sistema
-              </Typography>
-              {componentesCount > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Dominio</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Entorno</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Categoría</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Tecnología</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Último Despliegue</TableCell>
+        {/* TAB CONTENT */}
+        <CardContent sx={{ p: 0 }}>
+          {/* 0. COMPONENTES */}
+          {tab === 0 && (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Nombre</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Dominio</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Entorno</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Estado</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {componentes.length > 0 ? (
+                    componentes.map((c) => (
+                      <TableRow key={c.id} hover>
+                        <TableCell>
+                          <Link
+                            to={routes.componente({ id: c.id })}
+                            style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none', fontSize: '0.95rem' }}
+                          >
+                            {c.nombre}
+                          </Link>
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.95rem' }}>
+                          {c.dominio ? (
+                            <Stack direction="row" alignItems="center" spacing={0.5}>
+                              <a href={`https://${c.dominio}`} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>{c.dominio}</a>
+                              <OpenInNewIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                            </Stack>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.95rem' }}>{c.cod_entorno}</TableCell>
+                        <TableCell>
+                          <Chip label={c.estado} size="small" color={c.estado === 'ACTIVO' ? 'success' : 'default'} sx={{ height: 24, fontSize: '0.75rem', fontWeight: 600 }} />
+                        </TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {sistema.componentes?.map((componente) => (
-                        <TableRow key={componente.id} hover>
-                          <TableCell>
-                            <Link
-                              to={routes.componente({ id: componente.id })}
-                              style={{ textDecoration: 'none' }}
-                            >
-                              <Typography variant="body2" sx={{ fontWeight: 500, color: theme.palette.primary.main }}>
-                                {componente.nombre}
-                              </Typography>
-                            </Link>
-                          </TableCell>
-                          <TableCell>
-                            {componente.dominio ? (
-                              <MuiLink
-                                href={`https://${componente.dominio}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                sx={{ display: 'flex', alignItems: 'center' }}
-                              >
-                                {componente.dominio}
-                                <OpenInNewIcon fontSize="small" sx={{ ml: 1 }} />
-                              </MuiLink>
-                            ) : '-'}
-                          </TableCell>
-                          <TableCell>{componente.cod_entorno || '-'}</TableCell>
-                          <TableCell>{componente.cod_categoria || '-'}</TableCell>
-                          <TableCell>
-                            <Tooltip title={formatTecnologia(componente.tecnologia)}>
-                              <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
-                                {formatTecnologia(componente.tecnologia)?.substring(0, 20) || '-'}
-                                {formatTecnologia(componente.tecnologia)?.length > 20 ? '...' : ''}
-                              </Typography>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={componente.estado}
-                              size="small"
-                              sx={{
-                                backgroundColor: getEstadoColor(componente.estado),
-                                color: 'white',
-                                fontSize: '0.7rem',
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {componente.despliegue?.[0] ? (
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                <Chip
-                                  label={componente.despliegue[0].estado_despliegue}
-                                  size="small"
-                                  sx={{
-                                    backgroundColor:
-                                      componente.despliegue[0].estado_despliegue === 'EXITOSO' ? theme.palette.success.main :
-                                      componente.despliegue[0].estado_despliegue === 'FALLIDO' ? theme.palette.error.main :
-                                      theme.palette.warning.main,
-                                    color: 'white',
-                                    fontSize: '0.7rem',
-                                  }}
-                                />
-                                <Typography variant="caption">
-                                  {formatDate(componente.despliegue[0].fecha_despliegue)}
-                                </Typography>
-                              </Stack>
-                            ) : '-'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <ComponentIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    No hay componentes registrados para este sistema.
-                  </Typography>
-                </Paper>
-              )}
-            </>
+                    ))
+                  ) : (
+                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '1rem' }}>No hay componentes registrados</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
 
-          {activeTab === 1 && (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                Usuarios responsables de este sistema
-              </Typography>
-              {responsablesCount > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Rol</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Tipo de Rol</TableCell>
+          {/* 1. DESPLIEGUES */}
+          {tab === 1 && (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Componente</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Versión / Tag</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Fecha</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Estado</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {historialDespliegues.length > 0 ? (
+                    historialDespliegues.map((d) => (
+                      <TableRow key={d.id} hover>
+                        <TableCell sx={{ fontSize: '0.95rem', fontWeight: 500 }}>{d.componente?.nombre}</TableCell>
+                        <TableCell sx={{ fontSize: '0.95rem' }}>{d.version || '-'}</TableCell>
+                        <TableCell sx={{ fontSize: '0.95rem' }}>{fmtDate(d.fecha_despliegue)}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={d.estado_despliegue}
+                            size="small"
+                            color={
+                              d.estado_despliegue === 'EXITOSO' ? 'success' : d.estado_despliegue === 'FALLIDO' ? 'error' : 'warning'
+                            }
+                            sx={{ height: 24, fontSize: '0.75rem', fontWeight: 600 }}
+                          />
+                        </TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {sistema.usuario_roles?.map((usuarioRol) => (
-                        <TableRow key={usuarioRol.id} hover>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                              {`${usuarioRol.usuarios.nombres} ${usuarioRol.usuarios.primer_apellido} ${usuarioRol.usuarios.segundo_apellido || ''}`.trim()}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{usuarioRol.roles.nombre}</TableCell>
-                          <TableCell>{usuarioRol.roles.cod_tipo_rol}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <PeopleIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    No hay usuarios responsables registrados para este sistema.
-                  </Typography>
-                </Paper>
-              )}
-            </>
+                    ))
+                  ) : (
+                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '1rem' }}>No hay historial de despliegues</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
 
-          {activeTab === 2 && (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                Administradores de máquina asociados a este sistema
-              </Typography>
-              {machineAdminsCount > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Máquina</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>IP</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Roles</TableCell>
+          {/* 2. MAQUINAS */}
+          {tab === 2 && (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Nombre / Hostname</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>IP</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>S.O.</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Estado</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {maquinasInvolucradas.length > 0 ? (
+                    maquinasInvolucradas.map((m) => (
+                      <TableRow key={m.id} hover>
+                        <TableCell>
+                          <Link to={routes.maquina({ id: m.id })} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none', fontSize: '0.95rem' }}>
+                            {m.nombre}
+                          </Link>
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.95rem' }}>{m.ip || '-'}</TableCell>
+                        <TableCell sx={{ fontSize: '0.95rem' }}>{m.so || '-'}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={m.estado_operativo}
+                            size="small"
+                            variant="outlined"
+                            color={m.estado_operativo === 'OPERATIVO' ? 'success' : 'warning'}
+                            sx={{ height: 24, fontSize: '0.75rem', fontWeight: 600 }}
+                          />
+                        </TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {machineAdmins.map((admin, index) => (
-                        <TableRow key={index} hover>
-                          <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                              {admin.nombreCompleto}
-                            </Typography>
-                          </TableCell>
-                          <TableCell>{admin.maquina}</TableCell>
-                          <TableCell>{admin.ip}</TableCell>
-                          <TableCell>{admin.roles}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <MachineAdminIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    No hay administradores de máquina registrados para este sistema.
-                  </Typography>
-                </Paper>
-              )}
-            </>
+                    ))
+                  ) : (
+                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '1rem' }}>No hay máquinas vinculadas</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
 
-          {activeTab === 3 && (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                Historial de despliegues del sistema
-              </Typography>
-              {componentesCount > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Componente</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Entorno</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
+          {/* 3. USUARIOS */}
+          {tab === 3 && (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Nombre Completo</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Rol en Sistema</TableCell>
+                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Email</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {usuariosRoles.length > 0 ? (
+                    usuariosRoles.map((ur) => (
+                      <TableRow key={ur.id} hover>
+                        <TableCell sx={{ fontSize: '0.95rem', fontWeight: 500 }}>
+                          {ur.usuarios.nombres} {ur.usuarios.primer_apellido} {ur.usuarios.segundo_apellido}
+                        </TableCell>
+                        <TableCell>
+                          <Chip label={ur.roles?.nombre} size="small" variant="outlined" sx={{ height: 24, fontSize: '0.75rem', fontWeight: 600 }} />
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.95rem' }}>{ur.usuarios.email}</TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {sistema.componentes?.flatMap(componente =>
-                        componente.despliegue?.map(despliegue => (
-                          <TableRow key={`${componente.id}-${despliegue.id}`} hover>
-                            <TableCell>
-                              <Link
-                                to={routes.componente({ id: componente.id })}
-                                style={{ textDecoration: 'none' }}
-                              >
-                                <Typography variant="body2" sx={{ fontWeight: 500, color: theme.palette.primary.main }}>
-                                  {componente.nombre}
-                                </Typography>
-                              </Link>
-                            </TableCell>
-                            <TableCell>{componente.cod_entorno || '-'}</TableCell>
-                            <TableCell>{formatDate(despliegue.fecha_despliegue)}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={despliegue.estado_despliegue}
-                                size="small"
-                                sx={{
-                                  backgroundColor:
-                                    despliegue.estado_despliegue === 'EXITOSO' ? theme.palette.success.main :
-                                    despliegue.estado_despliegue === 'FALLIDO' ? theme.palette.error.main :
-                                    theme.palette.warning.main,
-                                  color: 'white',
-                                  fontSize: '0.7rem',
-                                }}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        )) || []
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <DeployIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    No hay despliegues registrados para este sistema.
-                  </Typography>
-                </Paper>
-              )}
-            </>
+                    ))
+                  ) : (
+                    <TableRow><TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '1rem' }}>No hay usuarios asignados</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
         </CardContent>
       </Card>
 
-      {/* Diálogo de previsualización PDF */}
+      {/* DIALOGO PDF (Sin cambios) */}
       <Dialog
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
@@ -783,32 +665,17 @@ const Sistema = ({ sistema }) => {
         fullWidth
         sx={{ '& .MuiDialog-paper': { minHeight: '80vh' } }}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6">Vista previa del reporte</Typography>
-            <Button
-              variant="contained"
-              startIcon={<DownloadIcon />}
-              onClick={downloadPDF}
-              color="primary"
-            >
-              Descargar PDF
-            </Button>
+            <Typography variant="h6" fontWeight={700}>Vista previa del Reporte</Typography>
+            <Button variant="contained" startIcon={<DownloadIcon />} onClick={downloadPDF} color="primary" size="medium">Descargar</Button>
           </Stack>
         </DialogTitle>
-        <DialogContent>
-          {pdfData && (
-            <iframe
-              src={pdfData}
-              width="100%"
-              height="100%"
-              style={{ border: 'none', minHeight: '60vh' }}
-              title="Vista previa del PDF"
-            />
-          )}
+        <DialogContent sx={{ p: 0, bgcolor: '#f5f5f5' }}>
+          {pdfData && <iframe src={pdfData} width="100%" height="100%" style={{ border: 'none', minHeight: '60vh', display: 'block' }} title="Vista previa del PDF" />}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPreviewOpen(false)}>Cerrar</Button>
+          <Button onClick={() => setPreviewOpen(false)} size="medium">Cerrar</Button>
         </DialogActions>
       </Dialog>
     </Box>

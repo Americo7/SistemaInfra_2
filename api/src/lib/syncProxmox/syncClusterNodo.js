@@ -1,19 +1,21 @@
-// lib/syncProxmox/syncClusterNodo.js
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 export const syncClusterNodo = async (endpointId, clusterId, servidor, nodo) => {
+  // Usuario actual, o 1 si es scheduler
+  const userId = context.currentUser?.id || 1
+
   const nombreNodo = nodo.node
 
-  // Identidad global estable
+  // Identity global único e idempotente
   const identityKey = `proxmox-clusternode:${endpointId}:${clusterId}:${nombreNodo}`
 
-  // 1) Buscar por identity_key (nuevo sistema)
+  // Buscar por identity_key
   let existente = await db.clusterNodo.findUnique({
     where: { identity_key: identityKey },
   })
 
-  // 2) Fallback para registros antiguos (clusterId + nombre)
-  //    Debe usarse findFirst, no findUnique (ya NO existe unique compuesto)
+  // Fallback: match antiguo por (clusterId + nombre)
   if (!existente) {
     existente = await db.clusterNodo.findFirst({
       where: {
@@ -23,7 +25,6 @@ export const syncClusterNodo = async (endpointId, clusterId, servidor, nodo) => 
     })
   }
 
-  // Datos comunes para update/create
   const baseData = {
     identity_key: identityKey,
     nombre: nombreNodo,
@@ -32,21 +33,25 @@ export const syncClusterNodo = async (endpointId, clusterId, servidor, nodo) => 
     fecha_modificacion: new Date(),
   }
 
-  // 3) UPDATE si existe
+  // UPDATE
   if (existente) {
     return db.clusterNodo.update({
       where: { id: existente.id },
-      data: baseData,
+      data: {
+        ...baseData,
+        usuario_modificacion: userId, // <--- solo aquí
+      },
     })
   }
 
-  // 4) CREATE si no existe
+  // CREATE
   return db.clusterNodo.create({
     data: {
       ...baseData,
       clusterId,
       estado: 'ACTIVO',
-      usuario_creacion: 1,
+
+      usuario_creacion: userId,  // <--- correcto
       fecha_creacion: new Date(),
     },
   })

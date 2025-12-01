@@ -6,43 +6,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["autenticacion", "parametricas", "registro"]
-}
-
-model Rol {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
-  user_rol UserRol[]
-
-  @@map("rol")
-  @@schema("autenticacion")
-}
-
-model User {
-  id                  Int       @id @default(autoincrement())
-  nombre              String?
-  email               String    @unique
-  hashedPassword      String    @default("")
-  salt                String    @default("")
-  resetToken          String?
-  resetTokenExpiresAt DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime
-  user_rol            UserRol[]
-
-  @@map("user")
-  @@schema("autenticacion")
-}
-
-model UserRol {
-  id     Int  @id @default(autoincrement())
-  userId Int
-  roleId Int
-  rol    Rol  @relation(fields: [roleId], references: [id])
-  user   User @relation(fields: [userId], references: [id])
-
-  @@map("user_rol")
-  @@schema("autenticacion")
+  schemas  = ["parametricas", "registro"]
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -299,7 +263,6 @@ model InfraAfectada {
 model Maquina {
   id                   Int       @id(map: "maquina_pk") @default(autoincrement())
   nombre               String    @db.VarChar(50)
-  uuid                 String?   @db.VarChar(100) // Identidad única global
   proxmox_vmid         Int?
   ip                   String?   @db.Inet
   so                   String?   @db.VarChar(100) // Sistema Operativo
@@ -315,7 +278,7 @@ model Maquina {
   usuario_modificacion Int?      @map("_usuario_modificacion")
   id_servidor          Int?
   servidores           Servidor? @relation(fields: [id_servidor], references: [id])
-  identity_key         String @unique @db.VarChar(200)
+  identity_key         String    @unique @db.VarChar(200)
   despliegue           Despliegue[]
   infra_afectada       InfraAfectada[]
   cluster_nodos        ClusterNodo[]

@@ -1,12 +1,16 @@
 // lib/syncProxmox/syncCluster.js
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 import { getProxmoxClient } from '../proxmox/client'
 import { cacheFetch } from '../proxmox/cache'
 
 export const syncCluster = async (endpoint) => {
+  // 1. OBTENER USUARIO (si no hay sesión → 1)
+  const userId = context.currentUser?.id || 1
+
   const client = await getProxmoxClient(endpoint.id)
 
-  // 1) /cluster/status con caché
+  // 2. Cluster status con caché
   const items = await cacheFetch(
     `px:${endpoint.id}:cluster:status`,
     10,
@@ -16,7 +20,7 @@ export const syncCluster = async (endpoint) => {
     }
   )
 
-  // 2) Detectar cluster real o standalone
+  // 3. Detectar cluster o standalone
   const realCluster = items.find((i) => i.type === 'cluster')
 
   const nombreCluster = realCluster
@@ -27,15 +31,15 @@ export const syncCluster = async (endpoint) => {
     ? `Cluster Proxmox (${nombreCluster})`
     : `Proxmox standalone en ${endpoint.nombre}`
 
-  // 3) identity_key estable y global
+  // 4. identity_key único y estable
   const identityKey = `proxmox-cluster:${endpoint.id}:${nombreCluster}`
 
-  // 4) Buscar primero por identity_key
+  // 5. Buscar por identity_key
   let existente = await db.cluster.findUnique({
     where: { identity_key: identityKey },
   })
 
-  // Fallback: regla antigua unique(nombre, id_proxmox_endpoint)
+  // 6. Fallback: nombre + endpoint
   if (!existente) {
     existente = await db.cluster.findUnique({
       where: {
@@ -47,7 +51,7 @@ export const syncCluster = async (endpoint) => {
     })
   }
 
-  // 5) UPDATE si existe
+  // 7. UPDATE si existe
   if (existente) {
     return db.cluster.update({
       where: { id: existente.id },
@@ -55,21 +59,26 @@ export const syncCluster = async (endpoint) => {
         descripcion: descripcionCluster,
         identity_key: identityKey,
         fecha_modificacion: new Date(),
+        usuario_modificacion: userId,      // <--- CORRECCIÓN
       },
     })
   }
 
-  // 6) CREATE si es nuevo
+  // 8. CREATE si es nuevo
   return db.cluster.create({
     data: {
       nombre: nombreCluster,
       descripcion: descripcionCluster,
       cod_tipo_cluster: 'PX',
       estado: 'ACTIVO',
-      usuario_creacion: 1,
+
+      usuario_creacion: userId,            // <--- CORRECCIÓN
+      usuario_modificacion: userId,        // <--- CORRECCIÓN
+
       identity_key: identityKey,
       id_proxmox_endpoint: endpoint.id,
       fecha_creacion: new Date(),
+      fecha_modificacion: new Date(),      // <--- CORRECCIÓN
     },
   })
 }

@@ -1,17 +1,28 @@
 import { db } from 'src/lib/db'
-import { fetchK8sNodes } from 'src/lib/k8s/fetch' // Ahora sí usamos tu archivo
+import { fetchK8sNodes } from 'src/lib/k8s/fetch'
+import { context } from '@redwoodjs/graphql-server' // <--- NECESARIO
 
-/* ============================
-   Helpers de Parsing (CPU/RAM)
-   ============================ */
-const parseMemoryToMb = (memString) => {
+// Helper: Convertir RAM → GB
+const parseMemoryToGb = (memString) => {
   if (!memString) return 0
   try {
     const s = memString.toString().trim()
-    if (s.endsWith('Ki')) return Math.ceil(parseInt(s.slice(0, -2)) / 1024)
-    if (s.endsWith('Mi')) return Math.ceil(parseInt(s.slice(0, -2)))
-    if (s.endsWith('Gi')) return Math.ceil(parseInt(s.slice(0, -2)) * 1024)
-    return Math.ceil(parseInt(s) / 1024 / 1024)
+    if (s.endsWith('Ki')) return Math.ceil(parseInt(s.slice(0, -2)) / 1024 / 1024)
+    if (s.endsWith('Mi')) return Math.ceil(parseInt(s.slice(0, -2)) / 1024)
+    if (s.endsWith('Gi')) return Math.ceil(parseInt(s.slice(0, -2)))
+    return Math.ceil(parseInt(s) / 1024 / 1024 / 1024)
+  } catch { return 0 }
+}
+
+// NUEVO: Helper almacenamiento → GB (ephemeral-storage)
+const parseStorageToGb = (value) => {
+  if (!value) return 0
+  try {
+    const s = value.toString().trim()
+    if (s.endsWith('Ki')) return Math.ceil(parseInt(s.slice(0, -2)) / 1024 / 1024)
+    if (s.endsWith('Mi')) return Math.ceil(parseInt(s.slice(0, -2)) / 1024)
+    if (s.endsWith('Gi')) return Math.ceil(parseInt(s.slice(0, -2)))
+    return Math.ceil(parseInt(s) / 1024 / 1024 / 1024)
   } catch { return 0 }
 }
 
@@ -24,102 +35,92 @@ const parseCpu = (cpuString) => {
   } catch { return 1 }
 }
 
-/* ======================================
-   Detector de hardware (Solo lógica física)
-   ====================================== */
 const analizarUUIDFisico = (uuidRaw) => {
   if (!uuidRaw) return null
   const uuid = uuidRaw.replace(/-/g, '').toLowerCase()
   if (uuid.startsWith('ec2') || uuid.startsWith('vmware') || uuid.includes('kvm')) return 'VIRTUAL'
-  // Firmas Físicas
-  if (uuid.startsWith('44454c4c') || uuid.startsWith('4c4c4544') || // DELL
-      uuid.startsWith('4c454e4f') || uuid.startsWith('4f4e454c') || // LENOVO
-      uuid.startsWith('485057') || uuid.startsWith('574850'))      // HP
+  if (uuid.startsWith('44454c4c') || uuid.startsWith('4c4c4544') || 
+      uuid.startsWith('4c454e4f') || uuid.startsWith('4f4e454c') ||
+      uuid.startsWith('485057')  || uuid.startsWith('574850'))
       return 'FISICO'
   return null
 }
 
-/* ===========================================
-   Reglas de decisión (Lógica de Negocio)
-   =========================================== */
 const decideTipoPorPrioridad = async ({ systemUUID, provider, identity_key }) => {
-  // 1. Buscar Maquina Proxmox existente (por sufijo UUID)
+  const maquinaExistente = await db.maquina.findFirst({ where: { identity_key } })
+  if (maquinaExistente) return { tipo: 'VIRTUAL', fuente: 'maquina-existente', row: maquinaExistente }
+
   if (systemUUID) {
-    const proxmoxMatch = await db.maquina.findFirst({ where: { identity_key: { endsWith: systemUUID } } })
-    if (proxmoxMatch) return { tipo: 'VIRTUAL', fuente: 'maquina-proxmox', row: proxmoxMatch }
-    
-    const maquinaExact = await db.maquina.findFirst({ where: { uuid: systemUUID } })
-    if (maquinaExact) return { tipo: 'VIRTUAL', fuente: 'maquina-uuid', row: maquinaExact }
+    const maquinaPorUUID = await db.maquina.findFirst({ 
+      where: { identity_key: { contains: systemUUID } } 
+    })
+    if (maquinaPorUUID) return { tipo: 'VIRTUAL', fuente: 'maquina-uuid-fallback', row: maquinaPorUUID }
   }
 
-  // 2. Buscar Servidor Físico existente
-  const servidor = await db.servidor.findFirst({ where: { identity_key } }) // Buscamos por la key completa
-  if (servidor) return { tipo: 'FISICO', fuente: 'servidor-existente', row: servidor }
+  const servidorExistente = await db.servidor.findFirst({ where: { identity_key } })
+  if (servidorExistente) return { tipo: 'FISICO', fuente: 'servidor-existente', row: servidorExistente }
 
-  // 3. Provider Hint (Viene de fetch.js)
+  if (systemUUID) {
+    const servidorPorUUID = await db.servidor.findFirst({ 
+      where: { identity_key: { contains: systemUUID } } 
+    })
+    if (servidorPorUUID) return { tipo: 'FISICO', fuente: 'servidor-uuid-fallback', row: servidorPorUUID }
+  }
+
   if (provider) {
     const p = provider.toLowerCase()
-    if (p.includes('openstack') || p.includes('harvester') || p.includes('proxmox') || p.includes('vm')) return { tipo: 'VIRTUAL' }
+    if (p.includes('openstack') || p.includes('harvester') || p.includes('proxmox') || p.includes('vm') || p.includes('k3s')) 
+      return { tipo: 'VIRTUAL' }
     if (p.includes('baremetal')) return { tipo: 'FISICO' }
   }
 
-  // 4. Detector por firma UUID
   const firma = analizarUUIDFisico(systemUUID)
   if (firma === 'FISICO') return { tipo: 'FISICO' }
   if (firma === 'VIRTUAL') return { tipo: 'VIRTUAL' }
 
-  // 5. Default
   return { tipo: 'VIRTUAL' }
 }
 
-/* ===========================================
-   SYNC NODOS (Lógica principal)
-   - k8sApi: Cliente conectado (viene de syncMain)
-   =========================================== */
 export const syncNodos = async (k8sApi, clusterId) => {
-  try {
-    // 1. Usamos fetch.js pasándole el cliente directo
-    const nodos = await fetchK8sNodes(k8sApi)
+  const userId = context.currentUser?.id || 1
 
+  try {
+    const nodos = await fetchK8sNodes(k8sApi)
     const identityKeysEnK8s = []
     const resumen = { procesados: 0, creadasMaquinas: 0, creadosServidores: 0, virtuales: 0, fisicos: 0 }
 
     for (const node of nodos) {
       resumen.procesados++
       
-      // Datos que vienen limpios desde fetch.js
       const { name, identity_key, systemUUID, provider, roles, estado, addresses, capacity } = node
       identityKeysEnK8s.push(identity_key)
 
       const internalIP = addresses?.internalIP
       const estadoBD = estado === 'Ready' ? 'OPERATIVO' : 'OFFLINE'
 
-      // 2. Decisión de tipo
       const decision = await decideTipoPorPrioridad({ systemUUID, provider, identity_key })
       let tipoNodo = decision.tipo
       let maquinaId = null
       let servidorId = null
 
-      // Mapear ID si ya existía
       if (decision.row) {
-        if (decision.fuente.startsWith('maquina')) maquinaId = decision.row.id
-        else if (decision.fuente.startsWith('servidor')) servidorId = decision.row.id
+        if (decision.fuente.includes('maquina')) maquinaId = decision.row.id
+        else if (decision.fuente.includes('servidor')) servidorId = decision.row.id
       }
 
-      // 3. Creación si no existe
       if (!maquinaId && !servidorId) {
         if (tipoNodo === 'VIRTUAL') {
           const nueva = await db.maquina.create({
             data: {
               nombre: name,
-              uuid: systemUUID || null,
               ip: internalIP,
               cpu: parseCpu(capacity.cpu),
-              ram: parseMemoryToMb(capacity.memory),
+              ram: parseMemoryToGb(capacity.memory),
+              almacenamiento: parseStorageToGb(capacity["ephemeral-storage"]),
               estado: 'ACTIVO',
               estado_operativo: estadoBD,
-              identity_key, // Key consistente
-              usuario_creacion: 1
+              identity_key,
+              usuario_creacion: userId
             }
           })
           maquinaId = nueva.id
@@ -129,10 +130,12 @@ export const syncNodos = async (k8sApi, clusterId) => {
             data: {
               nombre: name,
               ip_primaria: internalIP,
+              ram: parseMemoryToGb(capacity.memory),
+              almacenamiento: parseStorageToGb(capacity["ephemeral-storage"]),
               estado: 'ACTIVO',
               estado_operativo: estadoBD,
               identity_key,
-              usuario_creacion: 1
+              usuario_creacion: userId
             }
           })
           servidorId = nuevoServ.id
@@ -143,7 +146,6 @@ export const syncNodos = async (k8sApi, clusterId) => {
       if (tipoNodo === 'VIRTUAL') resumen.virtuales++
       else resumen.fisicos++
 
-      // 4. Upsert en ClusterNodo
       await db.clusterNodo.upsert({
         where: { identity_key },
         create: {
@@ -155,7 +157,7 @@ export const syncNodos = async (k8sApi, clusterId) => {
           servidorId,
           rol: roles.includes('control-plane') || roles.includes('master') ? 'MASTER' : 'WORKER',
           estado: 'ACTIVO',
-          usuario_creacion: 1
+          usuario_creacion: userId
         },
         update: {
           nodoTipo: tipoNodo,
@@ -163,27 +165,21 @@ export const syncNodos = async (k8sApi, clusterId) => {
           servidorId,
           rol: roles.includes('control-plane') || roles.includes('master') ? 'MASTER' : 'WORKER',
           estado: 'ACTIVO',
-          fecha_modificacion: new Date()
+          fecha_modificacion: new Date(),
+          usuario_modificacion: userId
         }
       })
     }
 
-    // 5. Limpieza
     await db.clusterNodo.updateMany({
       where: { clusterId, identity_key: { notIn: identityKeysEnK8s }, estado: 'ACTIVO' },
       data: { estado: 'INACTIVO', fecha_modificacion: new Date() }
     })
 
-    // 6. Retorno formateado para syncMain
     return {
       procesados: resumen.procesados,
       desactivados: 0, 
-      desglose: {
-          creadasMaquinas: resumen.creadasMaquinas,
-          creadosServidores: resumen.creadosServidores,
-          virtuales: resumen.virtuales,
-          fisicos: resumen.fisicos
-      }
+      desglose: resumen
     }
 
   } catch (err) {

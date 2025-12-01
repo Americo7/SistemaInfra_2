@@ -6,8 +6,8 @@ const NewSistemaPage = () => {
   return (
     <ScaffoldLayout
       breadcrumbItems={[
+        { label: 'Despligues' },
         { label: 'Sistemas', link: routes.sistemas() },
-        { label: 'Nuevo Sistema' }
       ]}
     >
       <NewSistema />

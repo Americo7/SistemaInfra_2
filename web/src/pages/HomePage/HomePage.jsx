@@ -36,8 +36,7 @@ import { useQuery } from '@redwoodjs/web'
 import { styled, alpha } from '@mui/material/styles'
 
 
-
-// Consultas GraphQL optimizadas
+// Consultas GraphQL optimizadas - CORREGIDAS
 const GET_SYSTEMS = gql`
   query FindSystems {
     sistemas {
@@ -97,7 +96,7 @@ const GET_SERVERS = gql`
       nombre
       cod_tipo_servidor
       estado_operativo
-      data_center {
+      data_centers {
         nombre
       }
     }
@@ -123,10 +122,10 @@ const GET_MACHINES = gql`
       id
       nombre
       estado
-      es_virtual
     }
   }
 `
+
 const GET_DEPLOYMENTS_HISTORY = gql`
   query FindDeploymentsHistory {
     despliegues(orderBy: { fecha_despliegue: asc }) {

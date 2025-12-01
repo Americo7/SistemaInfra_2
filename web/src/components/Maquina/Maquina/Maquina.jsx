@@ -350,7 +350,6 @@ const Maquina = ({ maquina }) => {
                 <RowItem label="Nombre" value={maquina.nombre} />
                 <RowItem label="VMID" value={maquina.proxmox_vmid} icon={<ProxmoxIcon fontSize="inherit" />} />
                 <RowItem label="Identificador" value={maquina.identity_key} icon={<MacIcon fontSize="inherit" />} />
-                <RowItem label="UUID" value={maquina.uuid} icon={<UuidIcon fontSize="inherit" />} />
                 <RowItem label="Dirección IP" value={maquina.ip} />
                 <RowItem label="Sistema Operativo" value={maquina.so} icon={<OSIcon fontSize="inherit" />} />
                 <RowItem label="Plataforma" value={getNombrePlataforma(maquina.cod_plataforma)} />

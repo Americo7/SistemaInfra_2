@@ -118,9 +118,8 @@ const HomeLayout = ({ children }) => {
     }
 
     // Obtener el primer rol o 'Usuario' por defecto
-    const displayRole = (dbUser.roles && dbUser.roles.length > 0) 
-      ? dbUser.roles[0] 
-      : 'Usuario'
+    // Usar el nombre verdadero del rol enviado desde authDecoder
+    const displayRole = dbUser.nombreRolDisplay || 'Usuario'
 
     return {
       id: dbUser.id,
@@ -273,7 +272,7 @@ const HomeLayout = ({ children }) => {
       items: [
         { id: 'maquinas', label: 'Máquinas', icon: <MachinesIcon />, route: routes.maquinas() },
         { id: 'clusters', label: 'Clusters', icon: <InventoryIcon />, route: routes.clusters() },
-        { id: 'asignacion', label: 'Asignación Cluster Nodo', icon: <HardwareIcon />, route: routes.clusterNodos() },
+        { id: 'asignacion', label: 'Nodos', icon: <HardwareIcon />, route: routes.clusterNodos() },
         { id: 'servidores', label: 'Servidores', icon: <ServersIcon />, route: routes.servidors() },
         { id: 'dataCenters', label: 'Data Centers', icon: <DataCenterIcon />, route: routes.dataCenters() }
       ]
@@ -432,14 +431,9 @@ const HomeLayout = ({ children }) => {
 
   // Get page title for display
   const getPageTitle = useCallback(() => {
-    const { section, item } = findActiveSectionAndItem();
+    return 'Sistema de Inventariado y Administración de Infraestructura Tecnológica'
+  }, [])
 
-    if (!section) return 'Inventario Tecnológico';
-
-    if (section.standalone) return section.label;
-
-    return item ? `${section.label} / ${item.label}` : section.label;
-  }, [findActiveSectionAndItem]);
 
   // Memo for active section
   const activeSection = useMemo(() => {
@@ -615,7 +609,7 @@ const HomeLayout = ({ children }) => {
         {!sidebarCollapsed && (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Avatar
-              src="/images/agetic-logo.png"
+              src="./images/agetic-logo.png"
               alt="AGETIC"
               variant="rounded"
               sx={{
@@ -637,20 +631,6 @@ const HomeLayout = ({ children }) => {
             </Box>
           </Box>
         )}
-        {sidebarCollapsed && (
-          <Avatar
-            src="/images/agetic-logo.png"
-            alt="AGETIC"
-            variant="rounded"
-            sx={{
-              width: 40,
-              height: 40,
-              bgcolor: 'primary.main'
-            }}
-          >
-            IT
-          </Avatar>
-        )}
         {!isMobile && (
           <IconButton
             onClick={handleSidebarCollapse}
@@ -667,41 +647,6 @@ const HomeLayout = ({ children }) => {
           </IconButton>
         )}
       </Box>
-
-      {/* User profile */}
-      {!sidebarCollapsed && currentUser.name && (
-        <Box sx={{ px: 2, mt: 2 }}>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              backgroundColor: alpha(theme.palette.primary.main, 0.08),
-              borderRadius: 2,
-              px: 2,
-              py: 1,
-            }}
-          >
-            <Avatar
-              sx={{
-                width: 32,
-                height: 32,
-                bgcolor: theme.palette.primary.main,
-                fontSize: '0.875rem',
-              }}
-            >
-              {currentUser.avatar}
-            </Avatar>
-            <Box sx={{ ml: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                {currentUser.name.split(' ')[0]} {currentUser.name.split(' ')[1] || ''}
-              </Typography>
-              <Typography variant="caption" color="textSecondary">
-                {currentUser.role}
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-      )}
 
       {/* Menu items - Using virtualized list for better performance */}
       <List component="nav" sx={{ px: sidebarCollapsed ? 0.75 : 1.5, pt: 2, flexGrow: 1, overflowY: 'auto', transition: theme.transitions.create(['paddingLeft', 'paddingRight'], { duration: TRANSITION_DURATION }) }}>
@@ -805,7 +750,6 @@ const HomeLayout = ({ children }) => {
 
       <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
         <CssBaseline />
-
         {/* AppBar */}
         <AppBar
           position="fixed"
@@ -814,26 +758,15 @@ const HomeLayout = ({ children }) => {
             zIndex: theme.zIndex.drawer + 1,
             backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.8 : 0.95),
             backdropFilter: 'blur(8px)',
-            borderBottom: `1px solid ${theme.palette.divider}`,
             color: theme.palette.text.primary,
             width: { xs: '100%', sm: `calc(100% - ${drawerWidthValue}px)` },
             ml: { xs: 0, sm: `${drawerWidthValue}px` },
-            transition: theme.transitions.create(['width', 'margin'], {
-              easing: theme.transitions.easing.sharp,
-              duration: TRANSITION_DURATION,
-            }),
+            minHeight: 70,
+            boxShadow: '0px 4px 12px rgba(0,0,0,0.12)', // sombra profesional
+
           }}
         >
-          <Toolbar sx={{ minHeight: 64, px: { xs: 1.5, sm: 2 } }}>
-            <IconButton
-              color="inherit"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 1 }}
-            >
-              <MenuIcon />
-            </IconButton>
-
+          <Toolbar sx={{ minHeight: 70, px: { xs: 10, sm: 5 } }}>
             <Box sx={{
               display: 'flex',
               alignItems: 'center',
@@ -847,26 +780,12 @@ const HomeLayout = ({ children }) => {
                   component="div"
                   sx={{
                     fontWeight: 600,
-                    fontSize: '1.125rem',
+                    fontSize: '1.50rem',
                     letterSpacing: '-0.025em',
                     display: 'flex',
                     alignItems: 'center'
                   }}
                 >
-                  {activeSection && activeSection.icon && (
-                    <Box
-                      component="span"
-                      sx={{
-                        mr: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        color: 'primary.main',
-                        fontSize: '1rem'
-                      }}
-                    >
-                      {React.cloneElement(activeSection.icon, { fontSize: 'inherit' })}
-                    </Box>
-                  )}
                   {getPageTitle()}
                 </Typography>
               )}
@@ -949,8 +868,10 @@ const HomeLayout = ({ children }) => {
               </Box>
             </Box>
           </Toolbar>
+
           {loading && <LinearProgress color="primary" sx={{ height: 2 }} />}
         </AppBar>
+
 
         {/* Drawer */}
         <Drawer
@@ -961,7 +882,7 @@ const HomeLayout = ({ children }) => {
           sx={{
             width: drawerWidthValue,
             flexShrink: 0,
-            transition: theme.transitions.create('width', {
+            transition: theme.transitions.create('wdth', {
               easing: theme.transitions.easing.sharp,
               duration: TRANSITION_DURATION,
             }),

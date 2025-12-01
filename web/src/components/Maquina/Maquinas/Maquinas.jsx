@@ -212,7 +212,7 @@ const Maquinas = ({ maquinas }) => {
         size: 120,
         Cell: ({ cell }) => {
           const value = cell.getValue() || 'unknown'
-          const map = { OPERATIVO: { label: 'OPERATIVO', color: 'success' }, APAGADO: { label: 'APAGADO', color: 'error' }, paused: { label: 'Pausada', color: 'warning' }, unknown: { label: 'Desconocido', color: 'default' } }
+          const map = { OPERATIVO: { label: 'OPERATIVO', color: 'success' }, FUERA_SERVICIO: { label: 'FUERA DE SERVICIO', color: 'error' }, unknown: { label: 'Desconocido', color: 'default' } }
           const info = map[value] || map.unknown
           return <Chip size="small" label={info.label} color={info.color} variant={value === 'unknown' ? 'outlined' : 'filled'} />
         },

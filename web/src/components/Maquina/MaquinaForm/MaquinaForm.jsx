@@ -431,17 +431,6 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
                 </Box>
 
                 <FormControl fullWidth>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>UUID</FormLabel>
-                    <TextField 
-                      size="small" 
-                      value={formValues.uuid} 
-                      onChange={(e) => handleFieldChange('uuid', e.target.value)}
-                      placeholder="Auto-generado si vacío"
-                      InputProps={{ startAdornment: <InputAdornment position="start"><VpnKeyIcon fontSize="small" /></InputAdornment> }} 
-                    />
-                </FormControl>
-
-                <FormControl fullWidth>
                     <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Identificador</FormLabel>
                     <TextField 
                       size="small" 

@@ -61,8 +61,8 @@ const SistemaPage = ({ id }) => {
   return (
     <ScaffoldLayout
       breadcrumbItems={[
+        { label: "Despliegues" },
         { label: 'Sistemas', link: routes.sistemas() },
-        { label: titulo },
       ]}
       actionButtons={actionButtons}
     >

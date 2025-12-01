@@ -5,9 +5,43 @@ export default async () => {
   try {
     console.log('🌱 Iniciando seed...')
 
+    console.log('👤 Insertando usuarios...')
+
+    await db.usuario.create({
+      data: {
+        id: 1,
+        nombre_usuario: 'system',
+        nro_documento: '0',
+        nombres: 'Sistema',
+        primer_apellido: 'Automático',
+        segundo_apellido: '',
+        celular: '0',
+        email: 'system@sis-it',
+        estado: 'ACTIVO',
+        usuario_creacion: 1,
+      },
+    })
+
+    const primo = await db.usuario.create({
+      data: {
+        id: 2,
+        nombre_usuario: 'pticona',
+        nro_documento: '9093411',
+        nombres: 'Primo',
+        primer_apellido: 'Ticona',
+        segundo_apellido: 'Callizaya',
+        celular: '68157483',
+        email: 'ticonad19@gmail.com',
+        estado: 'ACTIVO',
+        usuario_creacion: 1,
+      },
+    })
+
     // ============================================================
     // 1. PARAMETROS (parametricas.parametros)
     // ============================================================
+    console.log('📌 Insertando parámetros...')
+
     await db.parametro.createMany({
       data: [
         // UNIDAD_AGETIC
@@ -23,6 +57,7 @@ export default async () => {
         { codigo: 'MG', nombre: 'MongoDB', grupo: 'TIPO_CLUSTER', descripcion: 'Cluster MongoDB', usuario_creacion: 1 },
         { codigo: 'RB', nombre: 'RabbitMQ', grupo: 'TIPO_CLUSTER', descripcion: 'Cluster RabbitMQ', usuario_creacion: 1 },
         { codigo: 'VA', nombre: 'Vault', grupo: 'TIPO_CLUSTER', descripcion: 'Cluster Vault', usuario_creacion: 1 },
+        { codigo: 'PXM', nombre: 'Proxmox', grupo: 'TIPO_CLUSTER', descripcion: 'Cluster Proxmox', usuario_creacion: 1 },
 
         // TIPO_EVENTO
         { codigo: 'INCIDENTE_HW', nombre: 'Incidente Hardware', grupo: 'TIPO_EVENTO', descripcion: 'Incidente hardware', usuario_creacion: 1 },
@@ -34,11 +69,9 @@ export default async () => {
         { codigo: 'CORTE_ENERGIA', nombre: 'Corte Energía', grupo: 'TIPO_EVENTO', descripcion: 'Corte energía eléctrica', usuario_creacion: 1 },
 
         // ESTADO_OPERATIVO
-        { codigo: 'DEGRADADO', nombre: 'Degradado', grupo: 'ESTADO_OPERATIVO', descripcion: 'Estado degradado', usuario_creacion: 1 },
         { codigo: 'OPERATIVO', nombre: 'Operativo', grupo: 'ESTADO_OPERATIVO', descripcion: 'Estado operativo', usuario_creacion: 1 },
         { codigo: 'MANTENIMIENTO', nombre: 'Mantenimiento', grupo: 'ESTADO_OPERATIVO', descripcion: 'En mantenimiento', usuario_creacion: 1 },
         { codigo: 'FALLA', nombre: 'Falla', grupo: 'ESTADO_OPERATIVO', descripcion: 'En falla', usuario_creacion: 1 },
-        { codigo: 'APAGADO', nombre: 'Apagado', grupo: 'ESTADO_OPERATIVO', descripcion: 'Apagado', usuario_creacion: 1 },
         { codigo: 'FUERA_SERVICIO', nombre: 'Fuera de Servicio', grupo: 'ESTADO_OPERATIVO', descripcion: 'Fuera de servicio', usuario_creacion: 1 },
 
         // ENTORNO
@@ -54,15 +87,31 @@ export default async () => {
         { codigo: 'BLADE', nombre: 'Blade', grupo: 'TIPO_SERVIDOR', descripcion: 'Servidor blade', usuario_creacion: 1 },
         { codigo: 'BM', nombre: 'Bare Metal', grupo: 'TIPO_SERVIDOR', descripcion: 'Servidor físico', usuario_creacion: 1 },
 
-        // TIPO_ROL
-        { codigo: 'DB_EDIT', nombre: 'DB Editor', grupo: 'TIPO_ROL', descripcion: 'Editor BD', usuario_creacion: 1 },
-        { codigo: 'SO_ROOT', nombre: 'SO Root', grupo: 'TIPO_ROL', descripcion: 'Root SO', usuario_creacion: 1 },
-        { codigo: 'SO_ADM', nombre: 'SO Admin', grupo: 'TIPO_ROL', descripcion: 'Administrador SO', usuario_creacion: 1 },
-        { codigo: 'SO_USR', nombre: 'SO User', grupo: 'TIPO_ROL', descripcion: 'Usuario SO', usuario_creacion: 1 },
-        { codigo: 'DB_ADM', nombre: 'DB Admin', grupo: 'TIPO_ROL', descripcion: 'Administrador BD', usuario_creacion: 1 },
-        { codigo: 'DB_DEV', nombre: 'DB Developer', grupo: 'TIPO_ROL', descripcion: 'Dev BD', usuario_creacion: 1 },
-        { codigo: 'DB_READ', nombre: 'DB Reader', grupo: 'TIPO_ROL', descripcion: 'Lector BD', usuario_creacion: 1 },
-        { codigo: 'SI_ADM', nombre: 'SI Admin', grupo: 'TIPO_ROL', descripcion: 'Administrador sistemas', usuario_creacion: 1 },
+        // ROLES SISTEMA (SI)
+        { codigo: 'SI_SUPERADM', nombre: 'Super Administrador', grupo: 'TIPO_ROL', descripcion: 'Administrador global del sistema', usuario_creacion: 1 },
+        { codigo: 'SI_USRADM', nombre: 'Administrador de Usuarios', grupo: 'TIPO_ROL', descripcion: 'Gestiona usuarios y asignación de roles', usuario_creacion: 1 },
+        { codigo: 'SI_OPS', nombre: 'Operador de Sistemas', grupo: 'TIPO_ROL', descripcion: 'Operador de infraestructura del sistema', usuario_creacion: 1 },
+        { codigo: 'SI_VIEW', nombre: 'Visor Sistema', grupo: 'TIPO_ROL', descripcion: 'Acceso de solo lectura al sistema', usuario_creacion: 1 },
+
+        // ROLES INFRAESTRUCTURA
+        { codigo: 'INFRA_ADM', nombre: 'Administrador Infraestructura', grupo: 'TIPO_ROL', descripcion: 'Administra nodos, clusters y recursos', usuario_creacion: 1 },
+        { codigo: 'INFRA_OPS', nombre: 'Operador Infraestructura', grupo: 'TIPO_ROL', descripcion: 'Opera recursos de infraestructura', usuario_creacion: 1 },
+        { codigo: 'INFRA_VIEW', nombre: 'Visor Infraestructura', grupo: 'TIPO_ROL', descripcion: 'Visualiza infraestructura sin modificar', usuario_creacion: 1 },
+
+        // ROLES SISTEMA OPERATIVO (SO)
+        { codigo: 'SO_ROOT', nombre: 'SO Root', grupo: 'TIPO_ROL', descripcion: 'Acceso root al sistema operativo', usuario_creacion: 1 },
+        { codigo: 'SO_SUDO', nombre: 'SO Sudo', grupo: 'TIPO_ROL', descripcion: 'Privilegios elevados sin ser root', usuario_creacion: 1 },
+        { codigo: 'SO_ADM', nombre: 'SO Admin', grupo: 'TIPO_ROL', descripcion: 'Administrador del sistema operativo', usuario_creacion: 1 },
+        { codigo: 'SO_USR', nombre: 'SO User', grupo: 'TIPO_ROL', descripcion: 'Usuario estándar del sistema operativo', usuario_creacion: 1 },
+
+        // ROLES BASE DE DATOS (BD)
+        { codigo: 'DB_ADM', nombre: 'DB Admin', grupo: 'TIPO_ROL', descripcion: 'Administrador de base de datos', usuario_creacion: 1 },
+        { codigo: 'DB_DEV', nombre: 'DB Developer', grupo: 'TIPO_ROL', descripcion: 'Desarrollador de base de datos', usuario_creacion: 1 },
+        { codigo: 'DB_EDIT', nombre: 'DB Editor', grupo: 'TIPO_ROL', descripcion: 'Editor de datos en BD', usuario_creacion: 1 },
+        { codigo: 'DB_READ', nombre: 'DB Reader', grupo: 'TIPO_ROL', descripcion: 'Lector de la base de datos', usuario_creacion: 1 },
+
+        // AUDITORÍA
+        { codigo: 'AUDITOR', nombre: 'Auditor', grupo: 'TIPO_ROL', descripcion: 'Acceso a auditorías y registros', usuario_creacion: 1 },
 
         // CATEGORIA
         { codigo: 'BACKEND', nombre: 'Backend', grupo: 'CATEGORIA', descripcion: 'Componentes backend', usuario_creacion: 1 },
@@ -81,82 +130,168 @@ export default async () => {
         { codigo: 'INICIADO', nombre: 'Iniciado', grupo: 'E_EVENTO_DESPLIEGUE', descripcion: 'Despliegue iniciado', usuario_creacion: 1 },
         { codigo: 'FINALIZADO', nombre: 'Finalizado', grupo: 'E_EVENTO_DESPLIEGUE', descripcion: 'Despliegue finalizado', usuario_creacion: 1 },
 
-        // COMP_TECH
-        { codigo: 'BACKEND_1', nombre: 'Node', grupo: 'COMP_TECH', descripcion: 'Node.js', usuario_creacion: 1 },
-        { codigo: 'BACKEND_2', nombre: 'RabbitMQ', grupo: 'COMP_TECH', descripcion: 'RabbitMQ', usuario_creacion: 1 },
-        { codigo: 'BD_1', nombre: 'PostgreSQL', grupo: 'COMP_TECH', descripcion: 'PostgreSQL', usuario_creacion: 1 },
-        { codigo: 'BD_2', nombre: 'MongoDB', grupo: 'COMP_TECH', descripcion: 'MongoDB', usuario_creacion: 1 },
-        { codigo: 'BD_3', nombre: 'MySQL/MariaDB', grupo: 'COMP_TECH', descripcion: 'MySQL/MariaDB', usuario_creacion: 1 },
-        { codigo: 'FRONTEND_1', nombre: 'React', grupo: 'COMP_TECH', descripcion: 'React', usuario_creacion: 1 },
+        // ========================
+        // LENGUAJES / RUNTIMES
+        // ========================
+        { codigo: 'LANG_JS', nombre: 'JavaScript', grupo: 'COMP_TECH', descripcion: 'Lenguaje JavaScript', usuario_creacion: 1 },
+        { codigo: 'LANG_TS', nombre: 'TypeScript', grupo: 'COMP_TECH', descripcion: 'Lenguaje TypeScript', usuario_creacion: 1 },
+        { codigo: 'LANG_PY', nombre: 'Python', grupo: 'COMP_TECH', descripcion: 'Lenguaje Python', usuario_creacion: 1 },
+        { codigo: 'LANG_JAVA', nombre: 'Java', grupo: 'COMP_TECH', descripcion: 'Lenguaje Java', usuario_creacion: 1 },
+        { codigo: 'LANG_GO', nombre: 'Go', grupo: 'COMP_TECH', descripcion: 'Lenguaje GoLang', usuario_creacion: 1 },
 
-        // ROL_CLUSTER → grupo debe ser NODO_ROL
+        // ========================
+        // FRAMEWORKS BACKEND
+        // ========================
+        { codigo: 'FW_EXPRESS', nombre: 'Express.js', grupo: 'COMP_TECH', descripcion: 'Framework backend Express', usuario_creacion: 1 },
+        { codigo: 'FW_NEST', nombre: 'NestJS', grupo: 'COMP_TECH', descripcion: 'Framework backend NestJS', usuario_creacion: 1 },
+        { codigo: 'FW_FASTAPI', nombre: 'FastAPI', grupo: 'COMP_TECH', descripcion: 'Framework backend FastAPI', usuario_creacion: 1 },
+        { codigo: 'FW_SPRING', nombre: 'Spring Boot', grupo: 'COMP_TECH', descripcion: 'Framework backend Spring Boot', usuario_creacion: 1 },
+        { codigo: 'FW_DJANGO', nombre: 'Django', grupo: 'COMP_TECH', descripcion: 'Framework backend Django', usuario_creacion: 1 },
+
+        // ========================
+        // FRAMEWORKS FRONTEND
+        // ========================
+        { codigo: 'FW_REACT', nombre: 'React', grupo: 'COMP_TECH', descripcion: 'Biblioteca frontend React', usuario_creacion: 1 },
+        { codigo: 'FW_NEXT', nombre: 'Next.js', grupo: 'COMP_TECH', descripcion: 'Framework React Next.js', usuario_creacion: 1 },
+        { codigo: 'FW_VUE', nombre: 'Vue.js', grupo: 'COMP_TECH', descripcion: 'Framework frontend Vue', usuario_creacion: 1 },
+        { codigo: 'FW_NUXT', nombre: 'Nuxt.js', grupo: 'COMP_TECH', descripcion: 'Framework Vue Nuxt', usuario_creacion: 1 },
+        { codigo: 'FW_ANGULAR', nombre: 'Angular', grupo: 'COMP_TECH', descripcion: 'Framework frontend Angular', usuario_creacion: 1 },
+
+        // ========================
+        // BASES DE DATOS
+        // ========================
+        { codigo: 'DB_PGSQL', nombre: 'PostgreSQL', grupo: 'COMP_TECH', descripcion: 'Base de datos PostgreSQL', usuario_creacion: 1 },
+        { codigo: 'DB_MYSQL', nombre: 'MySQL/MariaDB', grupo: 'COMP_TECH', descripcion: 'Base de datos MySQL/MariaDB', usuario_creacion: 1 },
+        { codigo: 'DB_MONGO', nombre: 'MongoDB', grupo: 'COMP_TECH', descripcion: 'Base de datos MongoDB', usuario_creacion: 1 },
+        { codigo: 'DB_SQLITE', nombre: 'SQLite', grupo: 'COMP_TECH', descripcion: 'Base de datos SQLite', usuario_creacion: 1 },
+        { codigo: 'DB_ORACLE', nombre: 'Oracle DB', grupo: 'COMP_TECH', descripcion: 'Base de datos Oracle', usuario_creacion: 1 },
+
+        // ========================
+        // CACHE / IN-MEMORY
+        // ========================
+        { codigo: 'CACHE_REDIS', nombre: 'Redis', grupo: 'COMP_TECH', descripcion: 'Base de datos en memoria Redis', usuario_creacion: 1 },
+        { codigo: 'CACHE_MEMC', nombre: 'Memcached', grupo: 'COMP_TECH', descripcion: 'Cache Memcached', usuario_creacion: 1 },
+
+        // ========================
+        // MENSAJERÍA / COLAS
+        // ========================
+        { codigo: 'MSG_RMQ', nombre: 'RabbitMQ', grupo: 'COMP_TECH', descripcion: 'Mensajería RabbitMQ', usuario_creacion: 1 },
+        { codigo: 'MSG_KAFKA', nombre: 'Kafka', grupo: 'COMP_TECH', descripcion: 'Mensajería distribuida Kafka', usuario_creacion: 1 },
+        { codigo: 'MSG_NATS', nombre: 'NATS', grupo: 'COMP_TECH', descripcion: 'Mensajería NATS', usuario_creacion: 1 },
+
+        // ========================
+        // ORM / MAPEADORES
+        // ========================
+        { codigo: 'ORM_PRISMA', nombre: 'Prisma ORM', grupo: 'COMP_TECH', descripcion: 'ORM para Node.js', usuario_creacion: 1 },
+        { codigo: 'ORM_SEQUELIZE', nombre: 'Sequelize', grupo: 'COMP_TECH', descripcion: 'ORM para Node.js Sequelize', usuario_creacion: 1 },
+        { codigo: 'ORM_TYPEORM', nombre: 'TypeORM', grupo: 'COMP_TECH', descripcion: 'ORM TypeORM', usuario_creacion: 1 },
+        { codigo: 'ORM_MONGOOSE', nombre: 'Mongoose', grupo: 'COMP_TECH', descripcion: 'ODM Mongoose para MongoDB', usuario_creacion: 1 },
+
+        // ========================
+        // TESTING
+        // ========================
+        { codigo: 'TEST_JEST', nombre: 'Jest', grupo: 'COMP_TECH', descripcion: 'Framework de testing Jest', usuario_creacion: 1 },
+        { codigo: 'TEST_PYTEST', nombre: 'PyTest', grupo: 'COMP_TECH', descripcion: 'Framework testing PyTest', usuario_creacion: 1 },
+        { codigo: 'TEST_CYPRESS', nombre: 'Cypress', grupo: 'COMP_TECH', descripcion: 'Testing end-to-end Cypress', usuario_creacion: 1 },
+
+        // NODO_ROL
         { codigo: 'NM', nombre: 'Master', grupo: 'NODO_ROL', descripcion: 'Nodo master', usuario_creacion: 1 },
         { codigo: 'NW', nombre: 'Worker', grupo: 'NODO_ROL', descripcion: 'Nodo worker', usuario_creacion: 1 },
-      ],
-      skipDuplicates: true,
-    })
 
-    // ============================================================
-    // 2. USUARIOS
-    // ============================================================
-    await db.usuario.createMany({
-      data: [
-        { nombre_usuario: 'admin', nro_documento: '1234567', nombres: 'Administrador', primer_apellido: 'Sistema', segundo_apellido: 'Principal', celular: '77712345', email: 'admin@infra.com', estado: 'ACTIVO', usuario_creacion: 1 },
-        { nombre_usuario: 'pticona', nro_documento: '9093411', nombres: 'Primo', primer_apellido: 'Ticona', segundo_apellido: 'Callizaya', celular: '68157483', email: 'ticonad19@gmail.com', estado: 'ACTIVO',usuario_creacion: 1 },
-        { nombre_usuario: 'mgarcia', nro_documento: '1122334', nombres: 'Maria', primer_apellido: 'Garcia', segundo_apellido: 'Lopez', celular: '77711223', email: 'maria.garcia@infra.com', estado: 'ACTIVO',usuario_creacion: 1 },
-        { nombre_usuario: 'crodriguez', nro_documento: '4433221', nombres: 'Carlos', primer_apellido: 'Rodriguez', segundo_apellido: 'Martinez', celular: '77744332', email: 'carlos.rodriguez@infra.com', estado: 'ACTIVO',usuario_creacion: 1 },
-        { nombre_usuario: 'lfernandez', nro_documento: '5566778', nombres: 'Laura', primer_apellido: 'Fernandez', segundo_apellido: 'Silva', celular: '77755667', email: 'laura.fernandez@infra.com', estado: 'ACTIVO',usuario_creacion: 1 },
+        // PLATAFORMA
+        { codigo: 'PX', nombre: 'Proxmox', grupo: 'PLATAFORMA', descripcion: 'Plataforma de proxmox', usuario_creacion: 1 },
+        { codigo: 'OP', nombre: 'Open Stack', grupo: 'PLATAFORMA', descripcion: 'Plataforma open stack', usuario_creacion: 1 },
       ],
-      skipDuplicates: true,
+      skipDuplicates: true
     })
 
     // ============================================================
     // 3. ROLES
     // ============================================================
+    console.log('🔐 Insertando roles...')
+
     await db.role.createMany({
       data: [
-        { nombre: 'Administrador Sistema', cod_tipo_rol: 'ADMIN', descripcion: 'Administrador del sistema', estado: 'ACTIVO',usuario_creacion: 1 },
-        { nombre: 'Desarrollador', cod_tipo_rol: 'DEV', descripcion: 'Desarrollador aplicaciones', estado: 'ACTIVO',usuario_creacion: 1 },
-        { nombre: 'Operador', cod_tipo_rol: 'OPER', descripcion: 'Operador infraestructura', estado: 'ACTIVO',usuario_creacion: 1 },
-        { nombre: 'Usuario Final', cod_tipo_rol: 'USER', descripcion: 'Usuario del sistema', estado: 'ACTIVO',usuario_creacion: 1 },
+        // SI
+        { nombre: 'Administrador', cod_tipo_rol: 'SI_SUPERADM', descripcion: 'Administrador global del sistema', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Admin de Usuarios', cod_tipo_rol: 'SI_USRADM', descripcion: 'Gestiona usuarios y asignación de roles', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Operador de Sistemas', cod_tipo_rol: 'SI_OPS', descripcion: 'Operador de infraestructura del sistema', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Visor Sistema', cod_tipo_rol: 'SI_VIEW', descripcion: 'Acceso de solo lectura al sistema', estado: 'ACTIVO', usuario_creacion: 1 },
+
+        // INFRA
+        { nombre: 'Administrador Infraestructura', cod_tipo_rol: 'INFRA_ADM', descripcion: 'Administra nodos, clusters y recursos', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Operador Infraestructura', cod_tipo_rol: 'INFRA_OPS', descripcion: 'Opera recursos de infraestructura', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Visor Infraestructura', cod_tipo_rol: 'INFRA_VIEW', descripcion: 'Visualiza infraestructura sin modificar', estado: 'ACTIVO', usuario_creacion: 1 },
+
+        // SO
+        { nombre: 'Root SO', cod_tipo_rol: 'SO_ROOT', descripcion: 'Acceso root al sistema operativo', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Sudo SO', cod_tipo_rol: 'SO_SUDO', descripcion: 'Privilegios elevados sin ser root', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Administrador SO', cod_tipo_rol: 'SO_ADM', descripcion: 'Administrador del sistema operativo', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Usuario SO', cod_tipo_rol: 'SO_USR', descripcion: 'Usuario estándar del sistema operativo', estado: 'ACTIVO', usuario_creacion: 1 },
+
+        // DB
+        { nombre: 'Administrador BD', cod_tipo_rol: 'DB_ADM', descripcion: 'Administrador de base de datos', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Desarrollador BD', cod_tipo_rol: 'DB_DEV', descripcion: 'Desarrollador de base de datos', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Editor BD', cod_tipo_rol: 'DB_EDIT', descripcion: 'Editor de datos de base de datos', estado: 'ACTIVO', usuario_creacion: 1 },
+        { nombre: 'Lector BD', cod_tipo_rol: 'DB_READ', descripcion: 'Lector de la base de datos', estado: 'ACTIVO', usuario_creacion: 1 },
+
+        // Auditor
+        { nombre: 'Auditor', cod_tipo_rol: 'AUDITOR', descripcion: 'Acceso a auditorías y registros del sistema', estado: 'ACTIVO', usuario_creacion: 1 },
       ],
-      skipDuplicates: true,
+      skipDuplicates: true
+    })
+
+    const rolAdmin = await db.role.findFirst({
+      where: { cod_tipo_rol: 'SI_SUPERADM' },
     })
 
     // ============================================================
     // 4. ENTIDADES
     // ============================================================
-    await db.entidad.createMany({
-      data: [
-        { codigo: 'ENT001', sigla: 'MINSALUD', nombre: 'Ministerio de Salud', estado: 'ACTIVO',usuario_creacion: 1 },
-        { codigo: 'ENT002', sigla: 'MINEDU', nombre: 'Ministerio de Educación', estado: 'ACTIVO',usuario_creacion: 1 },
-        { codigo: 'ENT003', sigla: 'MINTRA', nombre: 'Ministerio de Trabajo', estado: 'ACTIVO',usuario_creacion: 1 },
-        { codigo: 'ENT004', sigla: 'MINECO', nombre: 'Ministerio de Economía', estado: 'ACTIVO',usuario_creacion: 1 },
-        { codigo: 'ENT005', sigla: 'AGETIC', nombre: 'Agencia de Gobierno Electrónico', estado: 'ACTIVO',usuario_creacion: 1 },
-      ],
-      skipDuplicates: true,
+    await db.entidad.create({
+      data: {
+        codigo: 'ENT001',
+        sigla: 'AGETIC',
+        nombre: 'Agencia de Gobierno Electrónico y Tecnologías de Información y Comunicación',
+        estado: 'ACTIVO',
+        usuario_creacion: 1,
+      },
     })
 
-    // Obtener IDs generados
-    const entidades = await db.entidad.findMany()
-    const ent1 = entidades.find(e => e.codigo === 'ENT001')
-    const ent2 = entidades.find(e => e.codigo === 'ENT002')
-    const ent3 = entidades.find(e => e.codigo === 'ENT003')
-    const ent4 = entidades.find(e => e.codigo === 'ENT004')
-    const ent5 = entidades.find(e => e.codigo === 'ENT005')
+    const ent = await db.entidad.findFirst({
+      where: { codigo: 'ENT001' },
+    })
 
     // ============================================================
     // 5. SISTEMAS
     // ============================================================
-    await db.sistema.createMany({
-      data: [
-        { id_entidad: ent1.id, codigo: 'SIS-HC', sigla: 'SISHC', nombre: 'Sistema Historia Clínica', descripcion: 'Sistema integral de historia clínica digital', estado: 'ACTIVO',usuario_creacion: 1 },
-        { id_entidad: ent2.id, codigo: 'SIS-EDU', sigla: 'SISEDU', nombre: 'Sistema Educativo Digital', descripcion: 'Plataforma educativa estatal', estado: 'ACTIVO',usuario_creacion: 1 },
-        { id_entidad: ent3.id, codigo: 'SIS-TRA', sigla: 'SISTRA', nombre: 'Sistema de Trabajo', descripcion: 'Gestión laboral estatal', estado: 'ACTIVO',usuario_creacion: 1 },
-        { id_entidad: ent4.id, codigo: 'SIS-ECO', sigla: 'SISECO', nombre: 'Sistema Económico', descripcion: 'Plataforma económico financiera', estado: 'ACTIVO',usuario_creacion: 1 },
-        { id_entidad: ent5.id, codigo: 'SIS-GOB', sigla: 'SISGOB', nombre: 'Sistema Gobierno Electrónico', descripcion: 'Servicios digitales gubernamentales', estado: 'ACTIVO',usuario_creacion: 1 },
-      ],
-      skipDuplicates: true,
+    await db.sistema.create({
+      data: {
+        id_entidad: ent.id,
+        codigo: 'SIS-IT',
+        sigla: 'SIAIT',
+        nombre: 'Sistema de Inventariado y Administración de Infraestructura Tecnológica',
+        descripcion: 'Sistema de inventariado y gestión de infraestructura tecnológica',
+        estado: 'ACTIVO',
+        usuario_creacion: 1,
+      },
+    })
+
+    const sistemaIT = await db.sistema.findFirst({
+      where: { codigo: 'SIS-IT' },
+    })
+
+    // ============================================================
+    // 6. ASIGNACIÓN ROL ADMIN A PRIMO
+    // ============================================================
+    await db.usuarioRol.create({
+      data: {
+        id_usuario: 2,           // Primo
+        id_rol: rolAdmin.id,     // Rol Admin real
+        id_sistema: sistemaIT.id, 
+        estado: 'ACTIVO',
+        usuario_creacion: 1,
+      },
     })
 
     console.log('✔ Seed ejecutado correctamente')

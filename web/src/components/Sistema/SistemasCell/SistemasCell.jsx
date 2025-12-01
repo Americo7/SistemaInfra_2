@@ -27,9 +27,9 @@ export const Loading = () => <div>Loading...</div>
 export const Empty = () => {
   return (
     <div className="rw-text-center">
-      {'No sistemas yet. '}
+      {'No hay sistemas registrados'}
       <Link to={routes.newSistema()} className="rw-link">
-        {'Create one?'}
+        {'Create uno?'}
       </Link>
     </div>
   )

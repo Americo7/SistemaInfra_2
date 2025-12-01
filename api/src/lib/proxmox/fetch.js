@@ -1,4 +1,3 @@
-// lib/proxmox/fetch.js
 import { getProxmoxClient } from './client'
 import { cacheFetch, cacheKey } from './cache'
 
@@ -40,18 +39,19 @@ const limitVMFetch = pLimit(10)   // para VMs
 const pickIP = (interfaces = []) => {
   if (!Array.isArray(interfaces)) return null
 
-  const prefer = ['vmbr0', 'eno1', 'eth0', 'enp0s3']
+  // Prioridad de interfaces de gestión comunes
+  const prefer = ['vmbr0', 'eno1', 'eth0', 'enp0s3', 'bond0']
 
   let iface =
     interfaces.find(i => prefer.includes(i.iface) && i.address) ||
     interfaces.find(i => i.method === 'static' && i.address) ||
-    interfaces.find(i => i.address)
+    interfaces.find(i => i.address && i.family === 'inet') // Preferir IPv4
 
   return iface?.address || null
 }
 
 /* ============================================================
-   FETCH /cluster/resources (turbo)
+   FETCH /cluster/resources (Vista Global Rápida)
 ============================================================ */
 const fetchClusterResources = async (endpointId) => {
   const client = await getProxmoxClient(endpointId)
@@ -68,49 +68,66 @@ const fetchClusterResources = async (endpointId) => {
 }
 
 /* ============================================================
-   FETCH NODES (OPTIMIZADO + REDIS + cluster/resources)
+   FETCH NODES (ROBUSTO + Fallbacks)
 ============================================================ */
 export const fetchNodes = async (endpointId) => {
   const client = await getProxmoxClient(endpointId)
 
-  // 1) Obtener recursos del cluster (1 sola llamada)
+  // 1) Obtener recursos del cluster (1 sola llamada rápida)
   const resources = await fetchClusterResources(endpointId)
 
   // Filtrar solo nodos
   const nodosBase = resources.filter(r => r.type === "node")
 
-  // 2) Enriquecer nodos con network + status
+  // 2) Enriquecer nodos con network + status detallado
   const nodosFull = await Promise.all(
     nodosBase.map((n) =>
       limitNodeFetch(async () => {
         const nodeName = n.node
 
-        // NETWORK (cacheado)
-        const net = await cacheFetch(
-          cacheKey.nodeNetwork(endpointId, nodeName),
-          10,
-          async () => {
-            const r = await client.get(`/nodes/${nodeName}/network`)
-            return r.data?.data || []
-          }
-        )
+        try {
+          // Intentamos obtener detalles profundos
+          // NETWORK (cacheado)
+          const net = await cacheFetch(
+            cacheKey.nodeNetwork(endpointId, nodeName),
+            30, // Cacheamos esto más tiempo, las IPs de nodos rara vez cambian
+            async () => {
+              const r = await client.get(`/nodes/${nodeName}/network`)
+              return r.data?.data || []
+            }
+          )
 
-        // STATUS (cacheado)
-        const status = await cacheFetch(
-          cacheKey.nodeStatus(endpointId, nodeName),
-          5,
-          async () => {
-            const r = await client.get(`/nodes/${nodeName}/status`)
-            return r.data?.data || {}
-          }
-        )
+          // STATUS (cacheado)
+          const status = await cacheFetch(
+            cacheKey.nodeStatus(endpointId, nodeName),
+            10,
+            async () => {
+              const r = await client.get(`/nodes/${nodeName}/status`)
+              return r.data?.data || {}
+            }
+          )
 
-        return {
-          node: nodeName,
-          ip: pickIP(net),
-          estado: status.status || n.status,
-          mem_total: status.memory?.total ?? n.maxmem ?? null,
-          disk_total: status.rootfs?.total ?? null,
+          return {
+            node: nodeName,
+            ip: pickIP(net),
+            // Preferimos el status detallado, sino el del cluster
+            estado: status.status || n.status, 
+            mem_total: status.memory?.total ?? n.maxmem ?? null,
+            disk_total: status.rootfs?.total ?? n.maxdisk ?? null,
+          }
+
+        } catch (error) {
+          // CRÍTICO: Si el nodo está offline (ej: error de conexión),
+          // no rompemos el Promise.all. Retornamos la info básica que ya teníamos.
+          console.warn(`⚠️ Nodo ${nodeName} inalcanzable para detalles. Usando datos básicos.`)
+          
+          return {
+            node: nodeName,
+            ip: null, // No podemos saber la IP si no responde
+            estado: 'offline', // Forzamos offline si falló la conexión
+            mem_total: n.maxmem || null,
+            disk_total: n.maxdisk || null,
+          }
         }
       })
     )
@@ -123,42 +140,83 @@ export const fetchNodes = async (endpointId) => {
    FETCH NODE STATUS (compatibilidad)
 ============================================================ */
 export const fetchNodeStatus = async (endpointId, node) => {
-  const client = await getProxmoxClient(endpointId)
-  const res = await client.get(`/nodes/${node}/status`)
-  return res.data?.data || {}
+  try {
+    const client = await getProxmoxClient(endpointId)
+    const res = await client.get(`/nodes/${node}/status`)
+    return res.data?.data || {}
+  } catch (e) {
+    console.error(`Error fetchNodeStatus ${node}:`, e.message)
+    return {}
+  }
 }
 
 /* ============================================================
    FETCH VMs DE UN NODO (USANDO cluster/resources)
 ============================================================ */
+/* ============================================================
+   FETCH VMs DE UN NODO (USANDO cluster/resources)
+   + NORMALIZACIÓN DE CPU / RAM
+============================================================ */
 export const fetchVMs = async (endpointId, node) => {
   const resources = await fetchClusterResources(endpointId)
 
-  // Filtrar solo las VMs del nodo
-  return resources.filter(
-    (r) => r.type === "qemu" && r.node === node
-  )
+  return resources
+    .filter((r) => (r.type === "qemu" || r.type === "lxc") && r.node === node)
+    .map((vm) => ({
+      vmid: vm.vmid,
+      node: vm.node,
+      name: vm.name || null,
+      type: vm.type,
+      status: vm.status,
+
+      // CPU de cluster/resources (si Proxmox las devuelve)
+      cpus: vm.cpus ? Number(vm.cpus) : null,
+      maxcpu: vm.maxcpu ? Number(vm.maxcpu) : null,
+
+      // RAM (bytes)
+      maxmem: vm.maxmem || null,
+    }))
 }
+
 
 /* ============================================================
    FETCH VM CONFIG
 ============================================================ */
+/* ============================================================
+   FETCH VM CONFIG – NORMALIZADO (SIEMPRE NÚMEROS)
+============================================================ */
 export const fetchVMConfig = async (endpointId, node, vmid) => {
-  const client = await getProxmoxClient(endpointId)
+  try {
+    const client = await getProxmoxClient(endpointId)
 
-  const res = await limitVMFetch(() =>
-    client.get(`/nodes/${node}/qemu/${vmid}/config`)
-  )
+    const res = await limitVMFetch(() =>
+      client.get(`/nodes/${node}/qemu/${vmid}/config`)
+    )
 
-  const data = res.data?.data || {}
+    const raw = res.data?.data || {}
 
-  // Normalizar smbios1 (puede venir como "uuid=xxxx")
-  if (data.smbios1) {
-    data.smbios1 = data.smbios1.trim()
+    const n = (v) => (v !== undefined && v !== null ? Number(String(v)) : null)
+
+    const normalized = {
+      ...raw,
+      smbios1: raw.smbios1 ? raw.smbios1.trim() : null,
+
+      // Normalización de CPU
+      cores: n(raw.cores),
+      sockets: n(raw.sockets),
+      cpus: n(raw.cpus),         // LXC
+      cpulimit: n(raw.cpulimit), // LXC
+      cpuunits: n(raw.cpuunits),
+
+      // RAM (MB)
+      memory: n(raw.memory),
+    }
+
+    return normalized
+  } catch (error) {
+    console.warn(`Error config VM ${vmid}: ${error.message}`)
+    return {}
   }
-
-  return data
-
 }
 
 /* ============================================================
@@ -168,12 +226,14 @@ export const fetchVMOSInfo = async (endpointId, node, vmid) => {
   try {
     const client = await getProxmoxClient(endpointId)
 
+    // Agregamos timeout corto porque si no hay agente, esto se cuelga a veces
     const res = await limitVMFetch(() =>
-      client.get(`/nodes/${node}/qemu/${vmid}/agent/get-osinfo`)
+      client.get(`/nodes/${node}/qemu/${vmid}/agent/get-osinfo`, { timeout: 3000 })
     )
 
     return res.data?.data?.result || null
   } catch {
+    // Es normal que falle si no tiene guest-agent instalado
     return null
   }
 }
@@ -187,7 +247,8 @@ export const fetchVMNetwork = async (endpointId, node, vmid) => {
 
     const res = await limitVMFetch(() =>
       client.get(
-        `/nodes/${node}/qemu/${vmid}/agent/network-get-interfaces`
+        `/nodes/${node}/qemu/${vmid}/agent/network-get-interfaces`, 
+        { timeout: 3000 }
       )
     )
 

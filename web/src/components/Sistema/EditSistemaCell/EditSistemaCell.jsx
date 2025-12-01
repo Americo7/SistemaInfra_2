@@ -70,11 +70,6 @@ export const Success = ({ sistema }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Edit Sistema {sistema?.id}
-        </h2>
-      </header>
       <div className="rw-segment-main">
         <SistemaForm
           sistema={sistema}
