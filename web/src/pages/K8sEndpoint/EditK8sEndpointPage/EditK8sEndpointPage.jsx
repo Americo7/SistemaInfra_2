@@ -5,8 +5,10 @@ import EditK8sEndpointCell from 'src/components/K8sEndpoint/EditK8sEndpointCell'
 const EditK8sEndpointPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Endpoints de Kubernetes"
+      titleTo="k8SEndpoints"
+      groupTitle="Sincronización"
       breadcrumbItems={[
-        { label: 'Kubernetes', link: routes.k8SEndpoints() },
         { label: 'Editar' }
       ]}
     >

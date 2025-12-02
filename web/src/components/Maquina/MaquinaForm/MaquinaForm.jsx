@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useQuery, gql } from '@redwoodjs/web'
 import { navigate, routes } from '@redwoodjs/router'
+import { useAuth } from 'src/auth'
 
 import {
   Box,
   Card,
   CardHeader,
-  CardContent,
+// ... (otras importaciones de MUI)
   Typography,
   TextField,
   Select,
@@ -24,7 +25,8 @@ import {
   Paper,
   Autocomplete,
   useTheme,
-  CircularProgress
+  CircularProgress,
+  CardContent
 } from '@mui/material'
 
 import { LoadingButton } from '@mui/lab'
@@ -40,18 +42,26 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import SaveIcon from '@mui/icons-material/Save'
 import CancelIcon from '@mui/icons-material/Cancel'
 import LinkIcon from '@mui/icons-material/Link'
-import VpnKeyIcon from '@mui/icons-material/VpnKey'
+import LinkOffIcon from '@mui/icons-material/LinkOff'
 import EditIcon from '@mui/icons-material/Edit'
 import StorageIcon from '@mui/icons-material/Storage'
+import LockIcon from '@mui/icons-material/Lock'
 
 /* ---------------------------------------------
- * 1. QUERIES
+ * 1. QUERIES (Unificadas)
  * --------------------------------------------- */
-const FIND_SERVIDORES_QUERY = gql`
-  query ObtenServidores {
+const GET_FORM_DATA = gql`
+  query GetFormData {
     servidores {
       id
       nombre
+    }
+    parametros {
+      id
+      codigo
+      nombre
+      grupo
+      descripcion
     }
   }
 `
@@ -160,7 +170,7 @@ const getDefaultFormValues = () => ({
   cpu: '',
   cod_plataforma: '',
   estado: 'ACTIVO',
-  estado_operativo: 'unknown',
+  estado_operativo: '', 
   id_servidor: '',
   proxmox_vmid: '',
   uuid: '',
@@ -168,17 +178,32 @@ const getDefaultFormValues = () => ({
 })
 
 /* ----- FORM PRINCIPAL ----- */
-const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
+const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }) => {
   const theme = useTheme()
   const isEditMode = Boolean(maquina?.id)
+  const { currentUser } = useAuth() // <-- USAR useAuth PARA OBTENER EL USUARIO LOGUEADO
 
-  // --- 1. CARGA DE SERVIDORES (Query Interna) ---
-  const { data: dataServidores, loading: loadingServidores } = useQuery(FIND_SERVIDORES_QUERY)
+  // Determinar el ID del usuario actual. Usamos 1 como fallback si no hay usuario (solo para desarrollo/testing).
+  const currentUserId = currentUser?.id ? Number(currentUser.id) : 1
   
-  // Lista simple extraída de la query
-  const listaServidores = dataServidores?.servidores || []
 
-  // --- ESTADOS ---
+  // --- 1. CARGA DE DATOS ---
+  const { data: remoteData, loading: loadingData } = useQuery(GET_FORM_DATA)
+  
+  const listaServidores = remoteData?.servidores || []
+  const listaParametros = remoteData?.parametros || []
+
+  // --- 2. FILTROS ---
+  const plataformas = useMemo(() => 
+    listaParametros.filter((p) => p.grupo === 'PLATAFORMA'), 
+  [listaParametros])
+
+  const estadosOperativos = useMemo(() => 
+    listaParametros.filter((p) => p.grupo === 'ESTADO_OPERATIVO'), 
+  [listaParametros])
+
+
+  // --- ESTADOS LOCALES ---
   const [formValues, setFormValues] = useState(getDefaultFormValues())
   const [selectedSO, setSelectedSO] = useState('')
   const [soVersion, setSoVersion] = useState('')
@@ -187,8 +212,13 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
 
-  const plataformas = useMemo(() => parametros.filter((p) => p.grupo === 'PLATAFORMA'), [parametros])
+  // --- LÓGICA DE IDENTIFICADOR BLOQUEADO ---
+  const isIdentityLocked = useMemo(() => {
+    if (!formValues.identity_key) return false
+    return formValues.identity_key.startsWith('proxmox:') || formValues.identity_key.startsWith('sync:')
+  }, [formValues.identity_key])
 
+  /* ----- RESET & INIT ----- */
   const resetForm = useCallback(() => {
     setFormValues(getDefaultFormValues())
     setSelectedSO('')
@@ -197,7 +227,6 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
     setErrors({})
   }, [])
 
-  /* ----- CARGA INICIAL EN EDICIÓN ----- */
   useEffect(() => {
     if (!isEditMode) {
       if (!isInitialized) {
@@ -215,7 +244,7 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
       cpu: maquina.cpu ?? '',
       cod_plataforma: maquina.cod_plataforma ?? '',
       estado: maquina.estado ?? 'ACTIVO',
-      estado_operativo: maquina.estado_operativo ?? 'unknown',
+      estado_operativo: maquina.estado_operativo ?? '',
       id_servidor: maquina.id_servidor ?? '',
       proxmox_vmid: maquina.proxmox_vmid ?? '',
       uuid: maquina.uuid ?? '',
@@ -246,11 +275,7 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
     setIsInitialized(true)
   }, [maquina, isEditMode, isInitialized, resetForm])
 
-  useEffect(() => {
-    setIsInitialized(false)
-  }, [maquina?.id])
-
-  /* ----- VALIDACIONES ----- */
+  /* ----- HANDLERS ----- */
   const validateIP = (ip) => {
     if (!ip) return ''
     const ipv4 = /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
@@ -272,26 +297,39 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
     return Object.keys(e).length === 0
   }
 
-  const agregarDisco = () => setDiscos((prev) => [...prev, { Disco: prev.length + 1, Valor: '' }])
-  const eliminarDisco = (idx) =>
-    setDiscos((prev) => prev.filter((_, i) => i !== idx).map((d, i) => ({ ...d, Disco: i + 1 })))
-  const actualizarDisco = (idx, val) =>
-    setDiscos((prev) => prev.map((d, i) => (i === idx ? { ...d, Valor: val } : d)))
-
   const handleFieldChange = (field, value) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }))
+    // Si la clave no es identity_key, se permite actualizar el estado
+    if (field !== 'identity_key') {
+        setFormValues((prev) => ({ ...prev, [field]: value }))
+    }
+    
+    // Lógica de errores
     if (field === 'ip') setErrors((prev) => ({ ...prev, ip: validateIP(value) }))
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }))
   }
 
+  // Funciones Discos
+  const agregarDisco = () => setDiscos((prev) => [...prev, { Disco: prev.length + 1, Valor: '' }])
+  const eliminarDisco = (idx) => setDiscos((prev) => prev.filter((_, i) => i !== idx).map((d, i) => ({ ...d, Disco: i + 1 })))
+  const actualizarDisco = (idx, val) => setDiscos((prev) => prev.map((d, i) => (i === idx ? { ...d, Valor: val } : d)))
+
+  /**
+   * CORRECCIÓN PRINCIPAL
+   * 1. Asegura que identity_key sea una cadena vacía en modo creación (para satisfacer String!).
+   * 2. Usa currentUserId para los campos de auditoría.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validateForm()) return
     setIsSubmitting(true)
     try {
         const almacenamiento = discos.map((d, idx) => ({ Disco: idx + 1, Valor: Number(d.Valor) }))
+        
+        // 1. Aseguramos que identity_key sea una cadena vacía si no estamos editand
+
         const payload = {
             ...formValues,
+
             nombre: formValues.nombre.trim(),
             ram: Number(formValues.ram),
             cpu: Number(formValues.cpu),
@@ -299,9 +337,12 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
             almacenamiento,
             id_servidor: formValues.id_servidor ? Number(formValues.id_servidor) : null,
             proxmox_vmid: formValues.proxmox_vmid ? Number(formValues.proxmox_vmid) : null,
-            usuario_modificacion: isEditMode ? 1 : undefined,
-            usuario_creacion: isEditMode ? undefined : 1,
+            
+            // 2. INCLUIR USUARIO LOGUEADO
+            usuario_modificacion: isEditMode ? currentUserId : undefined,
+            usuario_creacion: isEditMode ? undefined : currentUserId,
         }
+        
         await onSave(payload, isEditMode ? maquina.id : undefined)
     } finally {
         setIsSubmitting(false)
@@ -309,10 +350,20 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
   }
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
+    <Box sx={{  width: '100%', maxWidth: 1400, mx: 'auto' }}>
       
-      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
-        
+      <Card
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          borderRadius: '0 0 12px 12px !important',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
         {/* HEADER */}
         <Box sx={{ 
             px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
@@ -320,7 +371,7 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
           }}>
             <Avatar
               sx={{
-                  width: 48, height: 48,
+                  width: 38, height: 38,
                   background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
                   color: 'white', boxShadow: 3
                 }}
@@ -328,17 +379,7 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
               {isEditMode ? <EditIcon /> : <AddCircleOutlineIcon />}
             </Avatar>
             <Box>
-              <Typography
-                variant="h5"
-                fontWeight={800}
-                sx={{
-                  lineHeight: 1.2,
-                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  mb: 0.5
-                }}
-              >
+              <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2, color: '#000', mb: 0.5 }}>
                 {isEditMode ? 'Editar Máquina Virtual' : 'Crear Máquina Virtual'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -350,10 +391,10 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
         {/* CONTENIDO PRINCIPAL */}
         <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
 
-          {error && (
+          {(errorSave) && (
             <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
               <ErrorOutlineIcon color="error" />
-              <Typography variant="body2" fontWeight={600}>{String(error)}</Typography>
+              <Typography variant="body2" fontWeight={600}>{String(errorSave)}</Typography>
             </Paper>
           )}
 
@@ -380,19 +421,17 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
                   {errors.nombre && <FormHelperText>{errors.nombre}</FormHelperText>}
                 </FormControl>
 
-                {/* FILA: SERVIDOR (AUTOCOMPLETE) + VMID */}
+                {/* FILA: SERVIDOR + VMID */}
                 <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 2 }}>
                     
-                    {/* AUTOCOMPLETE SERVIDOR */}
                     <FormControl fullWidth error={!!errors.id_servidor}>
                         <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Servidor Host *</FormLabel>
                         <Autocomplete
                             disablePortal
                             id="combo-box-servidores"
-                            options={listaServidores} // Usamos la lista directa de la query
+                            options={listaServidores}
                             getOptionLabel={(option) => option.nombre || ''}
-                            loading={loadingServidores}
-                            // Encontrar el objeto completo según el ID del form
+                            loading={loadingData}
                             value={listaServidores.find(s => s.id === formValues.id_servidor) || null}
                             onChange={(event, newValue) => {
                                 handleFieldChange('id_servidor', newValue ? newValue.id : '')
@@ -401,13 +440,13 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
                                 <TextField 
                                     {...params} 
                                     size="small" 
-                                    placeholder={loadingServidores ? "Cargando..." : "Buscar servidor..."}
+                                    placeholder={loadingData ? "Cargando..." : "Buscar servidor..."}
                                     error={!!errors.id_servidor}
                                     InputProps={{
                                       ...params.InputProps,
                                       endAdornment: (
                                         <>
-                                          {loadingServidores ? <CircularProgress color="inherit" size={20} /> : null}
+                                          {loadingData ? <CircularProgress color="inherit" size={20} /> : null}
                                           {params.InputProps.endAdornment}
                                         </>
                                       ),
@@ -430,13 +469,29 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
                     </FormControl>
                 </Box>
 
+                {/* IDENTIFICADOR (SOLO LECTURA) */}
                 <FormControl fullWidth>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Identificador</FormLabel>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Identificador (Key)</FormLabel>
                     <TextField 
                       size="small" 
-                      value={formValues.identity_key} 
-                      onChange={(e) => handleFieldChange('identity_key', e.target.value)}
-                      InputProps={{ startAdornment: <InputAdornment position="start"><LinkIcon fontSize="small" /></InputAdornment> }} 
+                      value={formValues.identity_key || (isEditMode ? 'No disponible' : 'Se generará al guardar...')} 
+                      // Se desactiva y se pone en modo solo lectura
+                      disabled={true} 
+                      InputProps={{ 
+                        readOnly: true,
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                {isIdentityLocked ? <LockIcon fontSize="small" color="disabled" /> : <LinkIcon fontSize="small" color="disabled" />}
+                            </InputAdornment>
+                        ),
+                        // Estilo visual de solo lectura
+                        style: { backgroundColor: '#f5f5f5', color: '#777' }
+                      }} 
+                      helperText={
+                        isEditMode 
+                          ? (isIdentityLocked ? "Clave de sincronización externa (No editable)." : "Clave única generada por la base de datos (No editable).") 
+                          : "La clave final (manual:nombre:id) se genera automáticamente al guardar."
+                      }
                     />
                 </FormControl>
 
@@ -447,37 +502,46 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
             <SectionCard title="Sistema y Red" icon={<SettingsEthernetIcon />} color={theme.palette.secondary.main}>
               <Stack spacing={2.5}>
                 
-                <FormControl fullWidth error={!!errors.cod_plataforma}>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Plataforma *</FormLabel>
-                    <Select
-                      size="small"
-                      value={formValues.cod_plataforma}
-                      onChange={(e) => handleFieldChange('cod_plataforma', e.target.value)}
-                      displayEmpty
-                    >
-                      <MenuItem value=""><em>Seleccionar...</em></MenuItem>
-                      {plataformas.map((p) => (
-                        <MenuItem key={p.codigo} value={p.codigo}>{p.nombre}</MenuItem>
-                      ))}
-                    </Select>
-                </FormControl>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <FormControl fullWidth error={!!errors.cod_plataforma}>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Plataforma *</FormLabel>
+                        <Select
+                          size="small"
+                          value={formValues.cod_plataforma}
+                          onChange={(e) => handleFieldChange('cod_plataforma', e.target.value)}
+                          displayEmpty
+                          disabled={loadingData}
+                        >
+                          <MenuItem value="">
+                            <em>{loadingData ? 'Cargando...' : 'Seleccionar...'}</em>
+                          </MenuItem>
+                          {plataformas.map((p) => (
+                            <MenuItem key={p.codigo} value={p.codigo}>{p.nombre}</MenuItem>
+                          ))}
+                        </Select>
+                    </FormControl>
 
-                <FormControl fullWidth>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Estado Operativo</FormLabel>
-                    <Select
-                      size="small"
-                      value={formValues.estado_operativo}
-                      onChange={(e) => handleFieldChange('estado_operativo', e.target.value)}
-                    >
-                      <MenuItem value="running">Encendida</MenuItem>
-                      <MenuItem value="stopped">Apagada</MenuItem>
-                      <MenuItem value="paused">Pausada</MenuItem>
-                      <MenuItem value="unknown">Desconocido</MenuItem>
-                    </Select>
-                </FormControl>
+                    <FormControl fullWidth>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Estado Operativo</FormLabel>
+                        <Select
+                          size="small"
+                          value={formValues.estado_operativo}
+                          onChange={(e) => handleFieldChange('estado_operativo', e.target.value)}
+                          displayEmpty
+                          disabled={loadingData}
+                        >
+                          <MenuItem value="">
+                            <em>{loadingData ? 'Cargando...' : 'Seleccionar...'}</em>
+                          </MenuItem>
+                          {estadosOperativos.map((estado) => (
+                            <MenuItem key={estado.codigo} value={estado.codigo}>
+                                {estado.nombre}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                    </FormControl>
+                </Box>
                 
-                <Divider sx={{ borderStyle: 'dashed' }} />
-
                 <FormControl fullWidth error={!!errors.ip}>
                   <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Dirección IP</FormLabel>
                   <TextField
@@ -519,26 +583,30 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
             <SectionCard title="Hardware y Storage" icon={<MemoryIcon />} color="#2e7d32">
               <Stack spacing={2.5}>
 
-                <FormControl fullWidth error={!!errors.cpu}>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>vCPUs *</FormLabel>
-                    <TextField 
-                        type="number" 
-                        size="small" 
-                        value={formValues.cpu} 
-                        onChange={(e) => handleFieldChange('cpu', e.target.value)} 
-                    />
-                </FormControl>
+                {/* CPU y RAM lado a lado */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    
+                    <FormControl fullWidth error={!!errors.cpu}>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>vCPUs *</FormLabel>
+                        <TextField 
+                            type="number" 
+                            size="small" 
+                            value={formValues.cpu} 
+                            onChange={(e) => handleFieldChange('cpu', e.target.value)} 
+                        />
+                    </FormControl>
 
-                {/* RAM debajo de CPU */}
-                <FormControl fullWidth error={!!errors.ram}>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>RAM (GB) *</FormLabel>
-                    <TextField 
-                        type="number" 
-                        size="small" 
-                        value={formValues.ram} 
-                        onChange={(e) => handleFieldChange('ram', e.target.value)} 
-                    />
-                </FormControl>
+                    <FormControl fullWidth error={!!errors.ram}>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>RAM (GB) *</FormLabel>
+                        <TextField 
+                            type="number" 
+                            size="small" 
+                            value={formValues.ram} 
+                            onChange={(e) => handleFieldChange('ram', e.target.value)} 
+                        />
+                    </FormControl>
+
+                </Box>
 
                 <Divider />
 
@@ -567,7 +635,7 @@ const MaquinaForm = ({ maquina, onSave, loading, error, parametros = [] }) => {
             <LoadingButton
               type="submit"
               variant="contained"
-              loading={loading || isSubmitting}
+              loading={loadingSave || isSubmitting}
               startIcon={<SaveIcon />}
               sx={{ 
                 background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',

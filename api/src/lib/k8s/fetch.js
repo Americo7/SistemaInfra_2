@@ -1,5 +1,35 @@
+// src/lib/k8s/fetch.js
 import { getK8sClient } from './client'
+import { valkey } from 'src/lib/valkey' // 🟢 Importamos Valkey
 
+/* ============================================================
+   HELPER: Cache Wrapper (Reutilizable)
+============================================================ */
+const cachedApiCall = async (key, ttlSeconds, fetchFn) => {
+  if (!key) return fetchFn() // Si no hay key, paso directo (sin caché)
+
+  try {
+    const cached = await valkey.get(key)
+    if (cached) {
+      return JSON.parse(cached)
+    }
+  } catch (err) {
+    console.warn(`[Valkey] Error leyendo cache ${key}:`, err.message)
+  }
+
+  const data = await fetchFn()
+
+  if (data) {
+    // Guardamos en background
+    valkey.set(key, JSON.stringify(data), 'EX', ttlSeconds).catch(() => {})
+  }
+
+  return data
+}
+
+/* ============================================================
+   EXTRACTORES (Helpers puros)
+============================================================ */
 const extractRoles = (node) => {
   const labels = node.metadata?.labels || {}
   return Object.keys(labels)
@@ -30,31 +60,51 @@ const detectProvider = (node) => {
   return 'k8s'
 }
 
-export const fetchK8sNodes = async (source) => {
+/* ============================================================
+   FETCH NODES (Con Valkey Caching)
+   @param source: Cliente K8s o Endpoint Object
+   @param cacheId: (Opcional) ID del endpoint para generar la key de cache
+============================================================ */
+export const fetchK8sNodes = async (source, cacheId = null) => {
   let core
+  let derivedId = cacheId
 
+  // 1. Determinar Cliente y ID para Cache
   if (source && typeof source.listNode === 'function') {
+    // Es un cliente ya instanciado
     core = source
   } else if (source && (source.url_api || source.api_url)) {
+    // Es un objeto endpoint (DB), instanciamos cliente
     core = getK8sClient(source)
+    derivedId = derivedId || source.id
   } else {
     throw new Error('fetchK8sNodes: Fuente inválida (ni cliente ni endpoint)')
   }
 
-  let res
-  try {
-    res = await core.listNode()
-  } catch (err) {
-    console.error('Error K8s API:', err?.response?.body || err)
-    throw new Error('No se pudo comunicar con el API Kubernetes')
-  }
+  // 2. Definir Key de Cache (k8s:nodes:{id})
+  // Si no tenemos ID, la key es null y 'cachedApiCall' no cacheará (safety fallback)
+  const cacheKey = derivedId ? `k8s:${derivedId}:nodes:list` : null
 
-  const items = res?.body?.items || res?.items
-  if (!items) {
+  /* -----------------------------------
+     🟢 LLAMADA API CON CACHÉ (10s)
+  ----------------------------------- */
+  let rawItems = await cachedApiCall(cacheKey, 10, async () => {
+    try {
+      const res = await core.listNode()
+      // Solo cacheamos el array de items para ahorrar memoria, no todo el objeto response
+      return res?.body?.items || res?.items || []
+    } catch (err) {
+      console.error('Error K8s API:', err?.response?.body || err)
+      throw new Error('No se pudo comunicar con el API Kubernetes')
+    }
+  })
+
+  if (!rawItems) {
     throw new Error('Respuesta inválida desde el API K8s')
   }
 
-  return items.map((node) => {
+  // 3. Transformación de Datos (Mapping)
+  return rawItems.map((node) => {
     const meta = node.metadata || {}
     const status = node.status || {}
     const info = status.nodeInfo || {}
@@ -64,7 +114,7 @@ export const fetchK8sNodes = async (source) => {
 
     // identity_key: ALINEADO CON BD
     const identity_key = systemUUID
-      ? `${provider}:${systemUUID}`  // ← "proxmox:2cfc085a-c04a-4aa3-ac28-3a8bb6954d36"
+      ? `${provider}:${systemUUID}`  // ← "proxmox:2cfc085a-..."
       : `k8s:${meta.uid}`
 
     return {

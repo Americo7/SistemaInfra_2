@@ -6,6 +6,7 @@ const DesplieguesPage = () => {
     <ScaffoldLayout
       title="Despliegues"
       titleTo="despliegues"
+      groupTitle="Despliegues"
       buttonLabel="Nuevo Despliegue"
       buttonTo="newDespliegue"
     >

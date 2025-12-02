@@ -55,9 +55,11 @@ const ServidorPage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Servidores"
+      titleTo="servidors"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Servidores', link: routes.servidors() },
-        { label: nombreServidor },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

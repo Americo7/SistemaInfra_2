@@ -5,8 +5,10 @@ import EditMaquinaCell from 'src/components/Maquina/EditMaquinaCell'
 const EditMaquinaPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Máquinas"
+      titleTo="maquinas"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Maquinas', link: routes.maquinas() },
         { label: 'Editar' }
       ]}
     >

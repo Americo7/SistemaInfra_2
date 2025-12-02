@@ -40,7 +40,6 @@ export const QUERY = gql`
       estado
       cod_plataforma
       id_servidor
-      uuid
       proxmox_vmid
       identity_key
       usuario_creacion

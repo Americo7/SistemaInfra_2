@@ -5,8 +5,10 @@ import EditProxmoxEndpointCell from 'src/components/ProxmoxEndpoint/EditProxmoxE
 const EditProxmoxEndpointPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Endpoints de Proxmox"
+      titleTo="proxmoxEndpoints"
+      groupTitle="Sincronización"
       breadcrumbItems={[
-        { label: 'Proxmox', link: routes.proxmoxEndpoints() },
         { label: 'Editar' }
       ]}
     >

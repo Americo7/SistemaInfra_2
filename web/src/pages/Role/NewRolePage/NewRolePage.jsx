@@ -5,9 +5,11 @@ import NewRole from 'src/components/Role/NewRole'
 const NewRolePage = () => {
   return (
     <ScaffoldLayout
+      title="Roles"
+      titleTo="roles"
+      groupTitle="Gestión de Usuarios"
       breadcrumbItems={[
-        { label: 'Roles', link: routes.roles() },
-        { label: 'Nuevo Rol' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewRole />

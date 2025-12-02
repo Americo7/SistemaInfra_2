@@ -5,9 +5,11 @@ import NewMaquina from 'src/components/Maquina/NewMaquina'
 const NewMaquinaPage = () => {
   return (
     <ScaffoldLayout
+      title="Máquinas"
+      titleTo="maquinas"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Maquinas', link: routes.maquinas() },
-        { label: 'Nueva maquina' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewMaquina />

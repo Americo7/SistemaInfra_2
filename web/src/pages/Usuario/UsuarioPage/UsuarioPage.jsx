@@ -60,9 +60,11 @@ const UsuarioPage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Usuarios"
+      titleTo="usuarios"
+      groupTitle="Gestión de Usuarios"
       breadcrumbItems={[
-        { label: 'Usuarios', link: routes.usuarios() },
-        { label: fullName },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

@@ -4,8 +4,9 @@ import ProxmoxEndpointsCell from 'src/components/ProxmoxEndpoint/ProxmoxEndpoint
 const ProxmoxEndpointsPage = () => {
   return (
     <ScaffoldLayout
-      title="Endpoints Proxmox"
+      title="Endpoints de Proxmox"
       titleTo="proxmoxEndpoints"
+      groupTitle="Sincronización"
       buttonLabel="Nuevo Endpoint"
       buttonTo="newProxmoxEndpoint"
     >

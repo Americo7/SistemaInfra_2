@@ -27,7 +27,6 @@ const DELETE_MUTATION = gql`
 
 const SistemaPage = ({ id }) => {
   const { data } = useQuery(QUERY, { variables: { id } })
-
   const titulo = data?.sistema?.nombre || `Sistema #${id}`
 
   const [deleteSistema] = useMutation(DELETE_MUTATION, {
@@ -60,9 +59,11 @@ const SistemaPage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Sistemas"
+      titleTo="sistemas"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: "Despliegues" },
-        { label: 'Sistemas', link: routes.sistemas() },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

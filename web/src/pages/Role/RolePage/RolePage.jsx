@@ -55,9 +55,11 @@ const RolePage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Roles"
+      titleTo="roles"
+      groupTitle="Gestión de Usuarios"
       breadcrumbItems={[
-        { label: 'Roles', link: routes.roles() },
-        { label: nombreRole },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

@@ -8,7 +8,6 @@ export const QUERY = gql`
     maquinaCompleta(id: $id) {
       id
       nombre
-      uuid
       proxmox_vmid
       identity_key
       ip

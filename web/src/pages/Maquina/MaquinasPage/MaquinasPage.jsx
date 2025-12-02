@@ -4,8 +4,9 @@ import MaquinasCell from 'src/components/Maquina/MaquinasCell'
 const MaquinasPage = () => {
   return (
     <ScaffoldLayout
-      title="Maquinas"
+      title="Máquinas"
       titleTo="maquinas"
+      groupTitle="Infraestructura"
       buttonLabel="Nueva Maquina"
       buttonTo="newMaquina"
     >

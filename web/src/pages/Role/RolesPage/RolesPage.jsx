@@ -6,6 +6,7 @@ const RolesPage = () => {
     <ScaffoldLayout
       title="Roles"
       titleTo="roles"
+      groupTitle="Gestión de Usuarios"
       buttonLabel="Nuevo Rol"
       buttonTo="newRole"
     >

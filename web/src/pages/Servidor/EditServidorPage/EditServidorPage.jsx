@@ -5,8 +5,10 @@ import EditServidorCell from 'src/components/Servidor/EditServidorCell'
 const EditServidorPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Servidores"
+      titleTo="servidors"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Servidores', link: routes.servidors() },
         { label: 'Editar' }
       ]}
     >

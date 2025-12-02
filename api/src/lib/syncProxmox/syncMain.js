@@ -1,5 +1,6 @@
-// lib/syncProxmox/syncMain.js
+// src/lib/syncProxmox/syncMain.js
 import { db } from 'src/lib/db'
+import { valkey } from 'src/lib/valkey'
 
 import {
   fetchNodes,
@@ -10,7 +11,6 @@ import {
 } from '../proxmox/fetch'
 
 import { getProxmoxClient } from '../proxmox/client'
-import { acquireLock, releaseLock } from '../proxmox/cache'
 
 import { syncCluster } from './syncCluster'
 import { syncServidor } from './syncServidor'
@@ -42,12 +42,17 @@ export const verifyProxmoxConnection = async (endpointId) => {
 ============================================================ */
 export const syncProxmoxBasic = async (endpointId) => {
   /* -----------------------------------
-     A) LOCK REDIS (evita ejecuciones paralelas)
+     A) LOCK VALKEY (evita ejecuciones paralelas)
+     TTL: 60 segundos (si el proceso muere, el lock expira solo)
   ----------------------------------- */
   const lockKey = `px:sync:lock:${endpointId}`
-  const locked = await acquireLock(lockKey, 60)
+  
+  // 'NX': Solo setear si No eXiste (Atomicidad)
+  // 'EX': Expiración en segundos
+  const acquired = await valkey.set(lockKey, 'LOCKED', 'EX', 60, 'NX')
 
-  if (!locked) {
+  if (!acquired) {
+    // Si retorna null, significa que la llave ya existe
     throw new Error(`Sincronización ya está en ejecución para endpoint ${endpointId}`)
   }
 
@@ -157,6 +162,7 @@ export const syncProxmoxBasic = async (endpointId) => {
       totalVMsActualizadas,
     }
   } finally {
-    await releaseLock(lockKey)
+    // 🟢 Liberar el Lock en Valkey siempre (finally)
+    await valkey.del(lockKey)
   }
 }

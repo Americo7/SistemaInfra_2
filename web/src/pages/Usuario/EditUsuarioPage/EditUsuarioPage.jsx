@@ -5,8 +5,10 @@ import EditUsuarioCell from 'src/components/Usuario/EditUsuarioCell'
 const EditUsuarioPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Usuarios"
+      titleTo="usuarios"
+      groupTitle="Gestión de Usuarios"
       breadcrumbItems={[
-        { label: 'Usuarios', link: routes.usuarios() },
         { label: 'Editar' }
       ]}
     >

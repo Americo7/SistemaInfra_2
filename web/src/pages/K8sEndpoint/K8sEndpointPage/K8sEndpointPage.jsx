@@ -56,9 +56,11 @@ const K8sEndpointPage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Endpoints de Kubernetes"
+      titleTo="k8SEndpoints"
+      groupTitle="Sincronización"
       breadcrumbItems={[
-        { label: 'Kubernetes', link: routes.k8SEndpoints() },
-        { label: nombre },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

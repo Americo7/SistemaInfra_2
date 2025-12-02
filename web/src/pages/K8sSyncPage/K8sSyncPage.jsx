@@ -12,6 +12,7 @@ import DnsIcon from '@mui/icons-material/Dns'
 import LanguageIcon from '@mui/icons-material/Language'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
 import HubIcon from '@mui/icons-material/Hub'
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty' // Icono para ocupado
 
 import {
   Box,
@@ -67,7 +68,7 @@ export default function K8sSyncPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
-  // 2. CONEXIÓN AL BACKEND (Lógica corregida)
+  // 2. CONEXIÓN AL BACKEND (Con manejo de Lock/Bloqueo)
   const conectarBackend = async (endpointId, accion, silencioso = false) => {
     if (!silencioso) {
         setIdEnProceso(endpointId)
@@ -91,17 +92,22 @@ export default function K8sSyncPage() {
 
       const datos = await respuesta.json()
 
+      // 🟢 DETECCIÓN DE BLOQUEO (Valkey Lock)
+      // Si el backend devuelve 409 o la bandera esBloqueo, lanzamos error controlado
+      if (respuesta.status === 409 || datos.esBloqueo) {
+        throw new Error('BLOQUEADO: Sincronización ya en curso')
+      }
+
       // ERROR HTTP (500, 404, etc)
       if (!respuesta.ok) throw new Error(datos.error || 'Error de servidor')
 
-      // ERROR LÓGICO (Backend responde 200 pero dice success: false)
-      // ESTA ES LA CORRECCIÓN CLAVE:
+      // ERROR LÓGICO
       if (datos.success === false) {
          throw new Error(datos.message || 'Fallo en la operación')
       }
 
+      // --- ÉXITO ---
       const mensaje = datos.message || (accion === 'verify' ? 'Conexión OK' : 'Sincronización OK')
-      
       const nodosTotal = datos.procesados || 0
       const desglose = datos.detalles?.desglose || datos.desglose || { virtual: 0, fisico: 0 }
 
@@ -122,17 +128,25 @@ export default function K8sSyncPage() {
     } catch (err) {
       console.error(err)
       
-      // Actualizamos el estado visual a ERROR
+      // 🟢 MANEJO VISUAL DEL BLOQUEO
+      const esBloqueo = err.message.includes('BLOQUEADO') || err.message.includes('ya está en ejecución')
+
       setEstadoSincronizacion((prev) => ({
         ...prev,
         [endpointId]: {
-          tipo: 'error',
-          mensaje: err.message || 'Error de conexión',
-          accion // Mantenemos la acción para saber qué falló
+          tipo: esBloqueo ? 'warning' : 'error', // 'warning' muestra Chip Amarillo
+          mensaje: esBloqueo ? 'Omitido: Ya en progreso' : (err.message || 'Error de conexión'),
+          accion
         },
       }))
       
-      if (!silencioso) toast.error(err.message)
+      if (!silencioso) {
+        if (esBloqueo) {
+            toast('Sync en progreso... (omitido)', { icon: '⚠️', duration: 3000 })
+        } else {
+            toast.error(err.message)
+        }
+      }
     } finally {
       if (!silencioso) {
         setIdEnProceso(null)
@@ -145,13 +159,19 @@ export default function K8sSyncPage() {
   const ejecutarSincronizacionMasiva = async () => {
     const lista = data?.k8SEndpoints || []
     if (!lista.length) return
+
     setSincronizandoTodo(true)
-    toast.loading('Sincronizando todo...', { id: 'k8s-masivo' })
+    toast.loading('Iniciando sincronización masiva...', { id: 'k8s-masivo' })
+
+    // Iteramos secuencialmente para ver el progreso visual
     for (const ep of lista) {
-      await conectarBackend(ep.id, 'sync')
+      // Usamos el modo normal (no silencioso) para que se vean los Spinners en las tarjetas
+      // conectarBackend captura sus propios errores, así que el loop NO se detiene si uno falla o está bloqueado.
+      await conectarBackend(ep.id, 'sync', false)
     }
+
     toast.dismiss('k8s-masivo')
-    toast.success('Proceso completado')
+    toast.success('Proceso masivo completado')
     setSincronizandoTodo(false)
   }
 
@@ -187,9 +207,14 @@ export default function K8sSyncPage() {
         <Grid container spacing={3}>
           {endpoints.map((endpoint) => {
             const resultado = estadoSincronizacion[endpoint.id] || {}
+            
+            // Si estamos en sincronización masiva, este card puede estar cargando aunque no sea el "idEnProceso" principal
+            // pero para evitar conflictos visuales, confiamos en el estado interno 'cargando'
             const cargando = resultado.tipo === 'cargando'
+            
             const exitoSync = resultado.tipo === 'exito' && resultado.accion === 'sync'
             const esError = resultado.tipo === 'error'
+            const esWarning = resultado.tipo === 'warning' // Estado de bloqueo
             
             const vms = resultado.desglose?.virtual || 0
             const fisicos = resultado.desglose?.fisico || 0
@@ -214,8 +239,10 @@ export default function K8sSyncPage() {
                         {cargando ? (
                            <Chip label={resultado.accion === 'verify' ? "Verificando..." : "Sincronizando..."} color="primary" variant="outlined" icon={<CircularProgress size={14} />} />
                         ) : esError ? (
-                           // AHORA SÍ SE MOSTRARÁ ESTE CHIP ROJO
                            <Chip label="Error Conexión" color="error" icon={<ErrorIcon />} />
+                        ) : esWarning ? (
+                           /* 🟢 CHIP AMARILLO: CUANDO ESTÁ BLOQUEADO POR VALKEY */
+                           <Chip label="Ocupado" sx={{ bgcolor: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2' }} icon={<HourglassEmptyIcon style={{ color: '#e65100' }} />} />
                         ) : resultado.tipo === 'exito' ? (
                            <Chip label={resultado.accion === 'sync' ? "Sincronizado" : "Online"} color="success" icon={<CheckCircleIcon />} />
                         ) : (
@@ -243,15 +270,15 @@ export default function K8sSyncPage() {
                         </Box>
                       )}
 
-                      {/* MENSAJE DE ERROR CLARO EN LA TARJETA */}
-                      {esError && (
-                          <Alert severity="error" sx={{ fontSize: '0.75rem', alignItems: 'center' }}>
-                            {resultado.mensaje.includes('ECONNREFUSED') ? 'Conexión rechazada por el servidor K8s' : resultado.mensaje}
+                      {/* MENSAJE DE ERROR O WARNING */}
+                      {(esError || esWarning) && (
+                          <Alert severity={esWarning ? "warning" : "error"} sx={{ fontSize: '0.75rem', alignItems: 'center' }}>
+                            {resultado.mensaje}
                           </Alert>
                       )}
 
                       {/* INFO FECHA */}
-                      {!exitoSync && !esError && (
+                      {!exitoSync && !esError && !esWarning && (
                         <Box sx={{ bgcolor: '#f5f7fa', p: 1.5, borderRadius: 2 }}>
                             <Typography variant="caption" color="text.secondary">Última sync:</Typography>
                             <Typography variant="body2" fontWeight="medium">

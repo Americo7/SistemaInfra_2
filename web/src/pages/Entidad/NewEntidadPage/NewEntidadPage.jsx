@@ -5,9 +5,11 @@ import NewEntidad from 'src/components/Entidad/NewEntidad'
 const NewEntidadPage = () => {
   return (
     <ScaffoldLayout
+      title="Entidades"
+      titleTo="entidads"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Entidades', link: routes.entidads() },
-        { label: 'Nueva Entidad' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewEntidad />

@@ -5,6 +5,8 @@ import {
   Button,
   Typography,
   useTheme,
+  Breadcrumbs,
+  Link as MuiLink,
   alpha,
 } from '@mui/material'
 import {
@@ -12,119 +14,105 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Home as HomeIcon,
+  NavigateNext as NavigateNextIcon,
 } from '@mui/icons-material'
 
 const ScaffoldLayout = ({
-  title,
-  titleTo,
+  title,              // Ej: "Clusters"
+  titleTo,            // Ej: "clusters" (nombre de la ruta)
+  groupTitle,         // Ej: "Infraestructura" (NUEVO PROP)
   buttonLabel,
   buttonTo,
   children,
-  breadcrumbItems = [],
+  breadcrumbItems = [], // Items extra para (Nuevo / Editar / Detalle)
   actionButtons = [],
 }) => {
   const theme = useTheme()
 
+  // Detectamos si estamos en la vista de Lista (sin items extra)
+  const isListView = breadcrumbItems.length === 0
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
-
-      {/* Header: Breadcrumbs + Actions */}
+      <Toaster toastOptions={{ className: 'rw-toast', duration: 6000 }} />
+      
+      {/* Header Container */}
       <Box
         sx={{
-          px: { xs: 2, sm: 3, md: 4 },
+          width: '100%', maxWidth: 1500, mx: 'auto' ,
+          minHeight: 75,
+          px: 5,
           py: 2,
           mt: 1,
-          mb: 2,
-          mx: { xs: 2, sm: 3, md: 4 },
-          borderBottom: `1px solid ${theme.palette.divider}`,
+          mb: 0, // → sin espacio abajo
           bgcolor: theme.palette.background.paper,
-          borderRadius: 2,
+          border: `1px solid ${theme.palette.divider}`,
+          borderTopLeftRadius: 12,    // ← arriba redondeado
+          borderTopRightRadius: 12,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: 2,
         }}
       >
-        {/* Breadcrumbs */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-          <Link to={routes.home()} style={{ textDecoration: 'none', color: 'inherit' }}>
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                cursor: 'pointer',
-                color: 'text.secondary',
-                '&:hover': { color: 'primary.main' },
-              }}
-            >
-              <HomeIcon fontSize="small" sx={{ mr: 0.75, fontSize: '1rem' }} />
-              <Typography variant="body1">Inicio</Typography>
+
+        {/* === BREADCRUMBS AUTOMÁTICOS === */}
+        <Breadcrumbs 
+          separator={<NavigateNextIcon fontSize="small" sx={{ color: 'text.disabled' }} />} 
+          aria-label="breadcrumb"
+        >
+          {/* NIVEL 1: INICIO */}
+          <Link to={routes.home()} style={{ textDecoration: 'none' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>
+              <HomeIcon sx={{ mr: 0.5, fontSize: '1.5rem' }} />
+              <Typography variant="body1" fontWeight={500}>Inicio</Typography>
             </Box>
           </Link>
 
-          {breadcrumbItems.length === 0 ? (
-            <>
-              <Typography variant="body1" color="text.disabled" sx={{ mx: 0.5 }}>
-                /
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  fontWeight: 600,
-                  background: `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}
-              >
-                {title}
-              </Typography>
-            </>
-          ) : (
-            breadcrumbItems.map((item, index) => (
-              <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <Typography variant="h6" color="text.disabled">/</Typography>
-
-                {item.link ? (
-                  <Link to={item.link} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        color: 'text.secondary',
-                        '&:hover': {
-                          background: `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                          WebkitBackgroundClip: 'text',
-                          WebkitTextFillColor: 'transparent',
-                        },
-                      }}
-                    >
-                      {item.label}
-                    </Typography>
-                  </Link>
-                ) : (
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      fontWeight: 600,
-                      background: `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                    }}
-                  >
-                    {item.label}
-                  </Typography>
-                )}
-              </Box>
-            ))
+          {/* NIVEL 2: AGRUPADOR (Infraestructura) */}
+          {groupTitle && (
+            <Typography variant="body1" color="text.secondary" fontWeight={500}>
+              {groupTitle}
+            </Typography>
           )}
-        </Box>
 
-        {/* Actions section */}
+          {/* NIVEL 3: TÍTULO DE ENTIDAD (Clusters) */}
+          {!isListView && titleTo ? (
+             <Link to={routes[titleTo]()} style={{ textDecoration: 'none' }}>
+               <Typography 
+                 variant="body1" 
+                 fontWeight={500} 
+                 color="text.secondary" 
+                 sx={{ '&:hover': { color: 'primary.main', textDecoration: 'underline' } }}
+               >
+                 {title}
+               </Typography>
+             </Link>
+          ) : (
+             <Typography 
+               variant="body1" 
+               sx={{ 
+                 fontWeight: 700, 
+                 color: 'primary.main',
+               }}
+             >
+               {title}
+             </Typography>
+          )}
+
+          {/* NIVEL 4: SUB-PÁGINAS (Nuevo / Editar / ID) */}
+          {breadcrumbItems.map((item, index) => (
+             <Typography key={index} variant="body1" fontWeight={700} color="primary.main">
+               {item.label}
+             </Typography>
+          ))}
+
+        </Breadcrumbs>
+
+        {/* === BOTONES DE ACCIÓN === */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-
-          {/* Show "Nuevo" only on list pages (no breadcrumbs → listado) */}
-          {breadcrumbItems.length === 0 && buttonTo && (
+          
+          {/* Botón "Nuevo" (Solo visible en la lista) */}
+          {isListView && buttonTo && (
             <Button
               variant="contained"
               component={Link}
@@ -133,47 +121,37 @@ const ScaffoldLayout = ({
               sx={{
                 borderRadius: '12px',
                 background: `linear-gradient(45deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-                fontWeight: '600',
                 textTransform: 'none',
-                fontSize: '0.8rem',
-                whiteSpace: 'nowrap',
-                '&:hover': {
-                  boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
-                },
+                fontWeight: 600,
+                // AQUÍ SE USA ALPHA
+                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
               }}
             >
               {buttonLabel}
             </Button>
           )}
 
-          {/* Action buttons on detail pages */}
-          {breadcrumbItems.length > 0 &&
-            actionButtons.map((btn, index) => (
-              <Button
+          {/* Botones Custom (Editar/Eliminar en vistas de detalle) */}
+          {actionButtons.map((btn, index) => (
+             <Button
                 key={index}
                 variant={btn.variant || 'contained'}
                 color={btn.color || 'primary'}
                 onClick={btn.onClick}
                 startIcon={
-                  btn.iconName === 'edit' ? <EditIcon /> :
-                  btn.iconName === 'delete' ? <DeleteIcon /> :
-                  null
+                  btn.iconName === 'edit' ? <EditIcon /> : 
+                  btn.iconName === 'delete' ? <DeleteIcon /> : null
                 }
-                sx={{
-                  borderRadius: '10px',
-                  fontWeight: 600,
-                  textTransform: 'none',
-                }}
-              >
-                {btn.label}
-              </Button>
-            ))}
+                sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 600 }}
+             >
+               {btn.label}
+             </Button>
+          ))}
         </Box>
       </Box>
 
       {/* Main Content */}
-      <Box sx={{ pb: 6, px: { xs: 2, sm: 3, md: 4 } }}>
+      <Box sx={{ pb: 6, px: 0 }}>
         <Box component="main" sx={{ width: '100%' }}>
           {children}
         </Box>

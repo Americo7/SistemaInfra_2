@@ -210,7 +210,7 @@ const HomeLayout = ({ children }) => {
       },
       MuiAppBar: {
         styleOverrides: {
-          root: { backgroundImage: 'none' },
+          root: { backgroundImage: 'none', borderRadius: 0, },
         },
       },
       MuiButton: {
@@ -235,6 +235,7 @@ const HomeLayout = ({ children }) => {
           paper: {
             backgroundImage: 'none',
             borderRight: 'none',
+            borderRadius: 0, 
           },
         },
       },
@@ -601,7 +602,6 @@ const HomeLayout = ({ children }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: sidebarCollapsed ? 'center' : 'space-between',
-        borderBottom: `1px solid ${theme.palette.divider}`,
         transition: theme.transitions.create(['padding'], {
           duration: TRANSITION_DURATION,
         }),
@@ -775,12 +775,12 @@ const HomeLayout = ({ children }) => {
             }}>
               {!isSmall && (
                 <Typography
-                  variant="h6"
+                  variant="h5"
                   noWrap
                   component="div"
                   sx={{
                     fontWeight: 600,
-                    fontSize: '1.50rem',
+                    fontSize: '1.30rem',
                     letterSpacing: '-0.025em',
                     display: 'flex',
                     alignItems: 'center'

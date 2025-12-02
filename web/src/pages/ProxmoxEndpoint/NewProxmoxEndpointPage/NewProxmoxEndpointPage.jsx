@@ -5,9 +5,11 @@ import NewProxmoxEndpoint from 'src/components/ProxmoxEndpoint/NewProxmoxEndpoin
 const NewProxmoxEndpointPage = () => {
   return (
     <ScaffoldLayout
+      title="Endpoints de Proxmox"
+      titleTo="proxmoxEndpoints"
+      groupTitle="Sincronización"
       breadcrumbItems={[
-        { label: 'Proxmox', link: routes.proxmoxEndpoints() },
-        { label: 'Nuevo Endpoint' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewProxmoxEndpoint />

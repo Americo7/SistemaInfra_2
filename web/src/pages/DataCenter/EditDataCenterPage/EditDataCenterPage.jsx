@@ -5,8 +5,10 @@ import EditDataCenterCell from 'src/components/DataCenter/EditDataCenterCell'
 const EditDataCenterPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Data Centers"
+      titleTo="dataCenters"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Data Centers', link: routes.dataCenters() },
         { label: 'Editar' }
       ]}
     >

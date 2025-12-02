@@ -5,8 +5,10 @@ import EditEntidadCell from 'src/components/Entidad/EditEntidadCell'
 const EditEntidadPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Entidades"
+      titleTo="entidads"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Entidades', link: routes.entidads() },
         { label: 'Editar' }
       ]}
     >

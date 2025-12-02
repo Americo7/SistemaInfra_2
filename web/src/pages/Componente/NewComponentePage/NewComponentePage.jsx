@@ -5,9 +5,11 @@ import NewComponente from 'src/components/Componente/NewComponente'
 const NewComponentePage = () => {
   return (
     <ScaffoldLayout
+      title="Componentes"
+      titleTo="componentes"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Componentes', link: routes.componentes() },
-        { label: 'Nuevo Componente' },
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewComponente />

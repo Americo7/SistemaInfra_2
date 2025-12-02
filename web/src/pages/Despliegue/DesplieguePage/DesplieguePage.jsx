@@ -55,9 +55,11 @@ const DesplieguePage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Despliegues"
+      titleTo="despliegues"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Despliegues', link: routes.despliegues() },
-        { label: descripcion },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

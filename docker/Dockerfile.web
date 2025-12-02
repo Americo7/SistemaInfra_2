@@ -1,14 +1,31 @@
+# ============================
+#  BUILD STAGE
+# ============================
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Activar Corepack y Yarn 4
+RUN corepack enable && corepack prepare yarn@4.6.0 --activate
+
+# Copiar el monorepo completo (necesario para workspaces)
 COPY . .
+
+# Instalar TODAS las dependencias del monorepo
 RUN yarn install --frozen-lockfile
+
+# Build de Redwood Web
 RUN yarn rw build web
 
-# ============= RUNTIME =============
+
+# ============================
+#  RUNTIME STAGE — NGINX
+# ============================
 FROM nginx:stable-alpine
+
+# Copiar build del front-end
 COPY --from=builder /app/web/dist /usr/share/nginx/html
 
-EXPOSE 80
+# Opcional: eliminar archivo source maps (más pequeño)
+RUN find /usr/share/nginx/html -type f -name "*.map" -delete || true
 
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 80

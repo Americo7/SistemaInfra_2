@@ -5,9 +5,11 @@ import NewUsuario from 'src/components/Usuario/NewUsuario'
 const NewUsuarioPage = () => {
   return (
     <ScaffoldLayout
+      title="Usuarios"
+      titleTo="usuarios"
+      groupTitle="Gestión de Usuarios"
       breadcrumbItems={[
-        { label: 'Usuarios', link: routes.usuarios() },
-        { label: 'Nuevo Usuario' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewUsuario />

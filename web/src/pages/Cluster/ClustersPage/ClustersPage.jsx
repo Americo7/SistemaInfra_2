@@ -6,6 +6,7 @@ const ClustersPage = () => {
     <ScaffoldLayout
       title="Clusters"
       titleTo="clusters"
+      groupTitle="Infraestructura"
       buttonLabel="Nuevo Cluster"
       buttonTo="newCluster"
     >

@@ -5,9 +5,11 @@ import NewCluster from 'src/components/Cluster/NewCluster'
 const NewClusterPage = () => {
   return (
     <ScaffoldLayout
+      title="Clusters"
+      titleTo="clusters"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Clusters', link: routes.clusters() },
-        { label: 'Nuevo Cluster' }
+        { label: 'Nuevo Registro' } // Nivel 4
       ]}
     >
       <NewCluster />

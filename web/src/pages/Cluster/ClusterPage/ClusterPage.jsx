@@ -23,7 +23,7 @@ const DELETE_MUTATION = gql`
 
 const ClusterPage = ({ id }) => {
   const { data } = useQuery(QUERY, { variables: { id } })
-  const nombreCluster = data?.cluster?.nombre || 'Cargando…'
+  const nombreCluster = data?.cluster?.nombre || `Cluster #${id}`
 
   const [deleteCluster] = useMutation(DELETE_MUTATION, {
     onCompleted: () => {
@@ -55,9 +55,11 @@ const ClusterPage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Clusters"
+      titleTo="clusters"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Clusters', link: routes.clusters() },
-        { label: 'Detalle' },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

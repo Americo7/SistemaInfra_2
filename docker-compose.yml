@@ -1,35 +1,32 @@
-version: "3.9"
-
 services:
   postgres:
-    image: postgres:15
+    image: postgres:17
     restart: always
     environment:
-      POSTGRES_DB: siait
+      POSTGRES_DB: infra
       POSTGRES_USER: siaituser
       POSTGRES_PASSWORD: pass123
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
 
-  redis:
-    image: redis:7
+  valkey:
+    image: valkey/valkey:7
     restart: always
-    ports:
-      - "6379:6379"
+    command: ["valkey-server"]
+    volumes:
+      - valkeydata:/data
 
   api:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
     env_file:
-      - api/.env.production
+      - .env.prod
     depends_on:
       - postgres
-      - redis
-    ports:
-      - "8911:8911"
+      - valkey
+    expose:
+      - "8911"
 
   web:
     build:
@@ -37,8 +34,22 @@ services:
       dockerfile: docker/Dockerfile.web
     depends_on:
       - api
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:latest
+    restart: always
+    depends_on:
+      - web
+      - api
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl
 
 volumes:
   pgdata:
+  valkeydata:

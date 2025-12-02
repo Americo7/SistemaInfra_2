@@ -55,9 +55,11 @@ const EntidadPage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Entidades"
+      titleTo="entidads"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Entidades', link: routes.entidads() },
-        { label: nombreEntidad },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

@@ -11,6 +11,8 @@
     "@redwoodjs/auth-custom-setup": "8.6.1",
     "@redwoodjs/core": "8.6.1",
     "@redwoodjs/project-config": "8.6.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@types/jest": "^30.0.0",
     "prettier-plugin-tailwindcss": "0.4.1",
     "prisma": "^6.5.0"
   },

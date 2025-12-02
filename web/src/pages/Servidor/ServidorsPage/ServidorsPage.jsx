@@ -5,7 +5,8 @@ const ServidoresPage = () => {
   return (
     <ScaffoldLayout
       title="Servidores"
-      titleTo="servidores"
+      titleTo="servidors"
+      groupTitle="Infraestructura"
       buttonLabel="Nuevo Servidor"
       buttonTo="newServidor"
     >

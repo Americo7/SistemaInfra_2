@@ -55,9 +55,11 @@ const DataCenterPage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Data Centers"
+      titleTo="dataCenters"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Data Centers', link: routes.dataCenters() },
-        { label: nombreDataCenter },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

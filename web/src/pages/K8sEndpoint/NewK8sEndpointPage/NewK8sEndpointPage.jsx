@@ -5,9 +5,11 @@ import NewK8sEndpoint from 'src/components/K8sEndpoint/NewK8sEndpoint'
 const NewK8sEndpointPage = () => {
   return (
     <ScaffoldLayout
+      title="Endpoints de Kubernetes"
+      titleTo="k8SEndpoints"
+      groupTitle="Sincronización"
       breadcrumbItems={[
-        { label: 'Kubernetes', link: routes.k8SEndpoints() },
-        { label: 'Nuevo Endpoint' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewK8sEndpoint />

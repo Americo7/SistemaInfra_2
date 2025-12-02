@@ -55,9 +55,11 @@ const ComponentePage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Componentes"
+      titleTo="componentes"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Componentes', link: routes.componentes() },
-        { label: nombreComponente },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

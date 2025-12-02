@@ -6,6 +6,7 @@ const DataCentersPage = () => {
     <ScaffoldLayout
       title="Data Centers"
       titleTo="dataCenters"
+      groupTitle="Infraestructura"
       buttonLabel="Nuevo Data Center"
       buttonTo="newDataCenter"
     >

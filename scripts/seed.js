@@ -88,7 +88,7 @@ export default async () => {
         { codigo: 'BM', nombre: 'Bare Metal', grupo: 'TIPO_SERVIDOR', descripcion: 'Servidor físico', usuario_creacion: 1 },
 
         // ROLES SISTEMA (SI)
-        { codigo: 'SI_SUPERADM', nombre: 'Super Administrador', grupo: 'TIPO_ROL', descripcion: 'Administrador global del sistema', usuario_creacion: 1 },
+        { codigo: 'SI_SUPERADM', nombre: 'Administrador', grupo: 'TIPO_ROL', descripcion: 'Administrador global del sistema', usuario_creacion: 1 },
         { codigo: 'SI_USRADM', nombre: 'Administrador de Usuarios', grupo: 'TIPO_ROL', descripcion: 'Gestiona usuarios y asignación de roles', usuario_creacion: 1 },
         { codigo: 'SI_OPS', nombre: 'Operador de Sistemas', grupo: 'TIPO_ROL', descripcion: 'Operador de infraestructura del sistema', usuario_creacion: 1 },
         { codigo: 'SI_VIEW', nombre: 'Visor Sistema', grupo: 'TIPO_ROL', descripcion: 'Acceso de solo lectura al sistema', usuario_creacion: 1 },

@@ -1,6 +1,8 @@
-// lib/syncProxmox/syncMaquina.js
+// src/lib/syncProxmox/syncMaquina.js
 import { db } from 'src/lib/db'
-import { context } from '@redwoodjs/graphql-server' // <--- ESTO ES PARA EL BACKEND
+import { context } from '@redwoodjs/graphql-server'
+import { valkey } from 'src/lib/valkey' // 🟢 Importamos Valkey
+import crypto from 'crypto' // 🟢 Para hashing
 
 const MAPA_SO_PROXMOX = {
   l26: 'Linux Kernel 2.6 - 6.x',
@@ -13,6 +15,9 @@ const MAPA_SO_PROXMOX = {
   solaris: 'Solaris',
   other: 'Otro',
 }
+
+// Helper para generar hash MD5 rápido
+const generateHash = (data) => crypto.createHash('md5').update(JSON.stringify(data)).digest('hex')
 
 /* ============================================
    MAPEO PROXMOX → PARAMETRICAS
@@ -92,33 +97,15 @@ export const syncMaquina = async (endpointId, nodo, vmExtendida, servidor) => {
 
   const estadoOperativo = mapEstadoOperativo(vm.status)
   const smbiosUUID = obtenerSMBIOSUUID(config)
-  const identityKey = smbiosUUID ? `proxmox:${smbiosUUID}` : null
+  // Usamos un fallback seguro si no hay UUID
+  const identityKey = smbiosUUID ? `proxmox:${smbiosUUID}` : `proxmox:vm:${servidor.id}:${vm.vmid}`
 
-  // Búsqueda de existente
-  let existente = identityKey
-    ? await db.maquina.findUnique({ where: { identity_key: identityKey } })
-    : null
-
-  if (!existente) {
-    existente = await db.maquina.findFirst({
-      where: { proxmox_vmid: vm.vmid, id_servidor: servidor.id },
-    })
-  }
-
-  // Cálculos de Hardware (Corrección RAM/CPU)
+  // Cálculos de Hardware
   let ramGB = 1
   if (vm.maxmem) ramGB = Math.round(vm.maxmem / (1024 ** 3))
   else if (config && config.memory) ramGB = Math.round(config.memory / 1024)
   if (ramGB < 1) ramGB = 1
 
-  /* ============================================
-     CPU — VERSIÓN CORREGIDA Y COMPLETA
-     Prioridad:
-       1) vm.cpus (cluster/resources)
-       2) cores * sockets (QEMU config)
-       3) cores (si no hay sockets)
-       4) fallback = 1
-  ============================================ */
   const cpuCount =
     vm.cpus ||
     (config?.cores && config?.sockets
@@ -129,54 +116,88 @@ export const syncMaquina = async (endpointId, nodo, vmExtendida, servidor) => {
   const so = obtenerSO(vm.status, osinfo, config)
   const discos = obtenerDiscos(config)
 
-  const baseData = {
+  // Datos base para comparar cambios (Excluimos fechas)
+  const dataToHash = {
     identity_key: identityKey,
     nombre: vm.name || `vm-${vm.vmid}`,
     proxmox_vmid: vm.vmid,
-    ip: ip || existente?.ip || null,
-    so: so || existente?.so || null,
+    ip,
+    so,
     cod_plataforma: 'PX',
     estado_operativo: estadoOperativo,
     ram: ramGB,
     cpu: cpuCount,
     almacenamiento: discos,
+    id_servidor: servidor.id // Importante incluir ID Servidor para detectar migraciones
+  }
+
+  /* -----------------------------------
+     🟢 OPTIMIZACIÓN VALKEY (Hashing)
+  ----------------------------------- */
+  const currentHash = generateHash(dataToHash)
+  const cacheKey = `hash:vm:${identityKey}`
+  
+  // Leemos hash anterior
+  const cachedHash = await valkey.get(cacheKey)
+
+  // Si el hash coincide, no hacemos NADA en base de datos.
+  // Retornamos inserted: false para la métrica.
+  if (cachedHash === currentHash) {
+    // Solo retornamos un objeto "stub" mínimo necesario si el caller lo usa
+    return { maquina: { id: 0, ...dataToHash }, inserted: false, cached: true }
+  }
+
+  /* -----------------------------------
+     Fin Optimización (continuamos si cambió)
+  ----------------------------------- */
+
+  // Búsqueda de existente en BD
+  let existente = await db.maquina.findUnique({ where: { identity_key: identityKey } })
+
+  // Fallback búsqueda legacy
+  if (!existente) {
+    existente = await db.maquina.findFirst({
+      where: { proxmox_vmid: vm.vmid, id_servidor: servidor.id },
+    })
+  }
+
+  // Preparamos payload final para BD (ahora sí incluimos fechas)
+  const dbData = {
+    ...dataToHash,
     fecha_modificacion: new Date(),
   }
 
-  // CASO 1: Migración
-  if (existente && existente.id_servidor !== servidor.id) {
-    return {
-      maquina: await db.maquina.update({
-        where: { id: existente.id },
-        data: { ...baseData, id_servidor: servidor.id },
-      }),
-      inserted: false,
-    }
-  }
+  let resultMaquina
+  let isInserted = false
 
-  // CASO 2: Update
+  // CASO 1: Update (Migración o Cambio de datos)
   if (existente) {
-    return {
-      maquina: await db.maquina.update({
-        where: { id: existente.id },
-        data: { ...baseData, id_servidor: servidor.id },
-      }),
-      inserted: false,
-    }
-  }
-
-  // CASO 3: Create
-  return {
-    maquina: await db.maquina.create({
+    resultMaquina = await db.maquina.update({
+      where: { id: existente.id },
+      data: dbData,
+    })
+  } 
+  // CASO 2: Create
+  else {
+    resultMaquina = await db.maquina.create({
       data: {
-        ...baseData,
-        id_servidor: servidor.id,
+        ...dbData,
         estado: 'ACTIVO',
         usuario_creacion: userId,
         fecha_creacion: new Date(),
-        fecha_modificacion: new Date(),
       },
-    }),
-    inserted: true,
+    })
+    isInserted = true
+  }
+
+  /* -----------------------------------
+     🟢 ACTUALIZAR HASH VALKEY
+     TTL: 24 horas (ajustable)
+  ----------------------------------- */
+  await valkey.set(cacheKey, currentHash, 'EX', 86400)
+
+  return {
+    maquina: resultMaquina,
+    inserted: isInserted,
   }
 }

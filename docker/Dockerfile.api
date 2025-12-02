@@ -1,18 +1,30 @@
+# ============================
+#  BUILD STAGE
+# ============================
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+RUN corepack enable && corepack prepare yarn@4.6.0 --activate
+
 COPY . .
+
+# instala TODAS las dependencias del monorepo (incluye Redwood CLI)
 RUN yarn install --frozen-lockfile
+
+# Build Redwood API
 RUN yarn rw build api
 
-# ============= RUNTIME =============
+
+# ============================
+#  RUNTIME STAGE
+# ============================
 FROM node:20-alpine
 WORKDIR /app
 
-ENV NODE_ENV=production
+RUN corepack enable && corepack prepare yarn@4.6.0 --activate
 
-COPY --from=builder /app/api/dist ./api/dist
-COPY --from=builder /app/node_modules ./node_modules
+# Copiar solo lo necesario desde builder
+COPY --from=builder /app /app
 
 EXPOSE 8911
 

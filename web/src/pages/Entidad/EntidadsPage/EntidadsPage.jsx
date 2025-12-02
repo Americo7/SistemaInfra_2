@@ -5,7 +5,8 @@ const EntidadsPage = () => {
   return (
     <ScaffoldLayout
       title="Entidades"
-      titleTo="entidades"
+      titleTo="entidads"
+      groupTitle="Despliegues"
       buttonLabel="Nueva Entidad"
       buttonTo="newEntidad"
     >

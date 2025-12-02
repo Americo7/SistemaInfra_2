@@ -5,9 +5,11 @@ import NewServidor from 'src/components/Servidor/NewServidor'
 const NewServidorPage = () => {
   return (
     <ScaffoldLayout
+      title="Servidores"
+      titleTo="servidors"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Servidores', link: routes.servidors() },
-        { label: 'Nuevo Servidor' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewServidor />

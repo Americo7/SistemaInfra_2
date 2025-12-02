@@ -1,5 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "autenticacion";
 
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "parametricas";
@@ -9,38 +7,6 @@ CREATE SCHEMA IF NOT EXISTS "registro";
 
 -- CreateEnum
 CREATE TYPE "registro"."estado" AS ENUM ('ACTIVO', 'INACTIVO');
-
--- CreateTable
-CREATE TABLE "autenticacion"."rol" (
-    "id" SERIAL NOT NULL,
-    "name" TEXT NOT NULL,
-
-    CONSTRAINT "rol_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "autenticacion"."user" (
-    "id" SERIAL NOT NULL,
-    "nombre" TEXT,
-    "email" TEXT NOT NULL,
-    "hashedPassword" TEXT NOT NULL DEFAULT '',
-    "salt" TEXT NOT NULL DEFAULT '',
-    "resetToken" TEXT,
-    "resetTokenExpiresAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "user_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "autenticacion"."user_rol" (
-    "id" SERIAL NOT NULL,
-    "userId" INTEGER NOT NULL,
-    "roleId" INTEGER NOT NULL,
-
-    CONSTRAINT "user_rol_pkey" PRIMARY KEY ("id")
-);
 
 -- CreateTable
 CREATE TABLE "registro"."componentes" (
@@ -343,19 +309,7 @@ CREATE TABLE "registro"."maquina_clusters" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "rol_name_key" ON "autenticacion"."rol"("name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "user_email_key" ON "autenticacion"."user"("email");
-
--- CreateIndex
 CREATE UNIQUE INDEX "parametro_codigo_uq" ON "parametricas"."parametros"("codigo");
-
--- AddForeignKey
-ALTER TABLE "autenticacion"."user_rol" ADD CONSTRAINT "user_rol_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "autenticacion"."rol"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "autenticacion"."user_rol" ADD CONSTRAINT "user_rol_userId_fkey" FOREIGN KEY ("userId") REFERENCES "autenticacion"."user"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "registro"."componentes" ADD CONSTRAINT "fk_sistema_id" FOREIGN KEY ("id_sistema") REFERENCES "registro"."sistemas"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;

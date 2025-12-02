@@ -5,8 +5,10 @@ import EditRoleCell from 'src/components/Role/EditRoleCell'
 const EditRolePage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Roles"
+      titleTo="roles"
+      groupTitle="Gestión de Usuarios"
       breadcrumbItems={[
-        { label: 'Roles', link: routes.roles() },
         { label: 'Editar' }
       ]}
     >

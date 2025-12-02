@@ -5,8 +5,10 @@ import EditClusterCell from 'src/components/Cluster/EditClusterCell'
 const EditClusterPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Clusters"
+      titleTo="clusters"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Clusters', link: routes.clusters() },
         { label: 'Editar' }
       ]}
     >

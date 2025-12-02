@@ -11,6 +11,7 @@ import ErrorIcon from '@mui/icons-material/Error'
 import DnsIcon from '@mui/icons-material/Dns'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
 import AddCircleIcon from '@mui/icons-material/AddCircle' // Para insertados
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty' // Icono para ocupado
 
 import {
   Box,
@@ -60,15 +61,17 @@ export default function ProxmoxSyncPage() {
   const API_URL = process.env.API_URL || 'http://localhost:8911'
 
   /* ============================================================
-     CONEXIÓN BACKEND
+     CONEXIÓN BACKEND (Con Manejo de Bloqueo 409)
   ============================================================ */
-  const conectarBackend = async (endpointId, accion) => {
-    setIdEnProceso(endpointId)
-    setTipoProceso(accion)
+  const conectarBackend = async (endpointId, accion, silencioso = false) => {
+    if (!silencioso) {
+        setIdEnProceso(endpointId)
+        setTipoProceso(accion)
+    }
 
     setEstadoSincronizacion((prev) => ({
       ...prev,
-      [endpointId]: { tipo: 'cargando', accion },
+      [endpointId]: { ...prev[endpointId], tipo: 'cargando', accion },
     }))
 
     try {
@@ -82,6 +85,12 @@ export default function ProxmoxSyncPage() {
       })
 
       const datos = await respuesta.json()
+
+      // 🟢 DETECCIÓN DE BLOQUEO (Valkey Lock)
+      if (respuesta.status === 409 || datos.esBloqueo) {
+        throw new Error('BLOQUEADO: Sincronización ya en curso')
+      }
+
       if (!respuesta.ok) throw new Error(datos.error || 'Error desconocido')
       if (datos.success === false) throw new Error(datos.message || 'Error lógico')
 
@@ -105,36 +114,50 @@ export default function ProxmoxSyncPage() {
         },
       }))
 
-      toast.success(mensaje)
+      if (!silencioso) toast.success(mensaje)
       if (accion === 'sync') await refetch()
 
     } catch (error) {
+      // 🟢 MANEJO VISUAL DEL BLOQUEO
+      const esBloqueo = error.message.includes('BLOQUEADO') || error.message.includes('ya está en ejecución')
+
       setEstadoSincronizacion((prev) => ({
         ...prev,
         [endpointId]: {
-          tipo: 'error',
-          mensaje: error.message,
-          accion // Mantenemos la acción para saber qué falló
+          tipo: esBloqueo ? 'warning' : 'error',
+          mensaje: esBloqueo ? 'Omitido: Ya en progreso' : error.message,
+          accion 
         },
       }))
-      toast.error(error.message)
+      
+      if (!silencioso) {
+         if (esBloqueo) toast('Sync en progreso... (omitido)', { icon: '⚠️', duration: 3000 })
+         else toast.error(error.message)
+      }
     } finally {
-      setIdEnProceso(null)
-      setTipoProceso(null)
+      if (!silencioso) {
+         setIdEnProceso(null)
+         setTipoProceso(null)
+      }
     }
   }
 
   /* ============================================================
-     SINCRONIZACIÓN MASIVA
+     SINCRONIZACIÓN MASIVA (Secuencial y Tolerante a Bloqueos)
   ============================================================ */
   const ejecutarSincronizacionMasiva = async () => {
     const lista = data?.proxmoxEndpoints || []
     if (lista.length === 0) return
+    
     setSincronizandoTodo(true)
     toast.loading('Sincronizando todo...', { id: 'proxmox-masivo' })
+    
+    // Iteramos uno por uno. Si uno está bloqueado, saltará al catch,
+    // mostrará el Chip amarillo y el loop continuará con el siguiente.
     for (const ep of lista) {
-      await conectarBackend(ep.id, 'sync')
+      await conectarBackend(ep.id, 'sync', false)
     }
+    
     toast.dismiss('proxmox-masivo')
     toast.success('Proceso masivo completado')
     setSincronizandoTodo(false)
@@ -148,8 +171,14 @@ export default function ProxmoxSyncPage() {
     const endpoints = data?.proxmoxEndpoints || []
     if (endpoints.length > 0) {
       setYaVerificado(true)
-      endpoints.forEach((ep) => conectarBackend(ep.id, 'verify'))
+      endpoints.forEach((ep) => {
+          // Solo verificamos si no hay estado previo
+          if (!estadoSincronizacion[ep.id]) {
+             conectarBackend(ep.id, 'verify', true)
+          }
+      })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, data, yaVerificado])
 
   /* ============================================================
@@ -188,8 +217,12 @@ export default function ProxmoxSyncPage() {
         <Grid container spacing={3}>
           {endpoints.map((ep) => {
             const resultado = estadoSincronizacion[ep.id] || {}
-            const procesando = idEnProceso === ep.id
+            
+            // Estado visual de carga (global o individual)
+            const procesando = resultado.tipo === 'cargando'
+            
             const esError = resultado.tipo === 'error'
+            const esWarning = resultado.tipo === 'warning'
             const exitoSync = resultado.tipo === 'exito' && resultado.accion === 'sync'
 
             // Contadores
@@ -214,9 +247,12 @@ export default function ProxmoxSyncPage() {
                       <Box display="flex" justifyContent="space-between" alignItems="center">
                         <Typography variant="body2" fontWeight="600">Estado:</Typography>
                         {procesando ? (
-                           <Chip label={tipoProceso === 'verify' ? "Verificando..." : "Sincronizando..."} color="warning" variant="outlined" icon={<CircularProgress size={14} />} />
+                           <Chip label={resultado.accion === 'verify' ? "Verificando..." : "Sincronizando..."} color="warning" variant="outlined" icon={<CircularProgress size={14} />} />
                         ) : esError ? (
                            <Chip label="Error" color="error" icon={<ErrorIcon />} />
+                        ) : esWarning ? (
+                           /* 🟢 CHIP AMARILLO: CUANDO ESTÁ BLOQUEADO POR VALKEY */
+                           <Chip label="Ocupado" sx={{ bgcolor: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2' }} icon={<HourglassEmptyIcon style={{ color: '#e65100' }} />} />
                         ) : resultado.tipo === 'exito' ? (
                            <Chip label={resultado.accion === 'sync' ? "Sincronizado" : "Online"} color="success" icon={<CheckCircleIcon />} />
                         ) : (
@@ -225,7 +261,7 @@ export default function ProxmoxSyncPage() {
                       </Box>
 
                       {/* --- ESTADÍSTICAS (ESTILO K8S) --- */}
-                      {resultado.tipo === 'exito' && (
+                      {exitoSync && (
                         <Box sx={{ bgcolor: '#fff3e0', p: 1.5, borderRadius: 2, border: '1px solid #ffe0b2' }}>
                             <Typography variant="caption" color="warning.dark" fontWeight="bold" gutterBottom display="block">
                                 RESULTADO DEL ESCANEO:
@@ -265,13 +301,13 @@ export default function ProxmoxSyncPage() {
                         </Box>
                       )}
 
-                      {/* MENSAJE ERROR */}
-                      {esError && (
-                          <Alert severity="error" sx={{ py: 0, fontSize: '0.75rem' }}>{resultado.mensaje}</Alert>
+                      {/* MENSAJE ERROR O WARNING */}
+                      {(esError || esWarning) && (
+                          <Alert severity={esWarning ? "warning" : "error"} sx={{ py: 0, fontSize: '0.75rem' }}>{resultado.mensaje}</Alert>
                       )}
 
                       {/* FECHA */}
-                      {!exitoSync && !esError && (
+                      {!exitoSync && !esError && !esWarning && (
                         <Box sx={{ bgcolor: '#f5f7fa', p: 1.5, borderRadius: 2 }}>
                             <Typography variant="caption" color="text.secondary">Última sync:</Typography>
                             <Typography variant="body2" fontWeight="medium">

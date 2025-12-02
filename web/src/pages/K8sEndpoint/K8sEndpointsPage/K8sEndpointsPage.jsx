@@ -4,8 +4,9 @@ import K8sEndpointsCell from 'src/components/K8sEndpoint/K8sEndpointsCell'
 const K8sEndpointsPage = () => {
   return (
     <ScaffoldLayout
-      title="Endpoints Kubernetes"
-      titleTo="k8sEndpoints"
+      title="Endpoints de Kubernetes"
+      titleTo="k8SEndpoints"
+      groupTitle="Sincronización"
       buttonLabel="Nuevo Endpoint"
       buttonTo="newK8sEndpoint"
     >

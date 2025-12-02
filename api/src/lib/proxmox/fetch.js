@@ -1,5 +1,31 @@
+// src/lib/proxmox/fetch.js
 import { getProxmoxClient } from './client'
-import { cacheFetch, cacheKey } from './cache'
+import { valkey } from 'src/lib/valkey' // 🟢 Usamos Valkey
+
+/* ============================================================
+   HELPER: Cache Wrapper con Valkey
+   Simula el comportamiento del antiguo cacheFetch
+============================================================ */
+const cachedApiCall = async (key, ttlSeconds, fetchFn) => {
+  try {
+    const cached = await valkey.get(key)
+    if (cached) {
+      return JSON.parse(cached)
+    }
+  } catch (err) {
+    console.warn(`[Valkey] Error leyendo cache ${key}:`, err.message)
+  }
+
+  // Si no está en cache, ejecutamos la función
+  const data = await fetchFn()
+
+  // Guardamos en background (sin await para no bloquear respuesta)
+  if (data !== undefined) {
+    valkey.set(key, JSON.stringify(data), 'EX', ttlSeconds).catch(() => {})
+  }
+
+  return data
+}
 
 /* ============================================================
    Concurrencia (p-limit minimalista)
@@ -56,9 +82,9 @@ const pickIP = (interfaces = []) => {
 const fetchClusterResources = async (endpointId) => {
   const client = await getProxmoxClient(endpointId)
 
-  return await cacheFetch(
+  return await cachedApiCall(
     `px:${endpointId}:cluster:resources`,
-    10, // TTL 10s
+    10, // TTL 10s (Información muy volátil)
     async () => {
       const res = await client.get('/cluster/resources')
       if (!res.data?.data) throw new Error("Error /cluster/resources")
@@ -87,19 +113,22 @@ export const fetchNodes = async (endpointId) => {
 
         try {
           // Intentamos obtener detalles profundos
-          // NETWORK (cacheado)
-          const net = await cacheFetch(
-            cacheKey.nodeNetwork(endpointId, nodeName),
-            30, // Cacheamos esto más tiempo, las IPs de nodos rara vez cambian
+          
+          // NETWORK (cacheado 60s - Las IPs de nodos rara vez cambian)
+          const netKey = `px:${endpointId}:node:${nodeName}:network`
+          const net = await cachedApiCall(
+            netKey,
+            60, 
             async () => {
               const r = await client.get(`/nodes/${nodeName}/network`)
               return r.data?.data || []
             }
           )
 
-          // STATUS (cacheado)
-          const status = await cacheFetch(
-            cacheKey.nodeStatus(endpointId, nodeName),
+          // STATUS (cacheado 10s - Estado operativo cambia rápido)
+          const statusKey = `px:${endpointId}:node:${nodeName}:status`
+          const status = await cachedApiCall(
+            statusKey,
             10,
             async () => {
               const r = await client.get(`/nodes/${nodeName}/status`)
@@ -153,10 +182,6 @@ export const fetchNodeStatus = async (endpointId, node) => {
 /* ============================================================
    FETCH VMs DE UN NODO (USANDO cluster/resources)
 ============================================================ */
-/* ============================================================
-   FETCH VMs DE UN NODO (USANDO cluster/resources)
-   + NORMALIZACIÓN DE CPU / RAM
-============================================================ */
 export const fetchVMs = async (endpointId, node) => {
   const resources = await fetchClusterResources(endpointId)
 
@@ -178,10 +203,6 @@ export const fetchVMs = async (endpointId, node) => {
     }))
 }
 
-
-/* ============================================================
-   FETCH VM CONFIG
-============================================================ */
 /* ============================================================
    FETCH VM CONFIG – NORMALIZADO (SIEMPRE NÚMEROS)
 ============================================================ */
@@ -189,30 +210,35 @@ export const fetchVMConfig = async (endpointId, node, vmid) => {
   try {
     const client = await getProxmoxClient(endpointId)
 
-    const res = await limitVMFetch(() =>
-      client.get(`/nodes/${node}/qemu/${vmid}/config`)
-    )
+    // Cacheamos la config porque rara vez cambia (TTL 300s / 5min)
+    // Esto acelera mucho las sincronizaciones sucesivas
+    const configKey = `px:${endpointId}:vm:${vmid}:config`
+    
+    return await cachedApiCall(configKey, 300, async () => {
+      const res = await limitVMFetch(() =>
+        client.get(`/nodes/${node}/qemu/${vmid}/config`)
+      )
+      const raw = res.data?.data || {}
 
-    const raw = res.data?.data || {}
+      const n = (v) => (v !== undefined && v !== null ? Number(String(v)) : null)
 
-    const n = (v) => (v !== undefined && v !== null ? Number(String(v)) : null)
+      const normalized = {
+        ...raw,
+        smbios1: raw.smbios1 ? raw.smbios1.trim() : null,
 
-    const normalized = {
-      ...raw,
-      smbios1: raw.smbios1 ? raw.smbios1.trim() : null,
+        // Normalización de CPU
+        cores: n(raw.cores),
+        sockets: n(raw.sockets),
+        cpus: n(raw.cpus),         // LXC
+        cpulimit: n(raw.cpulimit), // LXC
+        cpuunits: n(raw.cpuunits),
 
-      // Normalización de CPU
-      cores: n(raw.cores),
-      sockets: n(raw.sockets),
-      cpus: n(raw.cpus),         // LXC
-      cpulimit: n(raw.cpulimit), // LXC
-      cpuunits: n(raw.cpuunits),
+        // RAM (MB)
+        memory: n(raw.memory),
+      }
+      return normalized
+    })
 
-      // RAM (MB)
-      memory: n(raw.memory),
-    }
-
-    return normalized
   } catch (error) {
     console.warn(`Error config VM ${vmid}: ${error.message}`)
     return {}

@@ -22,6 +22,7 @@ import {
   useTheme,
   IconButton,
   Tooltip,
+  Divider
 } from '@mui/material'
 
 import {
@@ -104,7 +105,7 @@ const uniqueById = (arr = []) => {
 }
 
 /* -----------------------
- * ROW ITEM — Igual que Servidor.jsx
+ * ROW ITEM
  * ----------------------- */
 const RowItem = ({ label, value, icon, isLast }) => (
   <Box
@@ -121,7 +122,7 @@ const RowItem = ({ label, value, icon, isLast }) => (
     <Typography
       variant="body2"
       color="text.secondary"
-      sx={{ width: '50%', pr: 2, display: 'flex', alignItems: 'center', fontSize: '0.85rem' }}
+      sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center', fontSize: '0.85rem' }}
     >
       {icon && (
         <Box component="span" sx={{ mr: 1, display: 'flex', color: 'action.active' }}>
@@ -131,7 +132,7 @@ const RowItem = ({ label, value, icon, isLast }) => (
       {label}
     </Typography>
 
-    <Box sx={{ width: '50%', display: 'flex', alignItems: 'center' }}>
+    <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
       {typeof value === 'string' || typeof value === 'number' ? (
         <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem' }}>
           {value ?? ''}
@@ -144,7 +145,7 @@ const RowItem = ({ label, value, icon, isLast }) => (
 )
 
 /* -----------------------
- * SECTION CARD — Igual que Servidor.jsx
+ * SECTION CARD
  * ----------------------- */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
@@ -157,9 +158,6 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
         display: 'flex',
         flexDirection: 'column',
         borderTop: `3px solid ${activeColor}`,
-        borderLeft: `1px solid ${theme.palette.divider}`,
-        borderRight: `1px solid ${theme.palette.divider}`,
-        borderBottom: `1px solid ${theme.palette.divider}`,
       }}
     >
       <CardHeader
@@ -169,7 +167,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
           </Avatar>
         }
         title={
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '1rem' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '1rem', color: '#000' }}>
             {title}
           </Typography>
         }
@@ -185,7 +183,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
 }
 
 /* -----------------------
- * MAQUINA DETALLE (igual al diseño de Servidor.jsx)
+ * MAQUINA DETALLE
  * ----------------------- */
 const Maquina = ({ maquina }) => {
   const theme = useTheme()
@@ -244,20 +242,25 @@ const Maquina = ({ maquina }) => {
   /* ----- Cluster info ----- */
   const clusterInfo = useMemo(() => {
     const arr = []
-    if (servidor) {
+    
+    // Obtener cluster desde servidor -> cluster_nodos -> cluster
+    if (servidor?.cluster_nodos?.[0]?.cluster) {
+      const clusterFromServidor = servidor.cluster_nodos[0].cluster
       arr.push({
         titulo: 'Host de Virtualización',
-        clusterName: servidor?.data_centers?.nombre,
+        clusterName: clusterFromServidor?.nombre || 'Sin datos',
         nodoName: servidor.nombre,
-        link: routes.servidor({ id: servidor.id }),
-        tipo: 'PROXMOX',
+        link: routes.cluster({ id: clusterFromServidor.id }),
+        tipo: clusterFromServidor.cod_tipo_cluster,
       })
     }
+    
+    // Cluster nodos directos de la máquina
     maquinaClusterNodos.forEach((n) => {
       if (n.cluster) {
         arr.push({
           titulo: 'Nodo de Cluster',
-          clusterName: n.cluster.nombre,
+          clusterName: n.cluster?.nombre || 'Sin datos',
           nodoName: n.nombre || maquina.nombre,
           tipo: n.cluster.cod_tipo_cluster,
           rol: n.rol,
@@ -272,17 +275,35 @@ const Maquina = ({ maquina }) => {
   const handleTabChange = (_, v) => setTab(v)
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 1600, mx: 'auto' }}>
-      {/* CARD PRINCIPAL (idéntico a Servidor.jsx) */}
-      <Card elevation={3} sx={{ borderRadius: 2, mb: 3, overflow: 'hidden' }}>
-        {/* HEADER con gradient y botón volver */}
+    <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
+      {/* CARD PRINCIPAL */}
+      <Card
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          borderRadius: '0 0 12px 12px !important',
+
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
+
+        {/* HEADER */}
         <Box
           sx={{
-            px: 4,
-            py: 2,
+            px: 5,
+            py: 3,
             display: 'flex',
             alignItems: 'center',
             gap: 1.5,
+            mt: -1,                 // ← CLAVE: empuja el header 1px hacia arriba
+            borderTop: 'none',      // ← asegura continuidad visual
+            borderTopLeftRadius: 0, // ← evita curva
+            borderTopRightRadius: 0,
           }}
         >
           <Tooltip title="Volver">
@@ -322,9 +343,7 @@ const Maquina = ({ maquina }) => {
               fontWeight={700}
               sx={{
                 lineHeight: 1.2,
-                background: 'linear-gradient(90deg, #0097a7 0%, #26c6da 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
+                color: '#000',
                 fontWeight: 800,
               }}
             >
@@ -337,7 +356,7 @@ const Maquina = ({ maquina }) => {
         </Box>
 
         {/* CONTENIDO */}
-        <CardContent sx={{ px: 4, py: 0 }}>
+        <CardContent sx={{ px: 5, py: 0 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             {/* COLUMNA IZQUIERDA */}
             <Stack spacing={2}>
@@ -347,7 +366,6 @@ const Maquina = ({ maquina }) => {
                 title="Información General"
                 bgcolor={theme.palette.primary.main}
               >
-                <RowItem label="Nombre" value={maquina.nombre} />
                 <RowItem label="VMID" value={maquina.proxmox_vmid} icon={<ProxmoxIcon fontSize="inherit" />} />
                 <RowItem label="Identificador" value={maquina.identity_key} icon={<MacIcon fontSize="inherit" />} />
                 <RowItem label="Dirección IP" value={maquina.ip} />

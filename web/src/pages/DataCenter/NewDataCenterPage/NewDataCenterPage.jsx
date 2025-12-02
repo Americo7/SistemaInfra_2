@@ -5,9 +5,11 @@ import NewDataCenter from 'src/components/DataCenter/NewDataCenter'
 const NewDataCenterPage = () => {
   return (
     <ScaffoldLayout
+      title="Data Centers"
+      titleTo="dataCenters"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Data Centers', link: routes.dataCenters() },
-        { label: 'Nuevo Data Center' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewDataCenter />

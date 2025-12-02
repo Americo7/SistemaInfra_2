@@ -56,9 +56,11 @@ const ProxmoxEndpointPage = ({ id }) => {
 
   return (
     <ScaffoldLayout
+      title="Endpoints de Proxmox"
+      titleTo="proxmoxEndpoints"
+      groupTitle="Sincronización"
       breadcrumbItems={[
-        { label: 'Proxmox', link: routes.proxmoxEndpoints() },
-        { label: nombre },
+        { label: 'Detalle' }
       ]}
       actionButtons={actionButtons}
     >

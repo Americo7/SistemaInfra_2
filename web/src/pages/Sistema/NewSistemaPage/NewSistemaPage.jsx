@@ -5,9 +5,11 @@ import NewSistema from 'src/components/Sistema/NewSistema'
 const NewSistemaPage = () => {
   return (
     <ScaffoldLayout
+      title="Sistemas"
+      titleTo="sistemas"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Despligues' },
-        { label: 'Sistemas', link: routes.sistemas() },
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewSistema />

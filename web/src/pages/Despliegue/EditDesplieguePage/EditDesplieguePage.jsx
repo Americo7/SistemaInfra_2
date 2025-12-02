@@ -5,8 +5,10 @@ import EditDespliegueCell from 'src/components/Despliegue/EditDespliegueCell'
 const EditDesplieguePage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Despliegues"
+      titleTo="despliegues"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Despliegues', link: routes.despliegues() },
         { label: 'Editar' }
       ]}
     >

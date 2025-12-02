@@ -5,9 +5,11 @@ import EditComponenteCell from 'src/components/Componente/EditComponenteCell'
 const EditComponentePage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Componentes"
+      titleTo="componentes"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Componentes', link: routes.componentes() },
-        { label: 'Editar' },
+        { label: 'Editar' }
       ]}
     >
       <EditComponenteCell id={id} />

@@ -2,7 +2,6 @@ export const schema = gql`
   type Maquina {
     id: Int!
     nombre: String!
-    uuid: String
     proxmox_vmid: Int
     identity_key: String!
     ip: String
@@ -40,7 +39,7 @@ export const schema = gql`
     nombre: String!
     uuid: String
     proxmox_vmid: Int
-    identity_key: String!
+    identity_key: String
     ip: String
     so: String
     cod_plataforma: String

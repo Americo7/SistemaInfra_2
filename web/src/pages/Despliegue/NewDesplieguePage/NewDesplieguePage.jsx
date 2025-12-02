@@ -5,9 +5,11 @@ import NewDespliegue from 'src/components/Despliegue/NewDespliegue'
 const NewDesplieguePage = () => {
   return (
     <ScaffoldLayout
+      title="Despliegues"
+      titleTo="despliegues"
+      groupTitle="Despliegues"
       breadcrumbItems={[
-        { label: 'Despliegues', link: routes.despliegues() },
-        { label: 'Nuevo Despliegue' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewDespliegue />

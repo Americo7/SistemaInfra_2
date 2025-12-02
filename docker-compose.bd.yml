@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_DB: infra
+      POSTGRES_USER: siaituser
+      POSTGRES_PASSWORD: pass123
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  valkey:
+    image: valkey/valkey:7
+    restart: always
+    command: ["valkey-server"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkeydata:/data
+
+volumes:
+  pgdata:
+  valkeydata:

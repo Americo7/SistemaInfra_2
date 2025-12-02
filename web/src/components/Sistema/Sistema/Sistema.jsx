@@ -312,7 +312,7 @@ const Sistema = ({ sistema }) => {
           {/* Títulos */}
           <Box sx={{ flexGrow: 1 }}>
             <Typography
-              variant="h4"
+              variant="h5"
               sx={{
                 fontWeight: 800,
                 lineHeight: 1.2,

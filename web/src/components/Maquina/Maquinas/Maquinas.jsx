@@ -9,13 +9,13 @@ import {
   Delete as DeleteIcon,
   RestoreFromTrash as RestoreIcon,
   Computer as VmIcon,
-  MoreVert as MoreVertIcon,
   // Iconos de exportación
   FileDownload as ExportIcon,
   PictureAsPdf as PdfIcon,
   TableView as CsvIcon,
   GridOn as ExcelIcon,
   KeyboardArrowDown as ArrowDownIcon,
+  Add as AddIcon,
 } from '@mui/icons-material'
 
 import {
@@ -34,7 +34,6 @@ import {
   MenuItem,
   Stack,
   ListItemIcon,
-  ListItemText,
   Typography,
   Divider,
 } from '@mui/material'
@@ -44,7 +43,6 @@ import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 // IMPORTAR EXPORTER (Las 3 funciones)
 import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/maquinasExporter'
 
-// ... (Tus QUERY y mutations se mantienen igual) ...
 // --- GRAPHQL ---
 import { QUERY } from 'src/components/Maquina/MaquinasCell'
 
@@ -93,35 +91,32 @@ const Maquinas = ({ maquinas }) => {
 
   const [showDeleted, setShowDeleted] = useState(false)
   
-  // MENUS
-  const [actionMenu, setActionMenu] = useState({ anchorEl: null, row: null })
-  
-  // Menú Exportar Página
   const [exportPageMenu, setExportPageMenu] = useState(null)
-  // Menú Exportar Selección
   const [exportSelectMenu, setExportSelectMenu] = useState(null)
 
+  // El estado ahora guarda las filas seleccionadas para acciones masivas
   const [deleteDialog, setDeleteDialog] = useState({
-    open: false, id: null, isActive: true,
+    open: false, id: null, isActive: true, rows: [],
   })
 
   const [updateMaquina] = useMutation(UPDATE_MAQUINA_MUTATION, {
     onCompleted: () => {
-      toast.success('Registro actualizado')
-      closeAllDialogs()
+      // El toast se maneja mejor en la función `confirmarDelete` para dar detalles.
+      // Aquí solo se maneja el cierre si es una sola operación (aunque ya no se usa).
+      // toast.success('Registro actualizado')
+      // closeAllDialogs()
     },
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY }],
   })
 
   const closeAllDialogs = () => {
-    setDeleteDialog({ open: false, id: null, isActive: true })
-    setActionMenu({ anchorEl: null, row: null })
+    setDeleteDialog({ open: false, id: null, isActive: true, rows: [] })
     setExportPageMenu(null)
     setExportSelectMenu(null)
   }
 
-  // ... (Tus helpers y mapas se mantienen igual) ...
+  // --- Helpers y Mapeos ---
   const plataformasMap = useMemo(() => {
     return (paramData?.parametros || []).reduce((a, p) => {
       a[p.codigo] = p.nombre
@@ -158,7 +153,7 @@ const Maquinas = ({ maquinas }) => {
     } catch { return '-' }
   }
 
-  // --- COLUMNAS (Se mantienen igual) ---
+  // --- COLUMNAS ---
   const columns = useMemo(() => [
       // 1. ID
       { accessorKey: 'id', header: 'ID', size: 50 },
@@ -218,32 +213,64 @@ const Maquinas = ({ maquinas }) => {
         },
       },
       // Campos Auditoría
-      { accessorKey: 'estado', header: 'Auditoría', size: 90 },
       { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
       { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
       { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
       { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
     ], [paramData, usuariosData])
 
-  // --- LÓGICA DE EXPORTACIÓN CENTRALIZADA ---
+  // --- LÓGICA DE EXPORTACIÓN ---
   const handleExport = (table, rowsToExport, suffix, format) => {
-    // 1. Columnas visibles
     const visibleColumns = table.getVisibleLeafColumns()
 
-    // 2. Filtro de seguridad (Blacklist)
     const columnsToExport = visibleColumns.filter((col) => {
       const id = col.id
-      return !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id', 'uuid', 'identity_key', 'mac'].includes(id)
+      return !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id', 'identity_key'].includes(id)
     })
 
-    // 3. Ejecutar formato seleccionado
     if (format === 'excel') exportToExcel(rowsToExport, columnsToExport, helpers, suffix)
     if (format === 'pdf') exportToPDF(rowsToExport, columnsToExport, helpers, suffix)
     if (format === 'csv') exportToCSV(rowsToExport, columnsToExport, helpers, suffix)
     
-    closeAllDialogs() // Cierra los menús
+    closeAllDialogs()
+  }
+  
+  // --- ACCIÓN MASIVA (ELIMINAR/RESTAURAR) ---
+  const handleBulkAction = (table) => {
+    const selectedRows = table.getSelectedRowModel().rows
+    if (selectedRows.length === 0) {
+      toast.error('Selecciona al menos un registro.')
+      return
+    }
+
+    setDeleteDialog({ 
+      open: true, 
+      id: null, 
+      isActive: !showDeleted, // True si es Eliminar (vista Activos), False si es Restaurar (vista Papelera)
+      rows: selectedRows.map(row => row.original),
+    })
   }
 
+  const confirmarDelete = () => {
+    const action = deleteDialog.isActive ? 'INACTIVO' : 'ACTIVO'
+    const itemsToUpdate = deleteDialog.rows
+
+    itemsToUpdate.forEach((maquina) => {
+      // Usar `updateMaquina` para cada item seleccionado.
+      // NOTA: Para un gran volumen, considera una mutación de GraphQL masiva si tu API lo permite.
+      updateMaquina({
+        variables: {
+          id: maquina.id,
+          input: { estado: action, usuario_modificacion: 1 },
+        },
+      })
+    })
+    
+    closeAllDialogs()
+    toast.success(`${itemsToUpdate.length} Registros marcados como ${action}.`)
+    // Refetching ya se maneja en el objeto `updateMaquina`
+  }
+  
   const table = useMaterialReactTable({
     columns,
     data: filteredData,
@@ -252,12 +279,28 @@ const Maquinas = ({ maquinas }) => {
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: { id: false, estado: false, fecha_creacion: false, usuario_creacion: false, fecha_modificacion: false, usuario_modificacion: false },
+      columnVisibility: { id: false, so: false,estado: false, fecha_creacion: false, usuario_creacion: false, fecha_modificacion: false, usuario_modificacion: false },
     },
 
+    // ⬆️ REORGANIZACIÓN DEL ENCABEZADO (TOP TOOLBAR)
     renderTopToolbarCustomActions: ({ table }) => (
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', p: 1, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', p: 1, flexWrap: 'wrap', width: '100%' }}>
         
+        {/* 2. BOTÓN ELIMINAR/RESTAURAR SELECCIÓN */}
+        <Button
+          disabled={!table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
+          onClick={() => handleBulkAction(table)}
+          startIcon={showDeleted ? <RestoreIcon /> : <DeleteIcon />}
+          variant="outlined"
+          color={showDeleted ? 'primary' : 'error'}
+          size="small"
+        >
+          {showDeleted ? `Restaurar (${table.getSelectedRowModel().rows.length})` : `Eliminar (${table.getSelectedRowModel().rows.length})`}
+        </Button>
+
+        <Box sx={{ flexGrow: 1 }} /> {/* Espacio para empujar los filtros/exportación a la derecha */}
+        
+        {/* 3. SWITCH ACTIVOS / PAPELERA */}
         <FormControlLabel
           label={showDeleted ? "Papelera" : "Activos"}
           control={<Switch checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} color="error" />}
@@ -265,7 +308,7 @@ const Maquinas = ({ maquinas }) => {
         
         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
 
-        {/* 1. BOTÓN EXPORTAR PÁGINA (Con menú) */}
+        {/* 4. BOTONES DE EXPORTACIÓN (Con menú) */}
         <Button
           onClick={(e) => setExportPageMenu(e.currentTarget)}
           endIcon={<ArrowDownIcon />}
@@ -273,7 +316,7 @@ const Maquinas = ({ maquinas }) => {
           variant="outlined"
           size="small"
         >
-          Exportar Página
+          Exportar
         </Button>
         <Menu
           anchorEl={exportPageMenu}
@@ -291,100 +334,69 @@ const Maquinas = ({ maquinas }) => {
           </MenuItem>
         </Menu>
 
-        {/* 2. BOTÓN EXPORTAR SELECCIÓN (Con menú) */}
-        <Button
-          disabled={!table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
-          onClick={(e) => setExportSelectMenu(e.currentTarget)}
-          endIcon={<ArrowDownIcon />}
-          startIcon={<ExportIcon />}
-          variant="contained"
-          color="success"
-          size="small"
-        >
-          Exportar Selección ({table.getSelectedRowModel().rows.length})
-        </Button>
-        <Menu
-          anchorEl={exportSelectMenu}
-          open={Boolean(exportSelectMenu)}
-          onClose={() => setExportSelectMenu(null)}
-        >
-           <MenuItem onClick={() => handleExport(table, table.getSelectedRowModel().rows, '-Seleccion', 'excel')}>
-            <ListItemIcon><ExcelIcon fontSize="small" color="success"/></ListItemIcon> Excel
-          </MenuItem>
-          <MenuItem onClick={() => handleExport(table, table.getSelectedRowModel().rows, '-Seleccion', 'pdf')}>
-            <ListItemIcon><PdfIcon fontSize="small" color="error"/></ListItemIcon> PDF
-          </MenuItem>
-          <MenuItem onClick={() => handleExport(table, table.getSelectedRowModel().rows, '-Seleccion', 'csv')}>
-            <ListItemIcon><CsvIcon fontSize="small" color="info"/></ListItemIcon> CSV
-          </MenuItem>
-        </Menu>
-
       </Box>
     ),
 
+    // 🔽 ACCIONES DE FILA DIRECTAS (Ver y Editar)
     renderRowActions: ({ row }) => (
-      <Tooltip title="Opciones">
-        <IconButton onClick={(e) => setActionMenu({ anchorEl: e.currentTarget, row: row.original })}>
-          <MoreVertIcon />
-        </IconButton>
-      </Tooltip>
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title="Ver Detalles">
+          <IconButton 
+            component={Link} 
+            to={routes.maquina({ id: row.original.id })}
+            size="small"
+          >
+            <VisibilityIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Tooltip>
+        
+        <Tooltip title="Editar">
+          <IconButton 
+            component={Link} 
+            to={routes.editMaquina({ id: row.original.id })}
+            size="small"
+          >
+            <EditIcon fontSize="small" color="info" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
     ),
   })
 
-  // (El resto de handlers y dialogos de auditoría se mantienen igual)
-  const confirmarDelete = () => {
-    updateMaquina({
-      variables: {
-        id: deleteDialog.id,
-        input: { estado: deleteDialog.isActive ? 'INACTIVO' : 'ACTIVO', usuario_modificacion: 1 },
-      },
-    })
-  }
-
   return (
-    <Box>
+    <Box 
+      // ✅ Estilos para ancho, centrado, borde y color
+      sx={{ 
+        maxWidth: 1500,
+        mx: 'auto',     
+        py: 2,          
+        bgcolor: 'background.paper', 
+        borderRadius: 2,             
+        boxShadow: 3,                
+        border: '1px solid',
+        borderColor: 'grey.300',     
+      }}
+    >
       <MaterialReactTable table={table} />
 
+      {/* --- DIÁLOGO DE CONFIRMACIÓN MASIVA --- */}
       <Dialog open={deleteDialog.open} onClose={closeAllDialogs}>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {deleteDialog.isActive ? <DeleteIcon color="error" /> : <RestoreIcon color="primary" />}
-          {deleteDialog.isActive ? 'Eliminar Registro Local' : 'Restaurar Registro Local'}
+          {deleteDialog.isActive ? 'Confirmar Eliminación Masiva' : 'Confirmar Restauración Masiva'}
         </DialogTitle>
         <DialogContent>
           <Typography>
-            {deleteDialog.isActive ? '¿Enviar a la papelera?' : '¿Restaurar registro?'}
+            ¿Estás seguro de que deseas **{deleteDialog.isActive ? 'enviar a la papelera' : 'restaurar'}** {deleteDialog.rows.length} registro(s) seleccionado(s)?
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={closeAllDialogs}>Cancelar</Button>
           <Button onClick={confirmarDelete} variant="contained" color={deleteDialog.isActive ? 'error' : 'primary'}>
-            {deleteDialog.isActive ? 'Eliminar' : 'Restaurar'}
+            {deleteDialog.isActive ? `Eliminar (${deleteDialog.rows.length})` : `Restaurar (${deleteDialog.rows.length})`}
           </Button>
         </DialogActions>
       </Dialog>
-
-      <Menu
-        anchorEl={actionMenu.anchorEl}
-        open={Boolean(actionMenu.anchorEl)}
-        onClose={() => setActionMenu({ anchorEl: null, row: null })}
-      >
-        <MenuItem component={Link} to={actionMenu.row ? routes.maquina({ id: actionMenu.row.id }) : '#'}>
-          <ListItemIcon><VisibilityIcon fontSize="small" /></ListItemIcon> Ver Detalles
-        </MenuItem>
-        <MenuItem component={Link} to={actionMenu.row ? routes.editMaquina({ id: actionMenu.row.id }) : '#'}>
-          <ListItemIcon><EditIcon fontSize="small" color="info" /></ListItemIcon> Editar
-        </MenuItem>
-        <Divider />
-        <MenuItem onClick={() => {
-            setDeleteDialog({ open: true, id: actionMenu.row.id, isActive: actionMenu.row.estado === 'ACTIVO' })
-            setActionMenu({ ...actionMenu, anchorEl: null })
-          }}>
-          <ListItemIcon>
-            {actionMenu.row?.estado === 'ACTIVO' ? <DeleteIcon fontSize="small" color="error" /> : <RestoreIcon fontSize="small" color="primary" />}
-          </ListItemIcon>
-          {actionMenu.row?.estado === 'ACTIVO' ? 'Eliminar' : 'Restaurar'}
-        </MenuItem>
-      </Menu>
     </Box>
   )
 }

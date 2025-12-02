@@ -1,5 +1,7 @@
+// src/lib/syncK8s/syncMain.js
 import { db } from 'src/lib/db'
 import { getK8sClient } from 'src/lib/k8s/client'
+import { valkey } from 'src/lib/valkey' // Importamos Valkey
 import { syncCluster } from './syncCluster'
 import { syncNodos } from './syncNodos'
 
@@ -36,12 +38,24 @@ export const verifyK8sConnection = async (endpointId) => {
 export const syncK8sBasic = async (endpointId) => {
   console.log(`[K8s] Iniciando Full Sync para ID: ${endpointId}`)
 
-  const endpoint = await db.k8sEndpoint.findUnique({ where: { id: endpointId } })
-  if (!endpoint) throw new Error('Endpoint no encontrado')
+  /* -----------------------------------
+     🟢 A) LOCK VALKEY
+     Evita que se solapen sincronizaciones del mismo cluster
+     TTL: 60 segundos (auto-liberación si falla el script)
+  ----------------------------------- */
+  const lockKey = `k8s:sync:lock:${endpointId}`
+  const acquired = await valkey.set(lockKey, 'LOCKED', 'EX', 60, 'NX')
 
-  const k8sApi = getK8sClient(endpoint)
+  if (!acquired) {
+    throw new Error(`Sincronización K8s ya está en curso para endpoint ${endpointId}`)
+  }
 
   try {
+    const endpoint = await db.k8sEndpoint.findUnique({ where: { id: endpointId } })
+    if (!endpoint) throw new Error('Endpoint no encontrado')
+
+    const k8sApi = getK8sClient(endpoint)
+
     // 1. Sync Cluster (Padre)
     const cluster = await syncCluster(endpoint)
     
@@ -67,5 +81,11 @@ export const syncK8sBasic = async (endpointId) => {
   } catch (error) {
     console.error('[K8s] Error Sync:', error)
     throw new Error(error.message)
+  } finally {
+    /* -----------------------------------
+       🟢 B) RELEASE LOCK
+       Siempre liberamos, haya éxito o error
+    ----------------------------------- */
+    await valkey.del(lockKey)
   }
 }
