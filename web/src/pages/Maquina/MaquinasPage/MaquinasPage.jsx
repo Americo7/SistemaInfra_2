@@ -1,17 +1,14 @@
-import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
+// web/src/pages/Maquina/MaquinasPage/MaquinasPage.jsx
+
+// ⚠️ Quitar import: import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
 import MaquinasCell from 'src/components/Maquina/MaquinasCell'
 
 const MaquinasPage = () => {
   return (
-    <ScaffoldLayout
-      title="Máquinas"
-      titleTo="maquinas"
-      groupTitle="Infraestructura"
-      buttonLabel="Nueva Maquina"
-      buttonTo="newMaquina"
-    >
-      <MaquinasCell />
-    </ScaffoldLayout>
+    // ❌ QUITAR EL WRAPPER SCAFFOLDLAYOUT AQUÍ
+    <MaquinasCell />
+    // ✅ La envoltura y las props del Layout se manejarán dentro de Maquinas.jsx
+    //    para poder inyectar dinámicamente el listActions.
   )
 }
 

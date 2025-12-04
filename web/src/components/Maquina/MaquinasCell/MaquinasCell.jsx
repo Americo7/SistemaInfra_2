@@ -1,4 +1,5 @@
 import { Link, routes } from '@redwoodjs/router'
+import { gql } from '@redwoodjs/web' 
 import Maquinas from 'src/components/Maquina/Maquinas'
 
 export const QUERY = gql`
@@ -28,6 +29,20 @@ export const QUERY = gql`
       fecha_modificacion
       usuario_modificacion
     }
+    
+    # ✅ CORRECCIÓN AQUÍ: Agregamos "ESTADO_OPERATIVO" al array para traer ambos grupos
+    parametros(grupo: ["PLATAFORMA", "ESTADO_OPERATIVO"]) {
+      codigo
+      nombre
+      grupo
+    }
+    
+    usuarios {
+      id
+      nombres
+      primer_apellido
+      segundo_apellido
+    }
   }
 `
 
@@ -46,6 +61,6 @@ export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ maquinas }) => {
-  return <Maquinas maquinas={maquinas} />
+export const Success = ({ maquinas, parametros, usuarios }) => {
+  return <Maquinas maquinas={maquinas} parametros={parametros} usuarios={usuarios} />
 }

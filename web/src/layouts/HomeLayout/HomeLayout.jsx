@@ -763,7 +763,7 @@ const HomeLayout = ({ children }) => {
             ml: { xs: 0, sm: `${drawerWidthValue}px` },
             minHeight: 70,
             boxShadow: '0px 4px 12px rgba(0,0,0,0.12)', // sombra profesional
-
+            mb: 10, // Margen inferior
           }}
         >
           <Toolbar sx={{ minHeight: 70, px: { xs: 10, sm: 5 } }}>
@@ -802,7 +802,7 @@ const HomeLayout = ({ children }) => {
                       width: 36,
                       height: 36,
                       borderRadius: 1.5,
-                      mx: 0.5
+                      mx: 0.5,
                     }}
                   >
                     {mode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}

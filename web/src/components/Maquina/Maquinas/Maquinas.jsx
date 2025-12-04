@@ -1,35 +1,27 @@
 import React, { useState, useMemo } from 'react'
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation, useQuery, gql } from '@redwoodjs/web'
+import { useMutation, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
+import { useTheme } from '@mui/material/styles'
+
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
 
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
-  RestoreFromTrash as RestoreIcon,
   Computer as VmIcon,
-  // Iconos de exportación
-  FileDownload as ExportIcon,
-  PictureAsPdf as PdfIcon,
-  TableView as CsvIcon,
   GridOn as ExcelIcon,
-  KeyboardArrowDown as ArrowDownIcon,
-  Add as AddIcon,
+  PictureAsPdf as PdfIcon,
+  TextSnippet as CsvIcon,
+  DeleteForever as HardDeleteIcon,
+  PowerOff as SoftDeleteIcon,
 } from '@mui/icons-material'
 
 import {
   Box,
-  Button,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
   Tooltip,
-  Switch,
-  FormControlLabel,
   Menu,
   MenuItem,
   Stack,
@@ -39,34 +31,9 @@ import {
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
-
-// IMPORTAR EXPORTER (Las 3 funciones)
 import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/maquinasExporter'
 
 // --- GRAPHQL ---
-import { QUERY } from 'src/components/Maquina/MaquinasCell'
-
-const QUERY_PARAMETRICAS = gql`
-  query ParamMaquinasList {
-    parametros(grupo: ["PLATAFORMA"]) {
-      codigo
-      nombre
-      grupo
-    }
-  }
-`
-
-const QUERY_USUARIOS = gql`
-  query UsersMaquinasList {
-    usuarios {
-      id
-      nombres
-      primer_apellido
-      segundo_apellido
-    }
-  }
-`
-
 const UPDATE_MAQUINA_MUTATION = gql`
   mutation UpdateMaquina($id: Int!, $input: UpdateMaquinaInput!) {
     updateMaquina(id: $id, input: $input) {
@@ -76,6 +43,24 @@ const UPDATE_MAQUINA_MUTATION = gql`
   }
 `
 
+const DELETE_MAQUINA_MUTATION = gql`
+  mutation DeleteMaquina($id: Int!) {
+    deleteMaquina(id: $id) {
+      id
+    }
+  }
+`
+
+const QUERY_REFETCH = gql`
+  query FindMaquinasRefetch {
+    maquinas {
+      id
+      estado
+    }
+  }
+`
+
+// --- HELPERS ---
 const parseAlmacenamiento = (value) => {
   if (!value) return []
   try {
@@ -85,57 +70,91 @@ const parseAlmacenamiento = (value) => {
   }
 }
 
-const Maquinas = ({ maquinas }) => {
-  const { data: paramData } = useQuery(QUERY_PARAMETRICAS)
-  const { data: usuariosData } = useQuery(QUERY_USUARIOS)
+const getStatusColor = (codigo) => {
+  if (!codigo) return 'default'
+  const c = codigo.toUpperCase()
+  if (['OPERATIVO', 'ACTIVO', 'ONLINE', 'RUNNING'].includes(c)) return 'success'
+  if (['FUERA_SERVICIO', 'BAJA', 'ERROR', 'STOPPED', 'OFFLINE'].includes(c)) return 'error'
+  if (['MANTENIMIENTO', 'WARNING', 'RESTARTING'].includes(c)) return 'warning'
+  return 'default'
+}
 
+const Maquinas = ({ maquinas, parametros, usuarios }) => {
+  const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
+  const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   
-  const [exportPageMenu, setExportPageMenu] = useState(null)
-  const [exportSelectMenu, setExportSelectMenu] = useState(null)
-
-  // El estado ahora guarda las filas seleccionadas para acciones masivas
-  const [deleteDialog, setDeleteDialog] = useState({
-    open: false, id: null, isActive: true, rows: [],
-  })
+  const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
   const [updateMaquina] = useMutation(UPDATE_MAQUINA_MUTATION, {
-    onCompleted: () => {
-      // El toast se maneja mejor en la función `confirmarDelete` para dar detalles.
-      // Aquí solo se maneja el cierre si es una sola operación (aunque ya no se usa).
-      // toast.success('Registro actualizado')
-      // closeAllDialogs()
-    },
     onError: (error) => toast.error(error.message),
-    refetchQueries: [{ query: QUERY }],
+    refetchQueries: [{ query: QUERY_REFETCH }],
+  })
+
+  const [deleteMaquina] = useMutation(DELETE_MAQUINA_MUTATION, {
+    onError: (error) => toast.error(error.message),
+    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
+    refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
   const closeAllDialogs = () => {
-    setDeleteDialog({ open: false, id: null, isActive: true, rows: [] })
-    setExportPageMenu(null)
-    setExportSelectMenu(null)
+    setExportMenuAnchorEl(null)
+    setBulkMenuAnchorEl(null)
   }
 
-  // --- Helpers y Mapeos ---
+  // --- HANDLERS DE ELIMINACIÓN ---
+  const handleSoftDelete = (rows) => {
+    rows.forEach((maquina) => {
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      updateMaquina({
+        variables: { id: maquina.id, input: { estado: newState, usuario_modificacion: 1 } },
+      })
+    })
+    
+    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  const handleHardDelete = (rows) => {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
+        closeAllDialogs()
+        return
+    }
+
+    rows.forEach((maquina) => {
+      deleteMaquina({ variables: { id: maquina.id } })
+    })
+    
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  // --- MAPEOS ---
   const plataformasMap = useMemo(() => {
-    return (paramData?.parametros || []).reduce((a, p) => {
-      a[p.codigo] = p.nombre
-      return a
-    }, {})
-  }, [paramData])
+    return (parametros || []).reduce((a, p) => { a[p.codigo] = p.nombre; return a }, {})
+  }, [parametros])
+
+  const estadosOperativosMap = useMemo(() => {
+    return (parametros || [])
+      .filter((p) => p.grupo === 'ESTADO_OPERATIVO')
+      .reduce((acc, p) => {
+        acc[p.codigo] = p.nombre
+        return acc
+      }, {})
+  }, [parametros])
 
   const usuariosMap = useMemo(() => {
-    return (usuariosData?.usuarios || []).reduce((a, u) => {
-      a[u.id] = `${u.nombres} ${u.primer_apellido}`
-      return a
-    }, {})
-  }, [usuariosData])
+    return (usuarios || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
+  }, [usuarios])
 
   const helpers = {
     getNombrePlataforma: (c) => plataformasMap[c] || c || '-',
     getUsuarioNombre: (id) => usuariosMap[id] || `ID: ${id}`,
+    getNombreEstadoOperativo: (c) => estadosOperativosMap[c] || c || 'Desconocido',
   }
 
+  // --- DATOS ---
   const filteredData = useMemo(() => {
     if (!maquinas) return []
     return maquinas.filter((m) =>
@@ -155,207 +174,181 @@ const Maquinas = ({ maquinas }) => {
 
   // --- COLUMNAS ---
   const columns = useMemo(() => [
-      // 1. ID
-      { accessorKey: 'id', header: 'ID', size: 50 },
-      // 2. VMID
-      { accessorKey: 'proxmox_vmid', header: 'VMID', size: 80 },
-      // 3. Nombre
-      {
-        accessorKey: 'nombre',
-        header: 'Nombre VM',
-        size: 180,
-        Cell: ({ row }) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <VmIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
-            <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
-              {row.original.nombre}
-            </Typography>
-            {row.original.estado === 'INACTIVO' && <Chip label="ELIMINADO" size="small" color="error" variant="outlined" sx={{ height: 20, fontSize: '0.65rem' }} />}
-          </Box>
-        ),
+    { accessorKey: 'id', header: 'ID', size: 60 },
+    { accessorKey: 'proxmox_vmid', header: 'VMID', size: 80 },
+    {
+      accessorKey: 'nombre',
+      header: 'Nombre VM',
+      size: 200,
+      Cell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <VmIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+          <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+            {row.original.nombre}
+          </Typography>
+        </Box>
+      ),
+    },
+    { accessorKey: 'ip', header: 'IP', size: 130 },
+    { accessorKey: 'ram', header: 'RAM', size: 90, Cell: ({ cell }) => `${cell.getValue()} GB` },
+    {
+      accessorKey: 'almacenamiento',
+      header: 'Discos',
+      size: 160,
+      Cell: ({ row }) => {
+        const discos = parseAlmacenamiento(row.original.almacenamiento)
+        return (
+          <Stack direction="row" spacing={0.5} flexWrap="wrap">
+            {discos.length ? discos.map((d, i) => (
+              <Chip key={i} size="small" label={`D${d.Disco}: ${d.Valor}GB`} variant="outlined" sx={{ height: 22, fontSize: '0.75rem' }} />
+            )) : <Chip size="small" label="-" variant="outlined" />}
+          </Stack>
+        )
       },
-      // 4. IP
-      { accessorKey: 'ip', header: 'IP', size: 130 },
-      // 5. RAM
-      { accessorKey: 'ram', header: 'RAM', size: 80, Cell: ({ cell }) => `${cell.getValue()} GB` },
-      // 6. Discos
-      {
-        accessorKey: 'almacenamiento',
-        header: 'Discos',
-        size: 140,
-        Cell: ({ row }) => {
-          const discos = parseAlmacenamiento(row.original.almacenamiento)
-          return (
-            <Stack direction="row" spacing={0.5} flexWrap="wrap">
-              {discos.length ? discos.map((d, i) => (<Chip key={i} size="small" label={`D${d.Disco}: ${d.Valor}GB`} variant="outlined" sx={{ height: 22, fontSize: '0.75rem' }} />)) : <Chip size="small" label="-" variant="outlined" />}
-            </Stack>
-          )
-        },
+    },
+    { accessorKey: 'cpu', header: 'CPU', size: 90, Cell: ({ cell }) => `${cell.getValue()} vCores` },
+    { accessorKey: 'so', header: 'SO', size: 110 },
+    { accessorKey: 'cod_plataforma', header: 'Plataforma', size: 120, Cell: ({ cell }) => helpers.getNombrePlataforma(cell.getValue()) },
+    { accessorKey: 'servidores.nombre', header: 'Host', size: 120, Cell: ({ row }) => row.original.servidores?.nombre || '-' },
+    {
+      accessorKey: 'estado_operativo',
+      header: 'Estado Operativo',
+      size: 150,
+      Cell: ({ cell }) => {
+        const codigo = cell.getValue()
+        const label = helpers.getNombreEstadoOperativo(codigo)
+        const color = getStatusColor(codigo)
+        
+        return (
+          <Chip 
+            size="small" 
+            label={label} 
+            color={color} 
+            variant={codigo ? 'filled' : 'outlined'} 
+            sx={{ fontWeight: 'bold' }} 
+          />
+        )
       },
-      // 7. CPU
-      { accessorKey: 'cpu', header: 'CPU', size: 80, Cell: ({ cell }) => `${cell.getValue()} vCores` },
-      // 8. SO
-      { accessorKey: 'so', header: 'SO', size: 110 },
-      // 9. Plataforma
-      { accessorKey: 'cod_plataforma', header: 'Plataforma', size: 120, Cell: ({ cell }) => helpers.getNombrePlataforma(cell.getValue()) },
-      // 10. Host
-      { accessorKey: 'servidores.nombre', header: 'Host', size: 120, Cell: ({ row }) => row.original.servidores?.nombre || '-' },
-      // 11. Estado Operativo
-      {
-        accessorKey: 'estado_operativo',
-        header: 'Estado Operativo',
-        size: 120,
-        Cell: ({ cell }) => {
-          const value = cell.getValue() || 'unknown'
-          const map = { OPERATIVO: { label: 'OPERATIVO', color: 'success' }, FUERA_SERVICIO: { label: 'FUERA DE SERVICIO', color: 'error' }, unknown: { label: 'Desconocido', color: 'default' } }
-          const info = map[value] || map.unknown
-          return <Chip size="small" label={info.label} color={info.color} variant={value === 'unknown' ? 'outlined' : 'filled'} />
-        },
-      },
-      // Campos Auditoría
-      { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-      { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-      { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-      { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-    ], [paramData, usuariosData])
+    },
+    {
+      accessorKey: 'estado',
+      header: 'Estado',
+      size: 100,
+      Cell: ({ cell }) => (
+        <Chip 
+            label={cell.getValue()} 
+            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
+            size="small" 
+            variant="outlined" 
+            sx={{ fontSize: '0.7rem' }}
+        />
+      ),
+    },
+    { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+    { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+    { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+    { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+  ], [plataformasMap, usuariosMap, estadosOperativosMap])
 
-  // --- LÓGICA DE EXPORTACIÓN ---
-  const handleExport = (table, rowsToExport, suffix, format) => {
-    const visibleColumns = table.getVisibleLeafColumns()
-
-    const columnsToExport = visibleColumns.filter((col) => {
-      const id = col.id
-      return !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id', 'identity_key'].includes(id)
-    })
-
-    if (format === 'excel') exportToExcel(rowsToExport, columnsToExport, helpers, suffix)
-    if (format === 'pdf') exportToPDF(rowsToExport, columnsToExport, helpers, suffix)
-    if (format === 'csv') exportToCSV(rowsToExport, columnsToExport, helpers, suffix)
-    
-    closeAllDialogs()
-  }
-  
-  // --- ACCIÓN MASIVA (ELIMINAR/RESTAURAR) ---
-  const handleBulkAction = (table) => {
-    const selectedRows = table.getSelectedRowModel().rows
-    if (selectedRows.length === 0) {
-      toast.error('Selecciona al menos un registro.')
-      return
-    }
-
-    setDeleteDialog({ 
-      open: true, 
-      id: null, 
-      isActive: !showDeleted, // True si es Eliminar (vista Activos), False si es Restaurar (vista Papelera)
-      rows: selectedRows.map(row => row.original),
-    })
-  }
-
-  const confirmarDelete = () => {
-    const action = deleteDialog.isActive ? 'INACTIVO' : 'ACTIVO'
-    const itemsToUpdate = deleteDialog.rows
-
-    itemsToUpdate.forEach((maquina) => {
-      // Usar `updateMaquina` para cada item seleccionado.
-      // NOTA: Para un gran volumen, considera una mutación de GraphQL masiva si tu API lo permite.
-      updateMaquina({
-        variables: {
-          id: maquina.id,
-          input: { estado: action, usuario_modificacion: 1 },
-        },
-      })
-    })
-    
-    closeAllDialogs()
-    toast.success(`${itemsToUpdate.length} Registros marcados como ${action}.`)
-    // Refetching ya se maneja en el objeto `updateMaquina`
-  }
-  
+  // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
     columns,
     data: filteredData,
     enableRowActions: true,
     enableRowSelection: true,
+    enableGlobalFilter: true,
+    enableRowVirtualization: true, // Se mantiene activado para performance visual
+    rowVirtualizerOptions: { overscan: 5 },
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: { id: false, so: false,estado: false, fecha_creacion: false, usuario_creacion: false, fecha_modificacion: false, usuario_modificacion: false },
+      columnVisibility: { 
+        id: false, 
+        so: false, 
+        estado: false,
+        fecha_creacion: false, 
+        usuario_creacion: false, 
+        fecha_modificacion: false, 
+        usuario_modificacion: false 
+      },
     },
-
-    // ⬆️ REORGANIZACIÓN DEL ENCABEZADO (TOP TOOLBAR)
-    renderTopToolbarCustomActions: ({ table }) => (
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', p: 1, flexWrap: 'wrap', width: '100%' }}>
-        
-        {/* 2. BOTÓN ELIMINAR/RESTAURAR SELECCIÓN */}
-        <Button
-          disabled={!table.getIsSomeRowsSelected() && !table.getIsAllRowsSelected()}
-          onClick={() => handleBulkAction(table)}
-          startIcon={showDeleted ? <RestoreIcon /> : <DeleteIcon />}
-          variant="outlined"
-          color={showDeleted ? 'primary' : 'error'}
-          size="small"
-        >
-          {showDeleted ? `Restaurar (${table.getSelectedRowModel().rows.length})` : `Eliminar (${table.getSelectedRowModel().rows.length})`}
-        </Button>
-
-        <Box sx={{ flexGrow: 1 }} /> {/* Espacio para empujar los filtros/exportación a la derecha */}
-        
-        {/* 3. SWITCH ACTIVOS / PAPELERA */}
-        <FormControlLabel
-          label={showDeleted ? "Papelera" : "Activos"}
-          control={<Switch checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} color="error" />}
-        />
-        
-        <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-
-        {/* 4. BOTONES DE EXPORTACIÓN (Con menú) */}
-        <Button
-          onClick={(e) => setExportPageMenu(e.currentTarget)}
-          endIcon={<ArrowDownIcon />}
-          startIcon={<ExportIcon />}
-          variant="outlined"
-          size="small"
-        >
-          Exportar
-        </Button>
-        <Menu
-          anchorEl={exportPageMenu}
-          open={Boolean(exportPageMenu)}
-          onClose={() => setExportPageMenu(null)}
-        >
-          <MenuItem onClick={() => handleExport(table, table.getRowModel().rows, '-Pagina', 'excel')}>
-            <ListItemIcon><ExcelIcon fontSize="small" color="success"/></ListItemIcon> Excel
-          </MenuItem>
-          <MenuItem onClick={() => handleExport(table, table.getRowModel().rows, '-Pagina', 'pdf')}>
-            <ListItemIcon><PdfIcon fontSize="small" color="error"/></ListItemIcon> PDF
-          </MenuItem>
-          <MenuItem onClick={() => handleExport(table, table.getRowModel().rows, '-Pagina', 'csv')}>
-            <ListItemIcon><CsvIcon fontSize="small" color="info"/></ListItemIcon> CSV
-          </MenuItem>
-        </Menu>
-
+    muiTablePaperProps: {
+      elevation: 0,
+      sx: {
+        maxWidth: 1500,
+        mx: 'auto',
+        px: 2, 
+        py: 1,
+        border: `1px solid ${theme.palette.divider}`,
+        borderTop: 'none', 
+        borderRadius: 2, 
+        borderTopLeftRadius: '0 !important',
+        borderTopRightRadius: '0 !important',
+        backgroundColor: 'background.paper',
+        overflow: 'hidden',
+      },
+    },
+    muiTableContainerProps: {
+       sx: {
+         border: `1px solid ${theme.palette.divider}`,
+         borderRadius: 2, 
+         overflow: 'auto', 
+       }
+    },
+    muiTopToolbarProps: {
+      sx: {
+        pl: 1, 
+        pr: 1,
+        backgroundColor: 'background.paper',
+        mb: 1, 
+      }
+    },
+    muiBottomToolbarProps: {
+        sx: {
+            backgroundColor: 'background.paper',
+            border: 'none', 
+            boxShadow: 'none',
+        }
+    },
+    renderTopToolbarCustomActions: () => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Máquinas Virtuales
+        </Typography>
       </Box>
     ),
-
-    // 🔽 ACCIONES DE FILA DIRECTAS (Ver y Editar)
+    muiTableHeadCellProps: {
+      sx: {
+        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
+        color: 'text.primary',
+        fontWeight: 'bold',
+        fontSize: '0.85rem',
+        borderBottom: `1px solid ${theme.palette.divider}`, 
+        borderRight: `1px solid ${theme.palette.divider}`,  
+        '&:last-child': { borderRight: 'none' },
+      }
+    },
+    muiTableBodyCellProps: {
+        sx: {
+            borderBottom: `1px solid ${theme.palette.divider}`,
+        }
+    },
+    muiTableBodyRowProps: ({ row }) => ({
+      sx: {
+        '&:hover': {
+          backgroundColor: theme.palette.action.hover,
+        },
+      }
+    }),
     renderRowActions: ({ row }) => (
       <Stack direction="row" spacing={0.5}>
         <Tooltip title="Ver Detalles">
-          <IconButton 
-            component={Link} 
-            to={routes.maquina({ id: row.original.id })}
-            size="small"
-          >
+          <IconButton component={Link} to={routes.maquina({ id: row.original.id })} size="small">
             <VisibilityIcon fontSize="small" color="primary" />
           </IconButton>
         </Tooltip>
-        
         <Tooltip title="Editar">
-          <IconButton 
-            component={Link} 
-            to={routes.editMaquina({ id: row.original.id })}
-            size="small"
-          >
+          <IconButton component={Link} to={routes.editMaquina({ id: row.original.id })} size="small">
             <EditIcon fontSize="small" color="info" />
           </IconButton>
         </Tooltip>
@@ -363,41 +356,145 @@ const Maquinas = ({ maquinas }) => {
     ),
   })
 
+  // --- LOGICA DE EXPORTACIÓN OPTIMIZADA ---
+  const handleExport = (scope, suffix, format) => {
+    let rowsToExport = []
+
+    if (scope === 'page') {
+      // ✅ OPTIMIZACIÓN: Usamos getPrePaginationRowModel.
+      // Contiene los datos filtrados y ordenados, pero antes de paginar.
+      // Es más rápido que SortedRowModel y más seguro que PaginationRowModel.
+      const allRows = table.getPrePaginationRowModel().rows
+      
+      const { pageIndex, pageSize } = table.getState().pagination
+      const startRow = pageIndex * pageSize
+      const endRow = startRow + pageSize
+      
+      // Corte manual instantáneo
+      rowsToExport = allRows.slice(startRow, endRow)
+    }
+
+    if (scope === 'all') {
+       rowsToExport = table.getPrePaginationRowModel().rows
+    }
+
+    if (scope === 'selected') {
+      rowsToExport = table.getSelectedRowModel().rows
+    }
+
+    if (!rowsToExport || rowsToExport.length === 0) {
+        toast.error('No hay datos para exportar')
+        return
+    }
+
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
+    
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
+    
+    closeAllDialogs()
+  }
+
+  // --- CONFIG PARA SCAFFOLD ---
+  const listActionsConfig = useMemo(() => {
+    const selectedRowCount = table.getSelectedRowModel().rows.length
+    
+    const ExportMenu = (
+      <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
+        {/* EXCEL */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+        
+        <Divider />
+
+        {/* PDF */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+
+        <Divider />
+
+        {/* CSV */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+      </Menu>
+    )
+
+    const BulkActionMenu = (
+      <Menu
+        anchorEl={bulkMenuAnchorEl}
+        open={Boolean(bulkMenuAnchorEl)}
+        onClose={closeAllDialogs}
+      >
+        <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
+          Desactivar (Soft Delete)
+        </MenuItem>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
+          Eliminar de Base de Datos
+        </MenuItem>
+      </Menu>
+    )
+
+    return {
+      showDeleted,
+      selectedRowCount,
+      handleSwitchChange: (e) => setShowDeleted(e.target.checked),
+      
+      handleBulkAction: (e) => {
+        if (showDeleted) {
+            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+        } else {
+            setBulkMenuAnchorEl(e.currentTarget)
+        }
+      },
+      
+      handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
+      exportMenu: ExportMenu,
+      bulkActionMenu: BulkActionMenu,
+    }
+  }, [
+    table, 
+    showDeleted, 
+    exportMenuAnchorEl, 
+    bulkMenuAnchorEl, 
+    table.getState().rowSelection,
+    table.getState().pagination
+  ])
+
   return (
-    <Box 
-      // ✅ Estilos para ancho, centrado, borde y color
-      sx={{ 
-        maxWidth: 1500,
-        mx: 'auto',     
-        py: 2,          
-        bgcolor: 'background.paper', 
-        borderRadius: 2,             
-        boxShadow: 3,                
-        border: '1px solid',
-        borderColor: 'grey.300',     
-      }}
+    <ScaffoldLayout
+      title="Máquinas"
+      titleTo="maquinas"
+      groupTitle="Infraestructura"
+      buttonLabel="Nueva Máquina"
+      buttonTo="newMaquina"
+      listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
-
-      {/* --- DIÁLOGO DE CONFIRMACIÓN MASIVA --- */}
-      <Dialog open={deleteDialog.open} onClose={closeAllDialogs}>
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {deleteDialog.isActive ? <DeleteIcon color="error" /> : <RestoreIcon color="primary" />}
-          {deleteDialog.isActive ? 'Confirmar Eliminación Masiva' : 'Confirmar Restauración Masiva'}
-        </DialogTitle>
-        <DialogContent>
-          <Typography>
-            ¿Estás seguro de que deseas **{deleteDialog.isActive ? 'enviar a la papelera' : 'restaurar'}** {deleteDialog.rows.length} registro(s) seleccionado(s)?
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeAllDialogs}>Cancelar</Button>
-          <Button onClick={confirmarDelete} variant="contained" color={deleteDialog.isActive ? 'error' : 'primary'}>
-            {deleteDialog.isActive ? `Eliminar (${deleteDialog.rows.length})` : `Restaurar (${deleteDialog.rows.length})`}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+    </ScaffoldLayout>
   )
 }
 

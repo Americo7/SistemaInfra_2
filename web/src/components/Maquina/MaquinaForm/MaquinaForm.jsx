@@ -51,7 +51,7 @@ import LockIcon from '@mui/icons-material/Lock'
  * 1. QUERIES (Unificadas)
  * --------------------------------------------- */
 const GET_FORM_DATA = gql`
-  query GetFormData {
+  query GetFormDatos {
     servidores {
       id
       nombre
@@ -350,16 +350,16 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
   }
 
   return (
-    <Box sx={{  width: '100%', maxWidth: 1400, mx: 'auto' }}>
+    <Box sx={{  width: '100%', maxWidth: 1500, mx: 'auto' }}>
       
       <Card
         elevation={0}
         sx={{
           border: `1px solid ${theme.palette.divider}`,
           borderTop: 'none',
+          borderRadius:2,
           borderTopLeftRadius: '0 !important',
           borderTopRightRadius: '0 !important',
-          borderRadius: '0 0 12px 12px !important',
           mb: 3,
           bgcolor: theme.palette.background.paper,
         }}
