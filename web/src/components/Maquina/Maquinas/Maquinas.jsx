@@ -73,13 +73,28 @@ const parseAlmacenamiento = (value) => {
 const getStatusColor = (codigo) => {
   if (!codigo) return 'default'
   const c = codigo.toUpperCase()
-  if (['OPERATIVO', 'ACTIVO', 'ONLINE', 'RUNNING'].includes(c)) return 'success'
-  if (['FUERA_SERVICIO', 'BAJA', 'ERROR', 'STOPPED', 'OFFLINE'].includes(c)) return 'error'
+  if (['OPERATIVO', 'ACTIVO', 'ONLINE', 'RUNNING', 'OK'].includes(c)) return 'success'
+  if (['FUERA_SERVICIO', 'BAJA', 'ERROR', 'STOPPED', 'OFFLINE', 'FALLA'].includes(c)) return 'error'
   if (['MANTENIMIENTO', 'WARNING', 'RESTARTING'].includes(c)) return 'warning'
   return 'default'
 }
 
-const Maquinas = ({ maquinas, parametros, usuarios }) => {
+// Helper simple para formatear nombres de usuario desde el objeto
+const formatUser = (userObj) => {
+    if (!userObj) return '-'
+    return `${userObj.nombres || ''} ${userObj.primer_apellido || ''}`.trim()
+}
+
+// Objeto helpers simplificado para el exportador
+// Nota: Como usamos accessorFn en las columnas, el exportador recibirá los valores ya procesados,
+// pero mantenemos esto por compatibilidad si el exportador lo requiere.
+const helpers = {
+    getNombrePlataforma: (val) => val, 
+    getUsuarioNombre: (val) => val,
+    getNombreEstadoOperativo: (val) => val,
+}
+
+const Maquinas = ({ maquinas }) => {
   const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
@@ -107,7 +122,7 @@ const Maquinas = ({ maquinas, parametros, usuarios }) => {
     rows.forEach((maquina) => {
       const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
       updateMaquina({
-        variables: { id: maquina.id, input: { estado: newState, usuario_modificacion: 1 } },
+        variables: { id: maquina.id, input: { estado: newState } },
       })
     })
     
@@ -128,30 +143,6 @@ const Maquinas = ({ maquinas, parametros, usuarios }) => {
     
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
-  }
-
-  // --- MAPEOS ---
-  const plataformasMap = useMemo(() => {
-    return (parametros || []).reduce((a, p) => { a[p.codigo] = p.nombre; return a }, {})
-  }, [parametros])
-
-  const estadosOperativosMap = useMemo(() => {
-    return (parametros || [])
-      .filter((p) => p.grupo === 'ESTADO_OPERATIVO')
-      .reduce((acc, p) => {
-        acc[p.codigo] = p.nombre
-        return acc
-      }, {})
-  }, [parametros])
-
-  const usuariosMap = useMemo(() => {
-    return (usuarios || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
-  }, [usuarios])
-
-  const helpers = {
-    getNombrePlataforma: (c) => plataformasMap[c] || c || '-',
-    getUsuarioNombre: (id) => usuariosMap[id] || `ID: ${id}`,
-    getNombreEstadoOperativo: (c) => estadosOperativosMap[c] || c || 'Desconocido',
   }
 
   // --- DATOS ---
@@ -190,7 +181,12 @@ const Maquinas = ({ maquinas, parametros, usuarios }) => {
       ),
     },
     { accessorKey: 'ip', header: 'IP', size: 130 },
-    { accessorKey: 'ram', header: 'RAM', size: 90, Cell: ({ cell }) => `${cell.getValue()} GB` },
+    { 
+        accessorKey: 'ram', 
+        header: 'RAM', 
+        size: 90, 
+        Cell: ({ cell }) => `${cell.getValue()} GB` 
+    },
     {
       accessorKey: 'almacenamiento',
       header: 'Discos',
@@ -206,17 +202,38 @@ const Maquinas = ({ maquinas, parametros, usuarios }) => {
         )
       },
     },
-    { accessorKey: 'cpu', header: 'CPU', size: 90, Cell: ({ cell }) => `${cell.getValue()} vCores` },
+    { 
+        accessorKey: 'cpu', 
+        header: 'CPU', 
+        size: 90, 
+        Cell: ({ cell }) => `${cell.getValue()} vCores` 
+    },
     { accessorKey: 'so', header: 'SO', size: 110 },
-    { accessorKey: 'cod_plataforma', header: 'Plataforma', size: 120, Cell: ({ cell }) => helpers.getNombrePlataforma(cell.getValue()) },
-    { accessorKey: 'servidores.nombre', header: 'Host', size: 120, Cell: ({ row }) => row.original.servidores?.nombre || '-' },
+    
+    // --- COLUMNAS CON RELACIONES ---
+    { 
+        // Usamos accessorFn para que el exportador obtenga el nombre real, no el código
+        id: 'plataforma',
+        header: 'Plataforma', 
+        size: 120,
+        accessorFn: (row) => row.plataformaInfo?.nombre || row.cod_plataforma || '-',
+    },
+    { 
+        id: 'host',
+        header: 'Host', 
+        size: 120, 
+        accessorFn: (row) => row.servidores?.nombre || '-' 
+    },
     {
-      accessorKey: 'estado_operativo',
+      id: 'estado_operativo',
       header: 'Estado Operativo',
       size: 150,
-      Cell: ({ cell }) => {
-        const codigo = cell.getValue()
-        const label = helpers.getNombreEstadoOperativo(codigo)
+      // accessorFn devuelve el nombre legible para ordenamiento y exportación
+      accessorFn: (row) => row.estadoOperativoInfo?.nombre || row.estado_operativo || 'Desconocido',
+      Cell: ({ row, cell }) => {
+        const label = cell.getValue() // Toma el valor del accessorFn
+        // Para el color usamos el código
+        const codigo = row.original.estadoOperativoInfo?.codigo || row.original.estado_operativo
         const color = getStatusColor(codigo)
         
         return (
@@ -244,11 +261,31 @@ const Maquinas = ({ maquinas, parametros, usuarios }) => {
         />
       ),
     },
-    { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-    { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-  ], [plataformasMap, usuariosMap, estadosOperativosMap])
+    { 
+        accessorKey: 'fecha_creacion', 
+        header: 'F. Creación', 
+        size: 150, 
+        Cell: ({ cell }) => formatDate(cell.getValue()) 
+    },
+    { 
+        id: 'creadoPor',
+        header: 'Creado por', 
+        size: 150, 
+        accessorFn: (row) => formatUser(row.creadoPor)
+    },
+    { 
+        accessorKey: 'fecha_modificacion', 
+        header: 'F. Modificación', 
+        size: 150, 
+        Cell: ({ cell }) => formatDate(cell.getValue()) 
+    },
+    { 
+        id: 'modificadoPor',
+        header: 'Modif. por', 
+        size: 150, 
+        accessorFn: (row) => formatUser(row.modificadoPor)
+    },
+  ], []) // Sin dependencias externas
 
   // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
@@ -257,19 +294,20 @@ const Maquinas = ({ maquinas, parametros, usuarios }) => {
     enableRowActions: true,
     enableRowSelection: true,
     enableGlobalFilter: true,
-    enableRowVirtualization: true, // Se mantiene activado para performance visual
+    enableRowVirtualization: true,
     rowVirtualizerOptions: { overscan: 5 },
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
+        almacenamiento: false,
         so: false, 
         estado: false,
         fecha_creacion: false, 
-        usuario_creacion: false, 
+        creadoPor: false, 
         fecha_modificacion: false, 
-        usuario_modificacion: false 
+        modificadoPor: false 
       },
     },
     muiTablePaperProps: {
@@ -356,21 +394,15 @@ const Maquinas = ({ maquinas, parametros, usuarios }) => {
     ),
   })
 
-  // --- LOGICA DE EXPORTACIÓN OPTIMIZADA ---
+  // --- LOGICA DE EXPORTACIÓN ---
   const handleExport = (scope, suffix, format) => {
     let rowsToExport = []
 
     if (scope === 'page') {
-      // ✅ OPTIMIZACIÓN: Usamos getPrePaginationRowModel.
-      // Contiene los datos filtrados y ordenados, pero antes de paginar.
-      // Es más rápido que SortedRowModel y más seguro que PaginationRowModel.
       const allRows = table.getPrePaginationRowModel().rows
-      
       const { pageIndex, pageSize } = table.getState().pagination
       const startRow = pageIndex * pageSize
       const endRow = startRow + pageSize
-      
-      // Corte manual instantáneo
       rowsToExport = allRows.slice(startRow, endRow)
     }
 

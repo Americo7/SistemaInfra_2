@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useQuery, gql } from '@redwoodjs/web'
 import { navigate, routes } from '@redwoodjs/router'
-import { useAuth } from 'src/auth'
 
 import {
   Box,
@@ -56,12 +55,11 @@ const GET_FORM_DATA = gql`
       id
       nombre
     }
-    parametros {
+    parametrosFormularioMaquina {
       id
       codigo
       nombre
       grupo
-      descripcion
     }
   }
 `
@@ -181,17 +179,12 @@ const getDefaultFormValues = () => ({
 const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }) => {
   const theme = useTheme()
   const isEditMode = Boolean(maquina?.id)
-  const { currentUser } = useAuth() // <-- USAR useAuth PARA OBTENER EL USUARIO LOGUEADO
-
-  // Determinar el ID del usuario actual. Usamos 1 como fallback si no hay usuario (solo para desarrollo/testing).
-  const currentUserId = currentUser?.id ? Number(currentUser.id) : 1
-  
 
   // --- 1. CARGA DE DATOS ---
   const { data: remoteData, loading: loadingData } = useQuery(GET_FORM_DATA)
   
   const listaServidores = remoteData?.servidores || []
-  const listaParametros = remoteData?.parametros || []
+  const listaParametros = remoteData?.parametrosFormularioMaquina || []
 
   // --- 2. FILTROS ---
   const plataformas = useMemo(() => 
@@ -285,13 +278,10 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
   const validateForm = () => {
     const e = {}
     if (!formValues.nombre.trim()) e.nombre = 'Requerido'
-    if (!formValues.cod_plataforma) e.cod_plataforma = 'Requerido'
     if (!formValues.cpu) e.cpu = 'Requerido'
     if (!formValues.ram) e.ram = 'Requerido'
     const ipErr = validateIP(formValues.ip)
     if (ipErr) e.ip = ipErr
-    const soFull = `${selectedSO} ${soVersion}`.trim()
-    if (!soFull) e.so = 'Requerido'
     if (discos.some((d) => !d.Valor || Number(d.Valor) < 1)) e.discos = 'Tamaño inválido'
     setErrors(e)
     return Object.keys(e).length === 0
@@ -315,8 +305,9 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
 
   /**
    * CORRECCIÓN PRINCIPAL
-   * 1. Asegura que identity_key sea una cadena vacía en modo creación (para satisfacer String!).
-   * 2. Usa currentUserId para los campos de auditoría.
+   * - El backend captura automáticamente currentUser del contexto GraphQL
+   * - No enviamos usuario_creacion ni usuario_modificacion manualmente
+   * - El identity_key se genera automáticamente en el backend (si es manual:)
    */
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -325,11 +316,8 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
     try {
         const almacenamiento = discos.map((d, idx) => ({ Disco: idx + 1, Valor: Number(d.Valor) }))
         
-        // 1. Aseguramos que identity_key sea una cadena vacía si no estamos editand
-
         const payload = {
             ...formValues,
-
             nombre: formValues.nombre.trim(),
             ram: Number(formValues.ram),
             cpu: Number(formValues.cpu),
@@ -337,10 +325,7 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
             almacenamiento,
             id_servidor: formValues.id_servidor ? Number(formValues.id_servidor) : null,
             proxmox_vmid: formValues.proxmox_vmid ? Number(formValues.proxmox_vmid) : null,
-            
-            // 2. INCLUIR USUARIO LOGUEADO
-            usuario_modificacion: isEditMode ? currentUserId : undefined,
-            usuario_creacion: isEditMode ? undefined : currentUserId,
+            // El backend captura usuario_creacion y usuario_modificacion automáticamente
         }
         
         await onSave(payload, isEditMode ? maquina.id : undefined)
@@ -425,7 +410,7 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
                 <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 2 }}>
                     
                     <FormControl fullWidth error={!!errors.id_servidor}>
-                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Servidor Host *</FormLabel>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Servidor Host</FormLabel>
                         <Autocomplete
                             disablePortal
                             id="combo-box-servidores"
@@ -504,7 +489,7 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
                 
                 <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                     <FormControl fullWidth error={!!errors.cod_plataforma}>
-                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Plataforma *</FormLabel>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Plataforma</FormLabel>
                         <Select
                           size="small"
                           value={formValues.cod_plataforma}
@@ -555,7 +540,7 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
                 </FormControl>
 
                 <FormControl fullWidth error={!!errors.so}>
-                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Sistema Operativo *</FormLabel>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Sistema Operativo</FormLabel>
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <Select sx={{ width: '40%' }} size="small" value={selectedSO} onChange={(e) => setSelectedSO(e.target.value)} displayEmpty>
                       <MenuItem value=""><em>SO...</em></MenuItem>
@@ -568,7 +553,7 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
                     <TextField
                       sx={{ width: '60%' }}
                       size="small"
-                      placeholder="Ver."
+                      placeholder="Version"
                       value={soVersion}
                       onChange={(e) => setSoVersion(e.target.value)}
                     />

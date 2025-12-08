@@ -14,10 +14,6 @@ export const QUERY = gql`
       id_maquina
       id_sistema
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
     }
   }
 `

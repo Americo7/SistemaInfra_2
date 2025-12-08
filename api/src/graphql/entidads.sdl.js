@@ -9,7 +9,11 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    
     sistemas: [Sistema]!
+    
+    creadoPor: Usuario
+    modificadoPor: Usuario
   }
 
   enum estado {
@@ -27,10 +31,6 @@ export const schema = gql`
     sigla: String!
     nombre: String!
     estado: estado!
-    fecha_creacion: DateTime
-    usuario_creacion: Int!
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   input UpdateEntidadInput {
@@ -38,10 +38,6 @@ export const schema = gql`
     sigla: String
     nombre: String
     estado: estado
-    fecha_creacion: DateTime
-    usuario_creacion: Int
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   type Mutation {

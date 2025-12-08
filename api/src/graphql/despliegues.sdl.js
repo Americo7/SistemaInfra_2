@@ -21,7 +21,11 @@ export const schema = gql`
     componentes: Componente!
     maquinas: Maquina
     servidores: Servidor
-    despliegue_bitacora: [DespliegueBitacora!]!
+
+    creadoPor: Usuario
+    modificadoPor: Usuario
+    tipoRespaldoInfo: Parametro
+    estadoDespliegueInfo: Parametro
   }
 
   enum estado {
@@ -41,6 +45,9 @@ export const schema = gql`
   type Query {
     despliegues(limit: Int, orderBy: DespliegueOrderByInput): [Despliegue!]! @requireAuth
     despliegue(id: Int!): Despliegue @requireAuth
+    
+    # --- QUERIES PARA LOS DROPDOWNS DEL FORMULARIO ---
+    parametrosFormularioDespliegue: [Parametro!]! @requireAuth
   }
 
   input CreateDespliegueInput {
@@ -50,7 +57,6 @@ export const schema = gql`
     descripcion: String!
     fecha_despliegue: DateTime!
     estado: estado!
-    usuario_creacion: Int!
     fecha_solicitud: DateTime!
     unidad_solicitante: String!
     solicitante: String!
@@ -66,7 +72,6 @@ export const schema = gql`
     descripcion: String
     fecha_despliegue: DateTime
     estado: estado
-    usuario_modificacion: Int
     fecha_solicitud: DateTime
     unidad_solicitante: String
     solicitante: String

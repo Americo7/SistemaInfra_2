@@ -10,6 +10,9 @@ export const schema = gql`
     fecha_modificacion: DateTime
     usuario_modificacion: Int
     descripcion: String
+
+    creadoPor: Usuario
+    modificadoPor: Usuario
   }
 
   enum estado {
@@ -28,10 +31,6 @@ export const schema = gql`
     nombre: String!
     grupo: String!
     estado: estado!
-    fecha_creacion: DateTime
-    usuario_creacion: Int!
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
     descripcion: String
   }
 
@@ -40,10 +39,6 @@ export const schema = gql`
     nombre: String
     grupo: String
     estado: estado
-    fecha_creacion: DateTime
-    usuario_creacion: Int
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
     descripcion: String
   }
 

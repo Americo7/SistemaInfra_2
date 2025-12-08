@@ -18,7 +18,7 @@ const NewMaquina = () => {
     CREATE_MAQUINA_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Maquina created')
+        toast.success('Maquina Creada exitosamente')
         navigate(routes.maquinas())
       },
       onError: (error) => {

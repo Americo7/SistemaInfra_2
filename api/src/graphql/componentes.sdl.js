@@ -15,8 +15,14 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    
     sistemas: Sistema!
     despliegue: [Despliegue]!
+
+    creadoPor: Usuario
+    modificadoPor: Usuario
+    entornoInfo: Parametro
+    categoriaInfo: Parametro
   }
 
   enum estado {
@@ -27,6 +33,9 @@ export const schema = gql`
   type Query {
     componentes: [Componente!]! @requireAuth
     componente(id: Int!): Componente @requireAuth
+    
+    # --- QUERIES PARA LOS DROPDOWNS DEL FORMULARIO ---
+    parametrosFormularioComponente: [Parametro!]! @requireAuth
   }
 
   input CreateComponenteInput {
@@ -40,10 +49,6 @@ export const schema = gql`
     gitlab_rama: String
     tecnologia: JSON
     estado: estado!
-    fecha_creacion: DateTime
-    usuario_creacion: Int!
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   input UpdateComponenteInput {
@@ -57,18 +62,11 @@ export const schema = gql`
     gitlab_rama: String
     tecnologia: JSON
     estado: estado
-    fecha_creacion: DateTime
-    usuario_creacion: Int
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
-
-
   }
 
   type Mutation {
     createComponente(input: CreateComponenteInput!): Componente! @requireAuth
-    updateComponente(id: Int!, input: UpdateComponenteInput!): Componente!
-      @requireAuth
+    updateComponente(id: Int!, input: UpdateComponenteInput!): Componente! @requireAuth
     deleteComponente(id: Int!): Componente! @requireAuth
   }
 `

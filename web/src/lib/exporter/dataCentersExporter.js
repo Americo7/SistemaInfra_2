@@ -1,145 +1,191 @@
-// web/src/lib/exporter/dataCentersExporter.js
-
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx-js-style'
 
-// ---------- Helpers ----------
-export const formatDateTime = (value) => {
-  if (!value) return 'N/A'
-  return new Date(value).toLocaleString('es-BO', {
-    day: '2-digit',
-    month: '2-digit',
+const formatDateTime = (dateString) => {
+  if (!dateString) return 'N/A'
+  const date = new Date(dateString)
+  return date.toLocaleString('es-ES', {
     year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
   })
 }
 
-export const formatEnum = (value) => {
-  if (!value) return 'N/A'
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+const truncate = (text, length = 100) => {
+  if (!text) return 'N/A'
+  return text.length > length ? text.substring(0, length) + '...' : text
 }
 
-// ---------- Formatear data ----------
-export const getFormattedData = (rows) => {
-  const headers = [
-    'ID',
-    'Nombre',
-    'Ubicación',
-    'Estado',
-    'Fecha Creación',
-    'Creado por',
-    'Fecha Modificación',
-    'Modificado por',
-  ]
+const getFormattedData = (rows, visibleColumns, helpers) => {
+  const headers = visibleColumns.map((column) => column.columnDef.header)
 
-  const data = rows.map((r) => [
-    r.id,
-    r.nombre,
-    r.ubicacion,
-    formatEnum(r.estado),
-    formatDateTime(r.fecha_creacion),
-    r.usuario_creacion || 'N/A',
-    formatDateTime(r.fecha_modificacion),
-    r.usuario_modificacion || 'N/A',
-  ])
+  return {
+    headers,
+    data: rows.map((row) =>
+      visibleColumns.map((column) => {
+        const cellValue = row.original[column.id] ?? 'N/A'
 
-  return { headers, data }
+        // Usar helpers para formatear valores especiales
+        if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+          return helpers.getUsuarioNombre(cellValue)
+        if (column.id.includes('fecha_'))
+          return formatDateTime(cellValue)
+        if (column.id === 'estado')
+          return cellValue === 'ACTIVO' ? 'Activo' : 'Inactivo'
+
+        return truncate(cellValue, 100)
+      })
+    ),
+  }
 }
 
-// ---------- PDF ----------
-export const exportToPDF = (rows) => {
-  const { headers, data } = getFormattedData(rows)
+export const exportToPDF = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+  })
 
-  const doc = new jsPDF({ orientation: 'landscape' })
   doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(15, 40, 77)
   doc.text('Reporte de Data Centers', 14, 15)
 
+  doc.setFontSize(10)
+  doc.setTextColor(100)
+  doc.text(`Generado: ${formatDateTime(new Date())}`, 14, 22)
+
   autoTable(doc, {
-    startY: 25,
-    head: [headers],
-    body: data,
-    styles: { fontSize: 9, cellPadding: 3 },
-    headStyles: {
-      fillColor: [15, 40, 77],
-      textColor: 255,
-      fontStyle: 'bold',
+    head: [
+      headers.map((h) => ({
+        content: h,
+        styles: {
+          fillColor: [15, 40, 77],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+      })),
+    ],
+    body: data.map((row, rowIndex) =>
+      row.map((cell) => ({
+        content: cell,
+        styles: {
+          fillColor: rowIndex % 2 === 0 ? [248, 249, 250] : [255, 255, 255],
+        },
+      }))
+    ),
+    startY: 30,
+    styles: {
+      fontSize: 9,
+      cellPadding: 3,
+      overflow: 'linebreak',
+      font: 'helvetica',
     },
-    alternateRowStyles: { fillColor: [245, 247, 250] },
+    margin: { left: 10, right: 10 },
   })
 
   const pageCount = doc.internal.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
-    doc.setFontSize(9)
+    doc.setFontSize(8)
     doc.text(
       `Página ${i} de ${pageCount}`,
-      doc.internal.pageSize.width - 30,
+      doc.internal.pageSize.width - 25,
       doc.internal.pageSize.height - 10
     )
   }
 
-  doc.save(`datacenters-${new Date().toISOString()}.pdf`)
+  doc.save(`dataCenters${suffix}-${new Date().toISOString().split('T')[0]}.pdf`)
 }
 
-// ---------- Excel ----------
-export const exportToExcel = (rows) => {
-  const { headers, data } = getFormattedData(rows)
-
+export const exportToExcel = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
   const wb = XLSX.utils.book_new()
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
+  const ws = XLSX.utils.aoa_to_sheet([])
 
-  // Estilos encabezado
-  for (let c = 0; c < headers.length; c++) {
-    const cellRef = XLSX.utils.encode_cell({ r: 0, c })
-    ws[cellRef].s = {
-      font: { bold: true, color: { rgb: 'FFFFFF' } },
-      fill: { fgColor: { rgb: '0F284D' } },
-      alignment: { horizontal: 'center' },
-    }
+  const headerStyle = {
+    font: { sz: 12, bold: true, color: { rgb: 'FFFFFF' } },
+    fill: { fgColor: { rgb: '0F284D' } },
+    alignment: { horizontal: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: '000000' } },
+      bottom: { style: 'thin', color: { rgb: '000000' } },
+      left: { style: 'thin', color: { rgb: '000000' } },
+      right: { style: 'thin', color: { rgb: '000000' } },
+    },
   }
 
-  // Estilos filas
-  for (let r = 1; r <= data.length; r++) {
-    for (let c = 0; c < headers.length; c++) {
-      const cellRef = XLSX.utils.encode_cell({ r, c })
-      if (!ws[cellRef]) ws[cellRef] = {}
-      ws[cellRef].s = {
-        fill: {
-          fgColor: { rgb: r % 2 === 0 ? 'F8F9FA' : 'FFFFFF' },
+  XLSX.utils.sheet_add_aoa(ws, [['Reporte de Data Centers']], { origin: 'A1' })
+  XLSX.utils.sheet_add_aoa(
+    ws,
+    [[`Generado: ${formatDateTime(new Date())}`]],
+    { origin: 'A2' }
+  )
+
+  XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A4' })
+  XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A5' })
+
+  const range = XLSX.utils.decode_range(ws['!ref'])
+  for (let C = range.s.c; C <= range.e.c; ++C) {
+    const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
+    ws[headerCell].s = headerStyle
+
+    for (let R = 4; R <= range.e.r; ++R) {
+      const cell = XLSX.utils.encode_cell({ r: R, c: C })
+      if (!ws[cell]) ws[cell] = {}
+      ws[cell].s = {
+        fill: { fgColor: { rgb: R % 2 === 0 ? 'F8F9FA' : 'FFFFFF' } },
+        border: {
+          top: { style: 'thin', color: { rgb: 'DDDDDD' } },
+          bottom: { style: 'thin', color: { rgb: 'DDDDDD' } },
+          left: { style: 'thin', color: { rgb: 'DDDDDD' } },
+          right: { style: 'thin', color: { rgb: 'DDDDDD' } },
         },
       }
     }
   }
 
-  // Tamaño columnas
-  ws['!cols'] = headers.map((h, idx) => ({
-    wch: Math.max(
-      ...data.map((row) => String(row[idx]).length),
-      h.length
-    ) + 4,
+  ws['!cols'] = headers.map((_, col) => ({
+    wch:
+      Math.max(
+        ...data.map((row) => String(row[col]).length),
+        headers[col].length
+      ) + 2,
   }))
 
-  XLSX.utils.book_append_sheet(wb, ws, 'DataCenters')
-  XLSX.writeFile(wb, `datacenters-${new Date().toISOString()}.xlsx`)
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: headers.length - 1 } },
+  ]
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Data Centers')
+  XLSX.writeFile(wb, `dataCenters${suffix}-${new Date().toISOString().split('T')[0]}.xlsx`)
 }
 
-// ---------- CSV ----------
-export const exportToCSV = (rows) => {
-  const { headers, data } = getFormattedData(rows)
-
+export const exportToCSV = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
   const csvContent = [
+    'Reporte de Data Centers',
+    `Generado: ${formatDateTime(new Date())}`,
+    '',
     headers.join(','),
-    ...data.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
+    ...data.map((row) =>
+      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ),
+    '',
+    `*Este archivo fue generado automáticamente el ${formatDateTime(
+      new Date()
+    )}`,
   ].join('\n')
 
-  const blob = new Blob(['\ufeff' + csvContent], {
+  const blob = new Blob(['\ufeff', csvContent], {
     type: 'text/csv;charset=utf-8;',
   })
-
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `datacenters-${new Date().toISOString()}.csv`
+  link.download = `dataCenters${suffix}-${new Date().toISOString().split('T')[0]}.csv`
   link.click()
 }

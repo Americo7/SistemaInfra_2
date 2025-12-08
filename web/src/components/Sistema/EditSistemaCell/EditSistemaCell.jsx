@@ -15,11 +15,16 @@ export const QUERY = gql`
       nombre
       descripcion
       estado
-      ra_creacion
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
+    }
+    sistemas {
+      id
+      nombre
+      estado
+    }
+    entidads {
+      id
+      nombre
+      estado
     }
   }
 `
@@ -50,7 +55,7 @@ export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ sistema }) => {
+export const Success = ({ sistema, sistemas, entidads }) => {
   const [updateSistema, { loading, error }] = useMutation(
     UPDATE_SISTEMA_MUTATION,
     {
@@ -73,9 +78,12 @@ export const Success = ({ sistema }) => {
       <div className="rw-segment-main">
         <SistemaForm
           sistema={sistema}
+          sistemas={sistemas}
+          entidads={entidads}
           onSave={onSave}
-          error={error}
           loading={loading}
+          error={error}
+        />
         />
       </div>
     </div>

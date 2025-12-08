@@ -333,7 +333,8 @@ const DesplieguesList = ({ despliegues, usuarios, parametros }) => {
           >
             <MenuItem
               onClick={() => {
-                exportToPDF(table.getPrePaginationRowModel().rows, table, helpers)
+                const visibleColumns = table.getVisibleLeafColumns().filter((c) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(c.id))
+                exportToPDF(table.getPrePaginationRowModel().rows, visibleColumns, helpers, '-todos')
                 setExportMenu({ ...exportMenu, all: null })
               }}
             >

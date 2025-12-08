@@ -8,10 +8,16 @@ export const QUERY = gql`
       sigla
       nombre
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
     }
   }
 `

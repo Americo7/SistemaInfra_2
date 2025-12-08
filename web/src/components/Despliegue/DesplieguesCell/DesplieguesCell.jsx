@@ -1,5 +1,7 @@
 import { Link, routes } from '@redwoodjs/router'
-import Despliegues from 'src/components/Despliegue/Despliegues'
+import { gql } from '@redwoodjs/web'
+// Importación con ruta absoluta
+import Despliegues from 'src/components/Despliegue/Despliegues/Despliegues'
 
 export const QUERY = gql`
   query FindDespliegues {
@@ -11,61 +13,34 @@ export const QUERY = gql`
       descripcion
       fecha_despliegue
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
       fecha_solicitud
       unidad_solicitante
       solicitante
       cod_tipo_respaldo
       referencia_respaldo
       estado_despliegue
-
-      componentes {
+      creadoPor {
         id
-        nombre
-        sistemas {
-          id
-          nombre
-        }
+        nombres
+        primer_apellido
       }
-
-      maquinas {
+      modificadoPor {
         id
-        nombre
-        servidores {
-          id
-          nombre
-          cod_tipo_servidor
-          id_padre
-        }
+        nombres
+        primer_apellido
       }
-
-      servidores {
+      tipoRespaldoInfo {
         id
+        codigo
         nombre
-        cod_tipo_servidor
-        id_padre
       }
-
-      despliegue_bitacora {
+      estadoDespliegueInfo {
         id
-        estado_anterior
-        estado_actual
-        descripcion
-        fecha_creacion
+        codigo
+        nombre
       }
     }
-
-    usuarios: usuarios {
-      id
-      nombres
-      primer_apellido
-      segundo_apellido
-    }
-
-    parametros {
+    parametrosFormularioDespliegue {
       id
       codigo
       nombre
@@ -74,33 +49,21 @@ export const QUERY = gql`
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando despliegues...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No despliegues yet. '}
-      <Link to={routes.newDespliegue()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    No existen despliegues registrados.{' '}
+    <Link to={routes.newDespliegue()} className="rw-link">
+      Crear uno nuevo
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({
-  despliegues,
-  usuarios,
-  parametros,
-}) => {
-  return (
-    <Despliegues
-      despliegues={despliegues}
-      usuarios={usuarios}
-      parametros={parametros}
-    />
-  )
+export const Success = ({ despliegues, parametrosFormularioDespliegue }) => {
+  return <Despliegues despliegues={despliegues} parametros={parametrosFormularioDespliegue} />
 }

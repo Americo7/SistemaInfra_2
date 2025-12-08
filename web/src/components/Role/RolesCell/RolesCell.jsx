@@ -1,6 +1,6 @@
 import { Link, routes } from '@redwoodjs/router'
-
-import Roles from 'src/components/Role/Roles'
+import { gql } from '@redwoodjs/web'
+import Roles from 'src/components/Role/Roles/Roles'
 
 export const QUERY = gql`
   query FindRoles {
@@ -14,27 +14,46 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      tipoRolInfo {
+        id
+        codigo
+        nombre
+      }
+    }
+    parametrosFormularioRole {
+      id
+      codigo
+      nombre
+      grupo
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando roles...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No roles yet. '}
-      <Link to={routes.newRole()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    No existen roles registrados.{' '}
+    <Link to={routes.newRole()} className="rw-link">
+      Crear uno nuevo
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ roles }) => {
-  return <Roles roles={roles} />
+export const Success = ({ roles, parametrosFormularioRole }) => {
+  return <Roles roles={roles} parametros={parametrosFormularioRole} />
 }

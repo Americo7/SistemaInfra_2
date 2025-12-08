@@ -1,5 +1,5 @@
 import { Link, routes } from '@redwoodjs/router'
-
+import { gql } from '@redwoodjs/web'
 import ClusterNodos from 'src/components/ClusterNodo/ClusterNodos'
 
 export const QUERY = gql`
@@ -19,35 +19,56 @@ export const QUERY = gql`
       fecha_modificacion
       usuario_modificacion
       cluster {
+        id
         nombre
       }
       maquina {
+        id
         nombre
       }
       servidor {
+        id
+        nombre
+      }
+      # Información de usuario para mostrar nombres en lugar de IDs
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
+      # Información del Rol para mostrar nombre (Label) en vez del código
+      rolInfo {
+        id
+        codigo
         nombre
       }
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando nodos del cluster...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      No clusterNodos yet.{' '}
-      <Link to={routes.newClusterNodo()} className="rw-link">
-        Create one?
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    No existen nodos de cluster registrados.{' '}
+    <Link to={routes.newClusterNodo()} className="rw-link">
+      Crear uno nuevo
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
 export const Success = ({ clusterNodos }) => {
+  // Ya no pasamos 'parametros' aquí
   return <ClusterNodos clusterNodos={clusterNodos} />
 }

@@ -1,42 +1,68 @@
+import { useQuery, gql } from '@redwoodjs/web'
 import Servidor from 'src/components/Servidor/Servidor'
 
-// QUERY DE DETALLE: Profunda.
-// Aquí pedimos TODO porque estamos viendo un solo registro.
 export const QUERY = gql`
   query FindServidorById($id: Int!) {
     servidor(id: $id) {
+      # --- 1. DATOS GENERALES ---
       id
       nombre
       cod_inventario_agetic
-      cod_tipo_servidor
       serie
       marca
       modelo
+      identity_key
+      estado
+
+      # --- 2. ESPECIFICACIONES TÉCNICAS ---
       ram
       almacenamiento
       ip_primaria
       sistema_operativo
+      
+      # --- 3. CLASIFICACIÓN (Códigos + Info Legible) ---
+      cod_tipo_servidor
+      tipoServidorInfo {
+        nombre
+      }
+      
       estado_operativo
-      estado
-      usuario_creacion
-      fecha_creacion
-      usuario_modificacion
-      fecha_modificacion
+      estadoOperativoInfo {
+        nombre
+        codigo
+      }
+
+      # --- 4. UBICACIÓN Y JERARQUÍA ---
       id_data_center
-      identity_key
       data_centers {
         id
         nombre
       }
-
+      
       servidores_padre {
         id
         nombre
       }
-      servidores_hijos {
+
+      # --- 5. AUDITORÍA ---
+      fecha_creacion
+      fecha_modificacion
+      creadoPor {
         id
-        nombre
+        nombres
+        primer_apellido
+        segundo_apellido
       }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
+
+      # --- 6. RELACIONES HIJAS (Listas) ---
+      
+      # Máquinas Virtuales
       maquinas {
         id
         nombre
@@ -49,17 +75,10 @@ export const QUERY = gql`
         estado_operativo
       }
 
-      despliegue {
-        id
-        estado_despliegue
-        fecha_despliegue
-        componentes {
-          nombre
-        }
-      }
-
+      # Participación en Clusters
       cluster_nodos {
         id
+        nombre    # Agregado: Importante para identificar el nodo
         nodoTipo
         rol
         estado
@@ -70,8 +89,21 @@ export const QUERY = gql`
         }
       }
 
+      # Despliegues de Sistemas
+      despliegue {
+        id
+        estado_despliegue
+        fecha_despliegue
+        componentes {
+          id
+          nombre
+        }
+      }
+
+      # Historial de Incidentes
       infra_afectada {
         id
+        estado
         eventos {
           id
           cod_tipo_evento
@@ -85,12 +117,14 @@ export const QUERY = gql`
   }
 `
 
-export const Loading = () => <div>Cargando detalles del servidor...</div>
+export const Loading = () => <div>Cargando detalle del servidor...</div>
 
-export const Empty = () => <div>Servidor no encontrado</div>
+export const Empty = () => <div>No se encontró el servidor solicitado.</div>
 
 export const Failure = ({ error }) => (
-  <div className="rw-cell-error">Error: {error?.message}</div>
+  <div className="rw-cell-error" style={{ color: '#d32f2f' }}>
+    Error al cargar servidor: {error?.message}
+  </div>
 )
 
 export const Success = ({ servidor }) => {

@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx-js-style'
 const formatDate = (value) => {
   if (!value) return '-'
   try {
-    return new Date(value).toLocaleDateString('es-BO', {
+    return new Date(value).toLocaleString('es-BO', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -17,26 +17,37 @@ const formatDate = (value) => {
   }
 }
 
-export const exportToPDF = (rows, table, helpers) => {
-  const visibleCols = table
-    .getVisibleLeafColumns()
-    .filter((c) => c.id !== 'mrt-row-actions' && c.id !== 'mrt-row-select')
+const truncate = (text, length = 100) => {
+  if (!text) return '-'
+  return text.length > length ? text.substring(0, length) + '...' : text
+}
 
-  const headers = visibleCols.map((c) => c.columnDef.header)
+const getFormattedData = (rows, visibleColumns, helpers) => {
+  const headers = visibleColumns.map((column) => column.columnDef.header)
 
-  const data = rows.map((row) =>
-    visibleCols.map((col) => {
-      const value = row.original[col.id]
+  return {
+    headers,
+    data: rows.map((row) =>
+      visibleColumns.map((column) => {
+        const cellValue = row.original[column.id] ?? '-'
 
-      if (col.id.includes('fecha_')) return formatDate(value)
-      if (['usuario_creacion', 'usuario_modificacion'].includes(col.id))
-        return helpers.getNombreUsuario(value)
-      if (col.id === 'estado')
-        return value === 'ACTIVO' ? 'Activo' : 'Inactivo'
+        if (column.id === 'cod_tipo_cluster')
+          return helpers.getNombreTipoCluster(cellValue)
+        if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+          return helpers.getUsuarioNombre(cellValue)
+        if (column.id.includes('fecha_'))
+          return formatDate(cellValue)
+        if (column.id === 'estado')
+          return cellValue === 'ACTIVO' ? 'Activo' : 'Inactivo'
 
-      return value ?? '-'
-    })
-  )
+        return truncate(cellValue, 100)
+      })
+    ),
+  }
+}
+
+export const exportToPDF = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
 
   const doc = new jsPDF({
     orientation: 'landscape',
@@ -92,29 +103,11 @@ export const exportToPDF = (rows, table, helpers) => {
     )
   }
 
-  doc.save(`clusters-${new Date().toISOString()}.pdf`)
+  doc.save(`clusters${suffix}-${new Date().toISOString().split('T')[0]}.pdf`)
 }
 
-export const exportToExcel = (rows, table, helpers) => {
-  const visibleCols = table
-    .getVisibleLeafColumns()
-    .filter((c) => c.id !== 'mrt-row-actions' && c.id !== 'mrt-row-select')
-
-  const headers = visibleCols.map((c) => c.columnDef.header)
-
-  const data = rows.map((row) =>
-    visibleCols.map((col) => {
-      const value = row.original[col.id]
-
-      if (col.id.includes('fecha_')) return formatDate(value)
-      if (['usuario_creacion', 'usuario_modificacion'].includes(col.id))
-        return helpers.getNombreUsuario(value)
-      if (col.id === 'estado')
-        return value === 'ACTIVO' ? 'Activo' : 'Inactivo'
-
-      return value ?? '-'
-    })
-  )
+export const exportToExcel = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
 
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet([])
@@ -168,29 +161,11 @@ export const exportToExcel = (rows, table, helpers) => {
   ]
 
   XLSX.utils.book_append_sheet(wb, ws, 'Clusters')
-  XLSX.writeFile(wb, `clusters-${new Date().toISOString()}.xlsx`)
+  XLSX.writeFile(wb, `clusters${suffix}-${new Date().toISOString().split('T')[0]}.xlsx`)
 }
 
-export const exportToCSV = (rows, table, helpers) => {
-  const visibleCols = table
-    .getVisibleLeafColumns()
-    .filter((c) => c.id !== 'mrt-row-actions' && c.id !== 'mrt-row-select')
-
-  const headers = visibleCols.map((c) => c.columnDef.header)
-
-  const data = rows.map((row) =>
-    visibleCols.map((col) => {
-      const value = row.original[col.id]
-
-      if (col.id.includes('fecha_')) return formatDate(value)
-      if (['usuario_creacion', 'usuario_modificacion'].includes(col.id))
-        return helpers.getNombreUsuario(value)
-      if (col.id === 'estado')
-        return value === 'ACTIVO' ? 'Activo' : 'Inactivo'
-
-      return value ?? '-'
-    })
-  )
+export const exportToCSV = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
 
   const csv = [
     'Reporte de Clusters',
@@ -205,6 +180,6 @@ export const exportToCSV = (rows, table, helpers) => {
   const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `clusters-${new Date().toISOString()}.csv`
+  link.download = `clusters${suffix}-${new Date().toISOString().split('T')[0]}.csv`
   link.click()
 }

@@ -1,6 +1,5 @@
 import { navigate, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
-
+import { useMutation, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import ClusterForm from 'src/components/Cluster/ClusterForm'
@@ -18,7 +17,7 @@ const NewCluster = () => {
     CREATE_CLUSTER_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Cluster created')
+        toast.success('Cluster creado exitosamente')
         navigate(routes.clusters())
       },
       onError: (error) => {
@@ -34,10 +33,14 @@ const NewCluster = () => {
   return (
     <div className="rw-segment">
       <div className="rw-segment-main">
+        {/* IMPORTANTE: No pasamos props de datos (endpoints/parámetros) 
+           porque ClusterForm ya usa useQuery internamente para obtenerlos.
+        */}
         <ClusterForm onSave={onSave} loading={loading} error={error} />
       </div>
     </div>
   )
 }
 
+// ESTA LÍNEA ES LA QUE TE FALTA Y CAUSA EL ERROR
 export default NewCluster

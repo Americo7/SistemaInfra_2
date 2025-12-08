@@ -1,6 +1,7 @@
 import { Link, routes } from '@redwoodjs/router'
-
-import Usuarios from 'src/components/Usuario/Usuarios'
+import { gql } from '@redwoodjs/web'
+// Usamos ruta absoluta para evitar conflictos de importación
+import Usuarios from 'src/components/Usuario/Usuarios/Usuarios'
 
 export const QUERY = gql`
   query FindUsuarios {
@@ -8,7 +9,6 @@ export const QUERY = gql`
       id
       id_ciudadano_digital
       nombre_usuario
-      contrasena
       nro_documento
       nombres
       primer_apellido
@@ -16,26 +16,30 @@ export const QUERY = gql`
       celular
       email
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando usuarios...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No usuarios yet. '}
-      <Link to={routes.newUsuario()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    No existen usuarios registrados.{' '}
+    <Link to={routes.newUsuario()} className="rw-link">
+      Crear uno nuevo
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

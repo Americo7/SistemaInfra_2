@@ -1,7 +1,10 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 export const usuarioRols = () => {
-  return db.usuarioRol.findMany()
+  return db.usuarioRol.findMany({
+    orderBy: { id: 'desc' },
+  })
 }
 
 export const usuarioRol = ({ id }) => {
@@ -10,7 +13,9 @@ export const usuarioRol = ({ id }) => {
   })
 }
 
-export const createUsuarioRol = ({ input }) => {
+export const createUsuarioRol = async ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.usuarioRol.create({
     data: {
       id_usuario: input.id_usuario,
@@ -18,13 +23,15 @@ export const createUsuarioRol = ({ input }) => {
       id_maquina: input.id_maquina,
       id_sistema: input.id_sistema,
       estado: input.estado,
+      usuario_creacion: currentUserId,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
     },
   })
 }
 
-export const updateUsuarioRol = ({ id, input }) => {
+export const updateUsuarioRol = async ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.usuarioRol.update({
     data: {
       id_usuario: input.id_usuario,
@@ -32,8 +39,8 @@ export const updateUsuarioRol = ({ id, input }) => {
       id_maquina: input.id_maquina,
       id_sistema: input.id_sistema,
       estado: input.estado,
+      usuario_modificacion: currentUserId,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })
@@ -58,4 +65,19 @@ export const UsuarioRol = {
   usuarios: (_obj, { root }) => {
     return db.usuarioRol.findUnique({ where: { id: root?.id } }).usuarios()
   },
+
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+}
+
+export const Query = {
+  usuarioRols,
+  usuarioRol,
 }

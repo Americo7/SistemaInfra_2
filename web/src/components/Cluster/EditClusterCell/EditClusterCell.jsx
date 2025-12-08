@@ -1,48 +1,19 @@
 import { navigate, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import ClusterForm from 'src/components/Cluster/ClusterForm'
 
 export const QUERY = gql`
   query EditClusterById($id: Int!) {
+    # 1. Datos del Cluster
     cluster: cluster(id: $id) {
       id
       nombre
-      cod_tipo_cluster
       descripcion
+      cod_tipo_cluster
+      identity_key
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
-      id_proxmox_endpoint
-      id_k8s_endpoint
-      proxmox_endpoint {
-        id
-        nombre
-        ip
-        dominio
-      }
-      k8s_endpoint {
-        id
-        nombre
-        url_api
-      }
-    }
-
-    # Endpoints disponibles para seleccionar
-    proxmoxEndpoints: proxmoxEndpoints {
-      id
-      nombre
-      ip
-      dominio
-    }
-
-    k8SEndpoints: k8SEndpoints {
-      id
-      nombre
-      url_api
     }
   }
 `
@@ -52,37 +23,18 @@ const UPDATE_CLUSTER_MUTATION = gql`
     updateCluster(id: $id, input: $input) {
       id
       nombre
-      cod_tipo_cluster
-      descripcion
-      estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
-
-      id_proxmox_endpoint
-      id_k8s_endpoint
-
-      proxmox_endpoint {
-        id
-        nombre
-      }
-
-      k8s_endpoint {
-        id
-        nombre
-      }
+      identity_key
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando formulario...</div>
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ cluster, proxmoxEndpoints, k8sEndpoints }) => {
+export const Success = ({ cluster, parametros }) => {
   const [updateCluster, { loading, error }] = useMutation(
     UPDATE_CLUSTER_MUTATION,
     {
@@ -101,10 +53,10 @@ export const Success = ({ cluster, proxmoxEndpoints, k8sEndpoints }) => {
   return (
     <div className="rw-segment">
       <div className="rw-segment-main">
+        {/* Pasamos el cluster y los parámetros al formulario */}
         <ClusterForm
           cluster={cluster}
-          proxmoxEndpoints={proxmoxEndpoints}
-          k8sEndpoints={k8sEndpoints}
+          parametros={parametros}
           onSave={onSave}
           error={error}
           loading={loading}

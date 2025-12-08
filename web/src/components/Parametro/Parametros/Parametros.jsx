@@ -1,10 +1,19 @@
 import React, { useState, useMemo } from 'react'
+import { Link, routes } from '@redwoodjs/router'
+import { useMutation, gql } from '@redwoodjs/web'
+import { toast } from '@redwoodjs/web/toast'
+import { useTheme } from '@mui/material/styles'
+
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
+
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
-  FileDownload as FileDownloadIcon,
+  Settings as ParamIcon, // Icono sugerido para parámetros
+  DeleteForever as HardDeleteIcon,
+  PowerOff as SoftDeleteIcon,
 } from '@mui/icons-material'
+
 import {
   Box,
   Button,
@@ -15,40 +24,21 @@ import {
   DialogActions,
   IconButton,
   Tooltip,
-  Typography,
   Menu,
   MenuItem,
-  Switch,
-  FormControlLabel,
-  useTheme,
+  Stack,
+  ListItemIcon,
+  ListItemText,
+  Typography,
 } from '@mui/material'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
-import * as XLSX from 'xlsx-js-style'
+import { format, parseISO } from 'date-fns'
+import { es } from 'date-fns/locale'
 
-import { alpha } from '@mui/material/styles';
-
-import { Link, routes } from '@redwoodjs/router'
-import { useMutation, useQuery } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
-
-import { QUERY } from 'src/components/Parametro/ParametrosCell'
-import { formatEnum, truncate } from 'src/lib/formatters'
-
-const DELETE_PARAMETRO_MUTATION = gql`
-  mutation DeleteParametroMutation($id: Int!) {
-    deleteParametro(id: $id) {
-      id
-    }
-  }
-`
-
+// --- GRAPHQL ---
 const UPDATE_PARAMETRO_MUTATION = gql`
-  mutation UpdateParametroMutationFromParametroList(
-    $id: Int!
-    $input: UpdateParametroInput!
-  ) {
+  mutation UpdateParametro($id: Int!, $input: UpdateParametroInput!) {
     updateParametro(id: $id, input: $input) {
       id
       estado
@@ -56,682 +46,351 @@ const UPDATE_PARAMETRO_MUTATION = gql`
   }
 `
 
-const USUARIOS_QUERY = gql`
-  query UsuariosQuery {
-    usuarios {
+const DELETE_PARAMETRO_MUTATION = gql`
+  mutation DeleteParametro($id: Int!) {
+    deleteParametro(id: $id) {
       id
-      nombres
-      primer_apellido
-      segundo_apellido
     }
   }
 `
 
-const formatDateTime = (dateString) => {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleString('es-ES', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+const QUERY_REFETCH = gql`
+  query FindParametrosRefetch {
+    parametros {
+      id
+      estado
+    }
+  }
+`
 
-const ParametrosList = ({ parametros = [] }) => {
+const Parametros = ({ parametros, usuarios }) => {
   const theme = useTheme()
-  const [deleteState, setDeleteState] = useState({ open: false, id: null })
-  const [exportMenuAnchor, setExportMenuAnchor] = useState({
-    all: null,
-    page: null,
-    selection: null,
-  })
-  const [showInactive, setShowInactive] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
+  
+  // Estados de UI
+  const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, action: null })
+  const [actionMenu, setActionMenu] = useState({ anchorEl: null, row: null })
 
-  // Fetch usuarios data
-  const { data: usuariosData } = useQuery(USUARIOS_QUERY)
-  const usuarios = usuariosData?.usuarios || []
+  // --- MUTACIONES ---
+  const [updateParametro] = useMutation(UPDATE_PARAMETRO_MUTATION, {
+    onError: (error) => toast.error(error.message),
+    refetchQueries: [{ query: QUERY_REFETCH }],
+  })
 
   const [deleteParametro] = useMutation(DELETE_PARAMETRO_MUTATION, {
-    onCompleted: () => {
-      toast.success('Parámetro eliminado correctamente')
-      setDeleteState({ open: false, id: null })
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-    refetchQueries: [{ query: QUERY }],
-    awaitRefetchQueries: true,
+    onError: (error) => toast.error(error.message),
+    onCompleted: () => toast.success('Registro eliminado permanentemente.'),
+    refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  const [updateParametro] = useMutation(UPDATE_PARAMETRO_MUTATION, {
-    onCompleted: () => {
-      toast.success('Estado del parámetro actualizado correctamente')
-      setDeleteState({ open: false, id: null })
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-    refetchQueries: [{ query: QUERY }],
-    awaitRefetchQueries: true,
-  })
-
-  // Function to get full user name
-  const getNombreUsuario = (id) => {
-    if (!id) return 'N/A'
-    const usuario = usuarios.find(u => u.id === id)
-    return usuario
-      ? `${usuario.nombres} ${usuario.primer_apellido} ${usuario.segundo_apellido || ''}`.trim()
-      : 'N/A'
+  const closeAllDialogs = () => {
+    setBulkMenuAnchorEl(null)
+    setActionMenu({ anchorEl: null, row: null })
   }
 
-  const desactivarParametro = (id) => {
-    updateParametro({
-      variables: {
-        id: id,
-        input: {
-          estado: 'INACTIVO',
-          fecha_modificacion: new Date().toISOString(),
-        },
-      },
+  // --- HANDLERS ACCIONES MASIVAS ---
+  const handleSoftDelete = (rows) => {
+    rows.forEach((row) => {
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      updateParametro({
+        variables: { id: row.id, input: { estado: newState, usuario_modificacion: 1 } },
+      })
     })
+    
+    toast.success(`${rows.length} registros ${showDeleted ? 'reactivados' : 'desactivados'}.`)
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
   }
 
-  const eliminarParametro = (id) => {
-    deleteParametro({ variables: { id } })
+  const handleHardDelete = (rows) => {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} parámetro(s)?\n\nEsta acción no se puede deshacer.`)) {
+        closeAllDialogs()
+        return
+    }
+
+    rows.forEach((row) => {
+      deleteParametro({ variables: { id: row.id } })
+    })
+    
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
   }
 
-  const getFormattedData = (rows, table) => {
-    const visibleColumns = table
-      .getVisibleLeafColumns()
-      .filter(
-        (column) =>
-          column.id !== 'mrt-row-actions' && column.id !== 'mrt-row-select'
-      )
-
-    const headers = visibleColumns.map((column) => column.columnDef.header)
-
-    return {
-      headers,
-      data: rows.map((row) =>
-        visibleColumns.map((column) => {
-          const cellValue = row.original[column.id]
-
-          if (column.id.includes('fecha_')) return formatDateTime(cellValue)
-          if (column.id === 'estado') return formatEnum(cellValue)
-          if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
-            return getNombreUsuario(cellValue)
-          return cellValue ? String(cellValue) : 'N/A'
+  // --- HANDLERS ACCIONES INDIVIDUALES ---
+  const confirmarAccionIndividual = () => {
+    if (deleteDialog.action === 'desactivar') {
+        const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+        updateParametro({
+            variables: { 
+                id: deleteDialog.id, 
+                input: { estado: newState, usuario_modificacion: 1 } 
+            },
         })
-      ),
+        toast.success(`Parámetro ${showDeleted ? 'reactivado' : 'desactivado'}`)
+    } else if (deleteDialog.action === 'eliminar') {
+        deleteParametro({ variables: { id: deleteDialog.id } })
+    }
+    setDeleteDialog({ open: false, id: null, action: null })
+  }
+
+  // --- HELPERS ---
+  const usuariosMap = useMemo(() => {
+    return (usuarios || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
+  }, [usuarios])
+
+  const helpers = {
+    getUsuarioNombre: (id) => usuariosMap[id] || `ID: ${id}`,
+    formatDate: (value) => {
+        if (!value) return '-'
+        try { return format(parseISO(value), 'dd/MM/yyyy HH:mm', { locale: es }) } catch { return '-' }
     }
   }
 
-  const exportToPDF = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-    })
+  // --- DATOS ---
+  const filteredData = useMemo(() => {
+    if (!parametros) return []
+    return parametros.filter((item) =>
+      showDeleted ? item.estado === 'INACTIVO' : item.estado === 'ACTIVO'
+    )
+  }, [parametros, showDeleted])
 
-    doc.setFontSize(16)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(15, 40, 77)
-    doc.text('Reporte de Parámetros', 14, 15)
-
-    doc.setFontSize(10)
-    doc.setTextColor(100)
-    doc.text(`Generado: ${formatDateTime(new Date())}`, 14, 22)
-
-    autoTable(doc, {
-      head: [
-        headers.map((h) => ({
-          content: h,
-          styles: {
-            fillColor: theme.palette.primary.main,
-            textColor: 255,
-            fontStyle: 'bold',
-          },
-        })),
-      ],
-      body: data.map((row, rowIndex) =>
-        row.map((cell) => ({
-          content: cell,
-          styles: {
-            fillColor: rowIndex % 2 === 0 ? [248, 249, 250] : [255, 255, 255],
-          },
-        }))
-      ),
-      startY: 30,
-      styles: {
-        fontSize: 9,
-        cellPadding: 3,
-        overflow: 'linebreak',
-        font: 'helvetica',
-      },
-      margin: { left: 10, right: 10 },
-    })
-
-    const pageCount = doc.internal.getNumberOfPages()
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-      doc.setFontSize(8)
-      doc.text(
-        `Página ${i} de ${pageCount}`,
-        doc.internal.pageSize.width - 25,
-        doc.internal.pageSize.height - 10
-      )
-    }
-
-    doc.save(`parametros-${new Date().toISOString()}.pdf`)
-  }
-
-  const exportToExcel = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...data])
-
-    // Convert primary color to RGB
-    const primaryColorRgb = theme.palette.primary.main.startsWith('#')
-      ? hexToRgb(theme.palette.primary.main)
-      : { r: 57, g: 73, b: 171 } // default to #3949AB if not hex
-
-    // Estilos para el encabezado
-    const headerStyle = {
-      fill: {
-        fgColor: {
-          rgb: `${primaryColorRgb.r.toString(16).padStart(2, '0')}${primaryColorRgb.g.toString(16).padStart(2, '0')}${primaryColorRgb.b.toString(16).padStart(2, '0')}`
-        }
-      },
-      font: { color: { rgb: "FFFFFF" }, bold: true },
-      alignment: { horizontal: "center" },
-      border: {
-        top: { style: "thin", color: { rgb: "000000" } },
-        bottom: { style: "thin", color: { rgb: "000000" } },
-        left: { style: "thin", color: { rgb: "000000" } },
-        right: { style: "thin", color: { rgb: "000000" } },
-      },
-    }
-
-    // Aplicar estilos al encabezado
-    for (let i = 0; i < headers.length; i++) {
-      const cellRef = XLSX.utils.encode_cell({ r: 0, c: i })
-      ws[cellRef].s = headerStyle
-    }
-
-    // Aplicar estilos a las filas
-    for (let r = 1; r <= data.length; r++) {
-      for (let c = 0; c < headers.length; c++) {
-        const cellRef = XLSX.utils.encode_cell({ r, c })
-        ws[cellRef].s = {
-          fill: { fgColor: { rgb: r % 2 === 0 ? "F8F9FA" : "FFFFFF" } },
-          alignment: { wrapText: true },
-        }
-      }
-    }
-
-    // Ajustar ancho de columnas
-    ws['!cols'] = headers.map(() => ({ width: 20 }))
-
-    XLSX.utils.book_append_sheet(wb, ws, "Parámetros")
-    XLSX.writeFile(wb, `parametros-${new Date().toISOString()}.xlsx`)
-  }
-
-  // Helper function to convert hex to RGB
-  const hexToRgb = (hex) => {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : null
-  }
-
-  const exportToCSV = (rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    ].join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `parametros-${new Date().toISOString()}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  const filteredParametros = useMemo(() => {
-    if (showInactive) {
-      return parametros
-    }
-    return parametros.filter((parametro) => parametro.estado === 'ACTIVO')
-  }, [parametros, showInactive])
-
-  const columns = useMemo(
-    () => [
-      { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'codigo', header: 'Código', size: 100 },
-      { accessorKey: 'nombre', header: 'Nombre', size: 200 },
-      { accessorKey: 'grupo', header: 'Grupo', size: 120 },
-      { accessorKey: 'descripcion', header: 'Descripción', size: 200 },
-      {
-        accessorKey: 'estado',
-        header: 'Estado',
-        size: 100,
+  // --- COLUMNAS ---
+  const columns = useMemo(() => [
+    { accessorKey: 'id', header: 'ID', size: 60 },
+    { accessorKey: 'codigo', header: 'Código', size: 100 },
+    { 
+        accessorKey: 'nombre', 
+        header: 'Nombre', 
+        size: 200,
         Cell: ({ row }) => (
-          <Chip
-            label={formatEnum(row.original.estado)}
-            color={row.original.estado === 'ACTIVO' ? 'success' : 'error'}
-            size="small"
-            sx={{ borderRadius: 1 }}
-          />
-        ),
-      },
-      {
-        accessorKey: 'fecha_creacion',
-        header: 'Fecha Creación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_creacion',
-        header: 'Usuario Creación',
-        size: 180,
-        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
-      },
-      {
-        accessorKey: 'fecha_modificacion',
-        header: 'Fecha Modificación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_modificacion',
-        header: 'Usuario Modificación',
-        size: 180,
-        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
-      },
-    ],
-    [usuarios]
-  )
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <ParamIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+              <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+                {row.original.nombre}
+              </Typography>
+            </Box>
+        )
+    },
+    { accessorKey: 'grupo', header: 'Grupo', size: 120 },
+    { accessorKey: 'descripcion', header: 'Descripción', size: 250 },
+    {
+      accessorKey: 'estado',
+      header: 'Estado',
+      size: 100,
+      Cell: ({ cell }) => (
+        <Chip 
+            label={cell.getValue()} 
+            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
+            size="small" 
+            variant="outlined" 
+            sx={{ fontSize: '0.7rem' }}
+        />
+      ),
+    },
+    { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => helpers.formatDate(cell.getValue()) },
+    { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+    { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => helpers.formatDate(cell.getValue()) },
+    { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+  ], [usuariosMap])
 
+  // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
     columns,
-    data: filteredParametros,
+    data: filteredData,
     enableRowActions: true,
     enableRowSelection: true,
-    enableMultiRowSelection: true,
-    getRowId: (row) => row.id.toString(),
-    muiTableBodyRowProps: ({ row }) => ({
-      onClick: row.getToggleSelectedHandler(),
-      sx: {
-        cursor: 'pointer',
-        backgroundColor: row.getIsSelected()
-          ? alpha(theme.palette.primary.main, 0.1)
-          : undefined,
-      },
-    }),
-
+    enableGlobalFilter: true,
+    enableRowVirtualization: true,
+    rowVirtualizerOptions: { overscan: 5 },
     initialState: {
-      showGlobalFilter: true,
-      columnVisibility: {
-        fecha_modificacion: false,
-        usuario_modificacion: false,
-      },
       density: 'compact',
-    },
-    renderRowActions: ({ row }) => (
-      <Box sx={{ display: 'flex', gap: '8px' }}>
-        <Tooltip title="Ver detalles">
-          <IconButton
-            component={Link}
-            to={routes.parametro({ id: row.original.id })}
-            sx={{
-              color: theme.palette.primary.main,
-              '&:hover': {
-                backgroundColor: alpha(theme.palette.primary.main, 0.1),
-              },
-            }}
-          >
-            <VisibilityIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Editar">
-          <IconButton
-            component={Link}
-            to={routes.editParametro({ id: row.original.id })}
-            sx={{
-              color: theme.palette.primary.main,
-              '&:hover': {
-                backgroundColor: alpha(theme.palette.primary.main, 0.1),
-              },
-            }}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        {row.original.estado === 'ACTIVO' ? (
-          <Tooltip title="Desactivar">
-            <IconButton
-              onClick={() =>
-                setDeleteState({ open: true, id: row.original.id, action: 'desactivar' })
-              }
-              sx={{
-                color: theme.palette.error.main,
-                '&:hover': {
-                  backgroundColor: alpha(theme.palette.error.main, 0.1),
-                },
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ) : (
-          <Tooltip title="Eliminar permanentemente">
-            <IconButton
-              onClick={() =>
-                setDeleteState({ open: true, id: row.original.id, action: 'eliminar' })
-              }
-              sx={{
-                color: theme.palette.error.main,
-                '&:hover': {
-                  backgroundColor: alpha(theme.palette.error.main, 0.1),
-                },
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        )}
-      </Box>
-    ),
-    renderTopToolbarCustomActions: ({ table }) => {
-      const selectedRows = table.getSelectedRowModel().rows
-      const hasSelection = selectedRows.length > 0
-
-      return (
-        <Box
-          sx={{
-            display: 'flex',
-            gap: '16px',
-            p: '8px',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
-          <FormControlLabel
-            control={
-              <Switch
-                checked={showInactive}
-                onChange={(e) => setShowInactive(e.target.checked)}
-                size="small"
-                color="primary"
-              />
-            }
-            label="Mostrar inactivos"
-          />
-
-          <Button
-            disabled={table.getPrePaginationRowModel().rows.length === 0}
-            onClick={(e) =>
-              setExportMenuAnchor({ ...exportMenuAnchor, all: e.currentTarget })
-            }
-            startIcon={<FileDownloadIcon />}
-            variant="contained"
-            size="small"
-            sx={{
-              backgroundColor: theme.palette.primary.main,
-              '&:hover': {
-                backgroundColor: theme.palette.primary.dark,
-                boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-              },
-            }}
-          >
-            Exportar Todos
-          </Button>
-          <Menu
-            anchorEl={exportMenuAnchor.all}
-            open={Boolean(exportMenuAnchor.all)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-            }
-            PaperProps={{
-              elevation: 1,
-              sx: {
-                borderRadius: 2,
-                minWidth: 180,
-              },
-            }}
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(table.getPrePaginationRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToExcel(table.getPrePaginationRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToCSV(table.getPrePaginationRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          <Button
-            disabled={table.getRowModel().rows.length === 0}
-            onClick={(e) =>
-              setExportMenuAnchor({
-                ...exportMenuAnchor,
-                page: e.currentTarget,
-              })
-            }
-            startIcon={<FileDownloadIcon />}
-            variant="contained"
-            size="small"
-            sx={{
-              backgroundColor: theme.palette.primary.main,
-              '&:hover': {
-                backgroundColor: theme.palette.primary.dark,
-                boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-              },
-            }}
-          >
-            Exportar Página
-          </Button>
-          <Menu
-            anchorEl={exportMenuAnchor.page}
-            open={Boolean(exportMenuAnchor.page)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-            }
-            PaperProps={{
-              elevation: 1,
-              sx: {
-                borderRadius: 2,
-                minWidth: 180,
-              },
-            }}
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(table.getRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToExcel(table.getRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToCSV(table.getRowModel().rows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, page: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          <Button
-            disabled={!hasSelection}
-            onClick={(e) =>
-              setExportMenuAnchor({
-                ...exportMenuAnchor,
-                selection: e.currentTarget,
-              })
-            }
-            startIcon={<FileDownloadIcon />}
-            variant="contained"
-            size="small"
-            sx={{
-              backgroundColor: theme.palette.primary.main,
-              '&:hover': {
-                backgroundColor: theme.palette.primary.dark,
-                boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-              },
-            }}
-          >
-            Exportar Selección ({hasSelection ? selectedRows.length : 0})
-          </Button>
-          <Menu
-            anchorEl={exportMenuAnchor.selection}
-            open={Boolean(exportMenuAnchor.selection)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-            }
-            PaperProps={{
-              elevation: 1,
-              sx: {
-                borderRadius: 2,
-                minWidth: 180,
-              },
-            }}
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(selectedRows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToExcel(selectedRows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToCSV(selectedRows, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-        </Box>
-      )
+      showGlobalFilter: true,
+      columnVisibility: { 
+        id: false, 
+        fecha_creacion: false, 
+        usuario_creacion: false, 
+        fecha_modificacion: false, 
+        usuario_modificacion: false 
+      },
     },
     muiTablePaperProps: {
       elevation: 0,
       sx: {
-        borderRadius: 3,
+        maxWidth: 1500,
+        mx: 'auto',
+        px: 2, 
+        py: 1,
         border: `1px solid ${theme.palette.divider}`,
+        borderTop: 'none', 
+        borderRadius: 2, 
+        borderTopLeftRadius: '0 !important',
+        borderTopRightRadius: '0 !important',
+        backgroundColor: 'background.paper',
+        overflow: 'hidden',
       },
     },
     muiTableContainerProps: {
-      sx: {
-        maxHeight: 'calc(100vh - 300px)',
-      },
+       sx: {
+         border: `1px solid ${theme.palette.divider}`,
+         borderRadius: 2, 
+         overflow: 'auto', 
+       }
     },
+    muiTopToolbarProps: {
+      sx: {
+        pl: 1, 
+        pr: 1,
+        backgroundColor: 'background.paper',
+        mb: 1, 
+      }
+    },
+    muiBottomToolbarProps: {
+        sx: {
+            backgroundColor: 'background.paper',
+            border: 'none', 
+            boxShadow: 'none',
+        }
+    },
+    renderTopToolbarCustomActions: () => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Parámetros del Sistema
+        </Typography>
+      </Box>
+    ),
+    muiTableHeadCellProps: {
+      sx: {
+        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
+        color: 'text.primary',
+        fontWeight: 'bold',
+        fontSize: '0.85rem',
+        borderBottom: `1px solid ${theme.palette.divider}`, 
+        borderRight: `1px solid ${theme.palette.divider}`,  
+        '&:last-child': { borderRight: 'none' },
+      }
+    },
+    muiTableBodyCellProps: {
+        sx: {
+            borderBottom: `1px solid ${theme.palette.divider}`,
+        }
+    },
+    muiTableBodyRowProps: ({ row }) => ({
+      sx: {
+        '&:hover': {
+          backgroundColor: theme.palette.action.hover,
+        },
+      }
+    }),
+    renderRowActions: ({ row }) => (
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title="Ver Detalles">
+          <IconButton component={Link} to={routes.parametro({ id: row.original.id })} size="small">
+            <VisibilityIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Editar">
+          <IconButton component={Link} to={routes.editParametro({ id: row.original.id })} size="small">
+            <EditIcon fontSize="small" color="info" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    ),
   })
 
+  // --- CONFIG PARA SCAFFOLD ---
+  const listActionsConfig = useMemo(() => {
+    const selectedRowCount = table.getSelectedRowModel().rows.length
+    
+    // Menú de acciones masivas
+    const BulkActionMenu = (
+      <Menu
+        anchorEl={bulkMenuAnchorEl}
+        open={Boolean(bulkMenuAnchorEl)}
+        onClose={closeAllDialogs}
+      >
+        <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
+          {showDeleted ? 'Reactivar' : 'Desactivar'} (Soft Delete)
+        </MenuItem>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
+          Eliminar de Base de Datos
+        </MenuItem>
+      </Menu>
+    )
+
+    return {
+      showDeleted,
+      selectedRowCount,
+      handleSwitchChange: (e) => setShowDeleted(e.target.checked),
+      
+      handleBulkAction: (e) => {
+        if (showDeleted) {
+            // Si estamos viendo eliminados, el botón masivo actúa directamente para restaurar/eliminar
+            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+        } else {
+            // Si no, mostramos menú
+            setBulkMenuAnchorEl(e.currentTarget)
+        }
+      },
+      
+      // No export handler needed
+      bulkActionMenu: BulkActionMenu,
+    }
+  }, [
+    table, 
+    showDeleted, 
+    bulkMenuAnchorEl, 
+    table.getState().rowSelection,
+    table.getState().pagination
+  ])
+
   return (
-    <Box sx={{ p: 1 }}>
+    <ScaffoldLayout
+      title="Parámetros"
+      titleTo="parametros"
+      groupTitle="Configuración"
+      buttonLabel="Nuevo Parámetro"
+      buttonTo="newParametro"
+      listActionsConfig={listActionsConfig}
+    >
       <MaterialReactTable table={table} />
 
+      {/* DIÁLOGO DE CONFIRMACIÓN INDIVIDUAL */}
       <Dialog
-        open={deleteState.open}
-        onClose={() => setDeleteState({ open: false, id: null, action: null })}
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-          },
-        }}
+        open={deleteDialog.open}
+        onClose={() => setDeleteDialog({ open: false, id: null, action: null })}
       >
         <DialogTitle>
-          {deleteState.action === 'desactivar' ? 'Confirmar Desactivación' : 'Confirmar Eliminación'}
+          {deleteDialog.action === 'desactivar' ? 'Confirmar Desactivación' : 'Confirmar Eliminación'}
         </DialogTitle>
         <DialogContent>
           <Typography>
-            {deleteState.action === 'desactivar'
-              ? `¿Estás seguro de desactivar el parámetro ${deleteState.id}? Esta acción no eliminará el parámetro de la base de datos, solo cambiará su estado a inactivo.`
-              : `¿Estás seguro de eliminar permanentemente el parámetro ${deleteState.id}? Esta acción no se puede deshacer.`}
+            {deleteDialog.action === 'desactivar'
+              ? `¿Estás seguro de desactivar el parámetro? No se eliminará de la base de datos.`
+              : `¿Estás seguro de eliminar permanentemente el parámetro? Esta acción es irreversible.`}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button
-            onClick={() => setDeleteState({ open: false, id: null, action: null })}
-            sx={{
-              borderRadius: 2,
-              textTransform: 'none',
-            }}
-          >
+          <Button onClick={() => setDeleteDialog({ open: false, id: null, action: null })}>
             Cancelar
           </Button>
           <Button
-            onClick={() => {
-              if (deleteState.action === 'desactivar') {
-                desactivarParametro(deleteState.id)
-              } else {
-                eliminarParametro(deleteState.id)
-              }
-            }}
-            color="primary"
+            onClick={confirmarAccionIndividual}
+            color="error"
             variant="contained"
-            sx={{
-              borderRadius: 2,
-              textTransform: 'none',
-              backgroundColor: theme.palette.error.main,
-              '&:hover': {
-                backgroundColor: theme.palette.error.dark,
-                boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-              },
-            }}
           >
-            {deleteState.action === 'desactivar' ? 'Desactivar' : 'Eliminar'}
+            Confirmar
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+
+      {/* MENÚ DE ACCIONES DE FILA (3 PUNTOS - OPCIONAL SI NO SE USAN BOTONES DIRECTOS) */}
+      {/* Actualmente usando botones directos en renderRowActions, pero si se necesita menú extra: */}
+      {/* ... */}
+    </ScaffoldLayout>
   )
 }
 
-export default ParametrosList
+export default Parametros

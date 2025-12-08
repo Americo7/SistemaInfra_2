@@ -18,30 +18,34 @@ export const QUERY = gql`
       proxmox_vmid
       identity_key
       id_servidor
-      servidores {
-        id
-        nombre
-      }
-
-      # --- AUDITORÍA ---
       fecha_creacion
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
-    }
-    
-    # ✅ CORRECCIÓN AQUÍ: Agregamos "ESTADO_OPERATIVO" al array para traer ambos grupos
-    parametros(grupo: ["PLATAFORMA", "ESTADO_OPERATIVO"]) {
-      codigo
-      nombre
-      grupo
-    }
-    
-    usuarios {
-      id
-      nombres
-      primer_apellido
-      segundo_apellido
+      plataformaInfo {
+        id
+        nombre
+        codigo
+      }
+      estadoOperativoInfo {
+        id
+        nombre
+        codigo
+      }
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      servidores {
+        id
+        nombre
+      }
     }
   }
 `
@@ -61,6 +65,6 @@ export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ maquinas, parametros, usuarios }) => {
-  return <Maquinas maquinas={maquinas} parametros={parametros} usuarios={usuarios} />
+export const Success = ({ maquinas }) => {
+  return <Maquinas maquinas={maquinas}/>
 }

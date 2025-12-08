@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react'
 import { Link, routes } from '@redwoodjs/router'
 import { Toaster } from '@redwoodjs/web/toast'
 
@@ -22,8 +23,6 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
 } from '@mui/icons-material'
 
-import React, { useMemo } from 'react'
-
 const ScaffoldLayout = ({
   title,
   titleTo,
@@ -39,7 +38,7 @@ const ScaffoldLayout = ({
   const isListView = breadcrumbItems.length === 0
 
   // ================================================================
-  // ESTILOS UNIFICADOS DE BOTONES
+  // ESTILOS
   // ================================================================
   const buttonBaseStyle = {
     height: 34,
@@ -52,31 +51,22 @@ const ScaffoldLayout = ({
   }
 
   // ================================================================
-  // ACCIONES DE LISTA (Activos / Eliminar / Exportar)
+  // ACCIONES DE LISTA (Bulk Actions)
   // ================================================================
   const ListActionsComponent = useMemo(() => {
     if (!listActionsConfig || !isListView) return null
-
     const {
       showDeleted,
       selectedRowCount,
       handleSwitchChange,
-      handleBulkAction, // Ahora esto abrirá el menú (setAnchor)
+      handleBulkAction,
       handleExportClick,
       exportMenu,
-      bulkActionMenu, // <--- NUEVO: Menú desplegable para eliminar
+      bulkActionMenu,
     } = listActionsConfig
 
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.4,
-          height: '100%',
-        }}
-      >
-        {/* SWITCH Activos / Papelera */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.4, height: '100%' }}>
         <FormControlLabel
           label={showDeleted ? 'Papelera' : 'Activos'}
           control={
@@ -93,63 +83,42 @@ const ScaffoldLayout = ({
             display: 'flex',
             alignItems: 'center',
             height: 34,
-            '.MuiFormControlLabel-label': {
-              fontSize: '0.8rem',
-              fontWeight: 600,
-            },
+            '.MuiFormControlLabel-label': { fontSize: '0.8rem', fontWeight: 600 },
           }}
         />
 
-        {/* BOTÓN ELIMINAR / RESTAURAR */}
-        {/* Modificado para soportar menú desplegable */}
         <Button
           disabled={!selectedRowCount}
           onClick={handleBulkAction}
-          startIcon={
-            showDeleted ? <RestoreIcon fontSize="small" /> : <DeleteIcon fontSize="small" />
-          }
-          // Agregamos flecha abajo si estamos en modo activos (para mostrar opciones)
+          startIcon={showDeleted ? <RestoreIcon fontSize="small" /> : <DeleteIcon fontSize="small" />}
           endIcon={!showDeleted ? <ArrowDownIcon fontSize="small" /> : null}
           variant="outlined"
           color={showDeleted ? 'primary' : 'error'}
           sx={{ ...buttonBaseStyle }}
         >
-          {showDeleted
-            ? `Restaurar (${selectedRowCount})`
-            : `Eliminar (${selectedRowCount})`}
+          {showDeleted ? `Restaurar (${selectedRowCount})` : `Eliminar (${selectedRowCount})`}
         </Button>
-        
-        {/* Renderizamos el menú de eliminación aquí */}
         {bulkActionMenu}
 
-        {/* BOTÓN EXPORTAR */}
         <Button
           onClick={handleExportClick}
           startIcon={<ExportIcon fontSize="small" />}
           endIcon={<ArrowDownIcon fontSize="small" />}
           variant="outlined"
           sx={{
-            height: 34,
-            fontWeight: 600,
-            textTransform: 'none',
+            ...buttonBaseStyle,
             borderRadius: '12px',
             px: 2,
-            display: 'flex',
-            alignItems: 'center',
-
-            // Línea verde + texto verde
             borderColor: theme.palette.success.main,
             color: theme.palette.success.main,
-
             '&:hover': {
               borderColor: theme.palette.success.dark,
-              background: theme.palette.success.main + '15', // verde tenue 15% opacity
+              background: theme.palette.success.main + '15',
             },
           }}
         >
           Exportar
         </Button>
-
         {exportMenu}
       </Box>
     )
@@ -162,110 +131,52 @@ const ScaffoldLayout = ({
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
       <Toaster toastOptions={{ className: 'rw-toast', duration: 6000 }} />
 
-      {/* ===================================== */}
-      {/* HEADER SUPERIOR                      */}
-      {/* ===================================== */}
+      {/* HEADER */}
       <Box
         sx={{
           width: '100%',
           maxWidth: 1500,
           mx: 'auto',
-          minHeight:75,
+          minHeight: 75,
           px: 5,
           py: 1.5,
           mt: 4,
-
           bgcolor: theme.palette.background.paper,
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: 2,
           borderBottomLeftRadius: '0 !important',
           borderBottomRightRadius: '0 !important',
-
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
         }}
       >
-        {/* ... (Resto del Header igual) ... */}
-        
-        {/* ===================================== */}
-        {/* IZQUIERDA — Breadcrumbs               */}
-        {/* ===================================== */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            flexWrap: 'wrap',
-            flexGrow: 1,
-            minWidth: '40%',
-            height: '100%',
-          }}
-        >
-          <Breadcrumbs
-            separator={
-              <NavigateNextIcon fontSize="small" sx={{ color: 'text.disabled' }} />
-            }
-          >
+        {/* BREADCRUMBS */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
+          <Breadcrumbs separator={<NavigateNextIcon fontSize="small" sx={{ color: 'text.disabled' }} />}>
             <Link to={routes.home()} style={{ textDecoration: 'none' }}>
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  color: 'text.secondary',
-                  '&:hover': { color: 'primary.main' },
-                }}
-              >
+              <Box sx={{ display: 'flex', alignItems: 'center', color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>
                 <HomeIcon sx={{ mr: 0.5, fontSize: '1.4rem' }} />
-                <Typography variant="body1" fontWeight={500}>
-                  Inicio
-                </Typography>
+                <Typography variant="body1" fontWeight={500}>Inicio</Typography>
               </Box>
             </Link>
-
-            {groupTitle && (
-              <Typography variant="body1" color="text.secondary" fontWeight={500}>
-                {groupTitle}
-              </Typography>
-            )}
-
+            {groupTitle && <Typography variant="body1" color="text.secondary" fontWeight={500}>{groupTitle}</Typography>}
             {!isListView && titleTo ? (
               <Link to={routes[titleTo]()} style={{ textDecoration: 'none' }}>
-                <Typography
-                  variant="body1"
-                  fontWeight={500}
-                  color="text.secondary"
-                  sx={{ '&:hover': { color: 'primary.main', textDecoration: 'underline' } }}
-                >
-                  {title}
-                </Typography>
+                <Typography variant="body1" fontWeight={500} color="text.secondary" sx={{ '&:hover': { color: 'primary.main', textDecoration: 'underline' } }}>{title}</Typography>
               </Link>
             ) : (
-              <Typography variant="body1" fontWeight={700} color="primary.main">
-                {title}
-              </Typography>
+              <Typography variant="body1" fontWeight={700} color="primary.main">{title}</Typography>
             )}
-
             {breadcrumbItems.map((item, i) => (
-              <Typography key={i} variant="body1" fontWeight={700} color="primary.main">
-                {item.label}
-              </Typography>
+              <Typography key={i} variant="body1" fontWeight={700} color="primary.main">{item.label}</Typography>
             ))}
           </Breadcrumbs>
         </Box>
 
-        {/* ===================================== */}
-        {/* DERECHA — Acciones + Nuevo             */}
-        {/* ===================================== */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            height: '100%',
-          }}
-        >
+        {/* ACCIONES DERECHA */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, height: '100%' }}>
           {isListView && ListActionsComponent}
 
           {isListView && buttonTo && (
@@ -274,40 +185,38 @@ const ScaffoldLayout = ({
               component={Link}
               to={routes[buttonTo]()}
               startIcon={<AddIcon />}
-              sx={{
-                ...buttonBaseStyle,
-                background: theme.palette.primary.main,
-                '&:hover': { background: theme.palette.primary.dark },
-              }}
+              sx={{ ...buttonBaseStyle, background: theme.palette.primary.main, '&:hover': { background: theme.palette.primary.dark } }}
             >
               {buttonLabel}
             </Button>
           )}
 
+          {/* Renderizado de Botones de Acción (Vista Detalle) */}
           {actionButtons.map((btn, index) => (
-            <Button
-              key={index}
-              variant={btn.variant || 'contained'}
-              color={btn.color || 'primary'}
-              onClick={btn.onClick}
-              startIcon={
-                btn.iconName === 'edit' ? (
-                  <EditIcon />
-                ) : btn.iconName === 'delete' ? (
-                  <DeleteIcon />
-                ) : null
-              }
-              sx={{ ...buttonBaseStyle }}
-            >
-              {btn.label}
-            </Button>
+            <React.Fragment key={index}>
+              <Button
+                variant={btn.variant || 'contained'}
+                color={btn.color || 'primary'}
+                onClick={btn.onClick}
+                disabled={btn.disabled}
+                startIcon={
+                  btn.iconName === 'edit' ? <EditIcon /> :
+                  btn.iconName === 'delete' ? <DeleteIcon /> :
+                  btn.startIcon // Permite pasar un icono custom
+                }
+                endIcon={btn.endIcon} // Permitimos icono final (flecha)
+                sx={{ ...buttonBaseStyle, ...btn.sx }}
+              >
+                {btn.label}
+              </Button>
+              {/* Si el botón trae un menú asociado, lo renderizamos aquí */}
+              {btn.menu}
+            </React.Fragment>
           ))}
         </Box>
       </Box>
 
-      {/* ===================================== */}
-      {/* CONTENIDO PRINCIPAL                   */}
-      {/* ===================================== */}
+      {/* CONTENIDO */}
       <Box sx={{ pb: 2, px: 0 }}>
         <Box component="main" sx={{ width: '100%' }}>
           {children}

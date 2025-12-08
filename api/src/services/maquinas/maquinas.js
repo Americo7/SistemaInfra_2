@@ -1,61 +1,63 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server' // <--- 1. IMPORTACIÓN AGREGADA
 
 /* ============================================================
-   UTILIDADES PARA IDENTITY_KEY
+   1. UTILIDADES INTERNAS (Identity Key)
 ============================================================ */
 const normalizarNombre = (nombre) => {
-  // Validación de seguridad por si acaso llega null/undefined aquí también
   if (!nombre) return '' 
   return nombre.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
 }
 
-/**
- * Genera la clave de identidad final o el placeholder con prefijo 'manual:'.
- * @param {string} nombre Nombre de la VM.
- * @param {number} id ID de la máquina en la DB (opcional, solo en Edición o después de crear).
- * @returns {string} Clave de identidad en formato manual:{slug}:{id|manual}.
- */
 const generarIdentityKeyFinal = (nombre, id) => {
   const slug = normalizarNombre(nombre)
-  
   if (id) {
     return `manual:${slug}:${id}`
   }
-  
   return `manual:${slug}:manual`
 }
 
 
 /* ============================================================
-   LISTA
+   2. QUERIES (Lectura de Datos)
 ============================================================ */
+
+// Para la Tabla (Lista)
 export const maquinas = () => {
-  return db.maquina.findMany({
-    include: {
-      servidores: true,
-    },
-  })
+  return db.maquina.findMany() 
 }
 
-/* ============================================================
-   DETALLE SIMPLE
-============================================================ */
+// Para la Vista Detalle
 export const maquina = ({ id }) => {
   return db.maquina.findUnique({
     where: { id },
-    include: {
-      servidores: true,
-      cluster_nodos: true,
+  })
+}
+
+
+// Para obtener todos los parámetros necesarios del formulario de Máquina
+export const parametrosFormularioMaquina = () => {
+  return db.parametro.findMany({
+    where: {
+      grupo: {
+        in: ['PLATAFORMA', 'ESTADO_OPERATIVO']
+      },
+      estado: 'ACTIVO'
     },
+    orderBy: [{ grupo: 'asc' }, { nombre: 'asc' }]
   })
 }
 
 /* ============================================================
-   CREAR MANUALMENTE
+   3. MUTATIONS (Crear, Actualizar, Borrar)
 ============================================================ */
-export const createMaquina = async ({ input }, { currentUser }) => {
-  const currentUserId = currentUser?.id ?? 1 
+
+// NOTA: Se eliminó el segundo argumento { currentUser } de la función
+export const createMaquina = async ({ input }) => {
+  // 2. CORRECCIÓN: Se usa context.currentUser
+  const currentUserId = context.currentUser?.id ?? 1 
   
+  // Lógica 1: Generar key temporal
   let keyToSave = input.identity_key?.trim() || ''
   if (!keyToSave) {
     keyToSave = generarIdentityKeyFinal(input.nombre, null)
@@ -73,6 +75,7 @@ export const createMaquina = async ({ input }, { currentUser }) => {
       cod_plataforma: input.cod_plataforma,
       estado: input.estado,
     
+      // Conexión opcional a servidor
       ...(input.id_servidor && { servidores: { connect: { id: input.id_servidor } } }),
       
       usuario_creacion: currentUserId,
@@ -83,6 +86,7 @@ export const createMaquina = async ({ input }, { currentUser }) => {
     },
   })
 
+  // Lógica 2: Actualizar key con el ID real si es manual
   let maquinaFinal = maquinaCreada
 
   if (keyToSave === generarIdentityKeyFinal(maquinaCreada.nombre, null)) {
@@ -91,21 +95,16 @@ export const createMaquina = async ({ input }, { currentUser }) => {
     maquinaFinal = await db.maquina.update({
       where: { id: maquinaCreada.id },
       data: { identity_key: identity_key_final },
-      include: { 
-        servidores: true,
-        cluster_nodos: true,
-      },
     })
   }
 
   return maquinaFinal
 }
 
-/* ============================================================
-   ACTUALIZAR MANUALMENTE (CORREGIDO)
-============================================================ */
-export const updateMaquina = async ({ id, input }, { currentUser }) => {
-  const currentUserId = currentUser?.id ?? 1 
+// NOTA: Se eliminó el segundo argumento { currentUser } de la función
+export const updateMaquina = async ({ id, input }) => {
+  // 3. CORRECCIÓN: Se usa context.currentUser
+  const currentUserId = context.currentUser?.id ?? 1 
 
   const maquinaExistente = await db.maquina.findUnique({ where: { id } })
   
@@ -113,25 +112,19 @@ export const updateMaquina = async ({ id, input }, { currentUser }) => {
     throw new Error(`Máquina con ID ${id} no encontrada.`)
   }
   
+  // Lógica para recalcular identity_key si cambia el nombre
   let nueva_identity_key = maquinaExistente.identity_key
+  const isManualKey = maquinaExistente.identity_key.startsWith('manual:')
 
-  // 1. Lógica de re-generación de identity_key
-  const isExternalSync = 
-    maquinaExistente.identity_key.startsWith('proxmox:') || 
-    maquinaExistente.identity_key.startsWith('sync:')
-
-  // ✅ CORRECCIÓN PRINCIPAL AQUÍ:
-  // Verificamos "input.nombre &&" antes de intentar normalizarlo.
-  // Si input.nombre es undefined (como en el Soft Delete), saltamos esta lógica.
   if (
+    isManualKey &&
     input.nombre && 
-    normalizarNombre(input.nombre) !== normalizarNombre(maquinaExistente.nombre) && 
-    !isExternalSync
+    normalizarNombre(input.nombre) !== normalizarNombre(maquinaExistente.nombre)
   ) {
     nueva_identity_key = generarIdentityKeyFinal(input.nombre, id)
   }
 
-  // 2. Preparar datos de conexión al servidor
+  // Lógica para conectar/desconectar servidor
   let servidoresUpdate = {}
   if (input.id_servidor) {
     servidoresUpdate = { servidores: { connect: { id: input.id_servidor } } }
@@ -139,11 +132,9 @@ export const updateMaquina = async ({ id, input }, { currentUser }) => {
      servidoresUpdate = { servidores: { disconnect: true } }
   }
 
-  // 3. Actualizar el registro
   return db.maquina.update({
     where: { id },
     data: {
-      // Prisma ignora automáticamente los campos que vienen como undefined
       nombre: input.nombre, 
       ip: input.ip,
       so: input.so,
@@ -160,94 +151,67 @@ export const updateMaquina = async ({ id, input }, { currentUser }) => {
       fecha_modificacion: new Date(),
 
       proxmox_vmid: input.proxmox_vmid || null,
-
       identity_key: nueva_identity_key,
     },
   })
 }
 
-/* ============================================================
-   ELIMINAR
-============================================================ */
 export const deleteMaquina = ({ id }) => {
   return db.maquina.delete({
     where: { id },
   })
 }
 
+
 /* ============================================================
-   DETALLE COMPLETO
+   4. RESOLVERS (El motor que conecta los datos)
 ============================================================ */
-export const maquinaCompleta = ({ id }) => {
-  return db.maquina.findUnique({
-    where: { id },
-    include: {
-      servidores: {
-        include: {
-          data_centers: true,
-          cluster_nodos: {
-            include: {
-              cluster: true,
-            },
-          },
-        },
-      },
+export const Maquina = {
+  // --- Relaciones de Prisma (Lazy Loading) ---
+  servidores: (_obj, { root }) => db.maquina.findUnique({ where: { id: root.id } }).servidores(),
+  despliegue: (_obj, { root }) => db.maquina.findUnique({ where: { id: root.id } }).despliegue(),
+  infra_afectada: (_obj, { root }) => db.maquina.findUnique({ where: { id: root.id } }).infra_afectada(),
+  usuario_roles: (_obj, { root }) => db.maquina.findUnique({ where: { id: root.id } }).usuario_roles(),
+  cluster_nodos: (_obj, { root }) => db.maquina.findUnique({ where: { id: root.id } }).cluster_nodos(),
 
-      cluster_nodos: {
-        include: {
-          cluster: true,
-          servidor: {
-            include: { data_centers: true },
-          },
-        },
-      },
+  // --- Relaciones Calculadas: USUARIOS ---
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
 
-      usuario_roles: {
-        include: {
-          usuarios: true,
-          roles: true,
-        },
-      },
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
 
-      despliegue: {
-        include: {
-          componentes: {
-            include: {
-              sistemas: {
-                include: {
-                  componentes: true,
-                },
-              },
-            },
-          },
-        },
-      },
+  // --- Relaciones Calculadas: PARAMETROS ---
+  plataformaInfo: (_obj, { root }) => {
+    if (!root.cod_plataforma) return null
+    return db.parametro.findFirst({
+      where: { 
+        codigo: root.cod_plataforma,
+        grupo: 'PLATAFORMA'
+      }
+    })
+  },
 
-      infra_afectada: {
-        include: {
-          eventos: true,
-        },
-      },
-    },
-  })
+  estadoOperativoInfo: (_obj, { root }) => {
+    if (!root.estado_operativo) return null
+    return db.parametro.findFirst({
+      where: { 
+        codigo: root.estado_operativo,
+        grupo: 'ESTADO_OPERATIVO'
+      }
+    })
+  },
 }
 
 /* ============================================================
-   RESOLVERS
+   5. QUERY RESOLVERS (Permitir que GraphQL acceda a las queries)
 ============================================================ */
-export const Maquina = {
-  servidores: (_obj, { root }) =>
-    db.maquina.findUnique({ where: { id: root.id } }).servidores(),
-
-  despliegue: (_obj, { root }) =>
-    db.maquina.findUnique({ where: { id: root.id } }).despliegue(),
-
-  infra_afectada: (_obj, { root }) =>
-    db.maquina.findUnique({ where: { id: root.id } }).infra_afectada(),
-
-  usuario_roles: (_obj, { root }) =>
-    db.maquina.findUnique({ where: { id: root.id } }).usuario_roles(),
-
-  cluster_nodos: (_obj, { root }) =>
-    db.maquina.findUnique({ where: { id: root.id } }).cluster_nodos(),
+export const Query = {
+  maquinas,
+  maquina,
+  parametrosFormularioMaquina,
 }

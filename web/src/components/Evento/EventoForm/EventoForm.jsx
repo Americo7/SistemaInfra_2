@@ -105,25 +105,31 @@ const EventoForm = (props) => {
   // Estado para el código generado post-creación
   const [codigoGenerado, setCodigoGenerado] = useState(props.evento?.cod_evento || '')
 
-  // Carga de datos
-  const { data, loading: loadingData } = useQuery(GET_DATA_FORM)
+  // Carga de datos (LEGACY: si no vienen del cell)
+  const { data, loading: loadingData } = useQuery(GET_DATA_FORM, {
+    skip: Boolean(props.usuarios && props.parametros)
+  })
+
+  // Usar datos del cell si existen, si no usar del query
+  const usuarios = props.usuarios || data?.usuarios || []
+  const allParametros = props.parametros || data?.parametros || []
 
   // Preparación de Opciones
   const usuariosOptions = useMemo(() => {
-    if (!data?.usuarios) return []
-    return data.usuarios.map(u => ({
+    if (!usuarios) return []
+    return usuarios.map(u => ({
       id: u.id,
       label: `${u.nombres} ${u.primer_apellido} ${u.segundo_apellido || ''}`.trim()
     })).sort((a, b) => a.label.localeCompare(b.label))
-  }, [data])
+  }, [usuarios])
 
   const tipoEventoOptions = useMemo(() => 
-    data?.parametros?.filter(p => p.grupo === 'TIPO_EVENTO') || [], 
-  [data])
+    allParametros?.filter(p => p.grupo === 'TIPO_EVENTO') || [], 
+  [allParametros])
 
   const estadoEventoOptions = useMemo(() => 
-    data?.parametros?.filter(p => p.grupo === 'E_EVENTO_DESPLIEGUE') || [], 
-  [data])
+    allParametros?.filter(p => p.grupo === 'E_EVENTO_DESPLIEGUE') || [], 
+  [allParametros])
 
   // Configuración del Formulario
   const formMethods = useForm({

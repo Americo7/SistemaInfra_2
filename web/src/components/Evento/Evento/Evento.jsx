@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-import { useMutation, useQuery } from '@redwoodjs/web'
+import { useMutation, useQuery, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 import { formatEnum, timeTag } from 'src/lib/formatters'
 
@@ -61,21 +61,7 @@ const GET_USUARIOS_QUERY = gql`
     }
   }
 `
-
-const GET_BITACORAS_QUERY = gql`
-  query GetBitacorasByEvento($id: Int!) {
-    evento(id: $id) {
-      eventos_bitacora {
-        id
-        estado_anterior
-        estado_actual
-        descripcion
-        fecha_creacion
-        usuario_creacion
-      }
-    }
-  }
-`
+// Bitácora de eventos fue removida del sistema
 
 const GET_INFRA_AFECTADA_QUERY = gql`
   query GetInfraAfectadaByEvento($id: Int!) {
@@ -116,11 +102,6 @@ const Evento = ({ evento }) => {
   // Consulta para todos los usuarios
   const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
 
-  // Consulta para las bitácoras del evento
-  const { data: bitacorasData } = useQuery(GET_BITACORAS_QUERY, {
-    variables: { id: evento.id }
-  })
-
   // Consulta para la infraestructura afectada
   const { data: infraAfectadaData } = useQuery(GET_INFRA_AFECTADA_QUERY, {
     variables: { id: evento.id }
@@ -155,8 +136,8 @@ const Evento = ({ evento }) => {
     .filter(Boolean) // Filtra nombres no encontrados
     .join(', ') || 'No especificado'
 
-  // Datos de bitácoras
-  const bitacoras = bitacorasData?.evento?.eventos_bitacora || []
+  // Bitácoras fue removida del sistema
+  const bitacoras = []
 
   // Datos de infraestructura afectada
   const infraAfectada = infraAfectadaData?.evento?.infra_afectada || []

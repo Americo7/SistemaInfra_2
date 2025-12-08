@@ -76,11 +76,6 @@ const Routes = () => {
           <Route path="/eventos/{id:Int}" page={EventoEventoPage} name="evento" />
           <Route path="/eventos" page={EventoEventosPage} name="eventos" />
 
-          <Route path="/eventos-bitacoras/new" page={EventosBitacoraNewEventosBitacoraPage} name="newEventosBitacora" />
-          <Route path="/eventos-bitacoras/{id:Int}/edit" page={EventosBitacoraEditEventosBitacoraPage} name="editEventosBitacora" />
-          <Route path="/eventos-bitacoras/{id:Int}" page={EventosBitacoraEventosBitacoraPage} name="eventosBitacora" />
-          <Route path="/eventos-bitacoras" page={EventosBitacoraEventosBitacorasPage} name="eventosBitacoras" />
-
           <Route path="/infra-afectadas/new" page={InfraAfectadaNewInfraAfectadaPage} name="newInfraAfectada" />
           <Route path="/infra-afectadas/{id:Int}/edit" page={InfraAfectadaEditInfraAfectadaPage} name="editInfraAfectada" />
           <Route path="/infra-afectadas/{id:Int}" page={InfraAfectadaInfraAfectadaPage} name="infraAfectada" />
@@ -90,12 +85,7 @@ const Routes = () => {
           <Route path="/clusters/{id:Int}/edit" page={ClusterEditClusterPage} name="editCluster" />
           <Route path="/clusters/{id:Int}" page={ClusterClusterPage} name="cluster" />
           <Route path="/clusters" page={ClusterClustersPage} name="clusters" />
-
-          <Route path="/despliegue-bitacoras/new" page={DespliegueBitacoraNewDespliegueBitacoraPage} name="newDespliegueBitacora" />
-          <Route path="/despliegue-bitacoras/{id:Int}/edit" page={DespliegueBitacoraEditDespliegueBitacoraPage} name="editDespliegueBitacora" />
-          <Route path="/despliegue-bitacoras/{id:Int}" page={DespliegueBitacoraDespliegueBitacoraPage} name="despliegueBitacora" />
-          <Route path="/despliegue-bitacoras" page={DespliegueBitacoraDespliegueBitacorasPage} name="despliegueBitacoras" />
-
+          
           <Route path="/parametros/new" page={ParametroNewParametroPage} name="newParametro" />
           <Route path="/parametros/{id:Int}/edit" page={ParametroEditParametroPage} name="editParametro" />
           <Route path="/parametros/{id:Int}" page={ParametroParametroPage} name="parametro" />

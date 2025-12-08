@@ -14,9 +14,13 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
-    eventos_bitacora: [EventosBitacora]!
+    
     infra_afectada: [InfraAfectada]!
 
+    creadoPor: Usuario
+    modificadoPor: Usuario
+    tipoEventoInfo: Parametro
+    estadoEventoInfo: Parametro
   }
 
   enum estado {
@@ -41,7 +45,6 @@ export const schema = gql`
   }
 
   input CreateEventoInput {
-
     cod_tipo_evento: String!
     descripcion: String!
     fecha_evento: DateTime!
@@ -50,11 +53,6 @@ export const schema = gql`
     cite: String
     solicitante: String
     estado: estado!
-    fecha_creacion: DateTime
-    usuario_creacion: Int!
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
-
   }
 
   input UpdateEventoInput {
@@ -67,11 +65,6 @@ export const schema = gql`
     cite: String
     solicitante: String
     estado: estado
-    fecha_creacion: DateTime
-    usuario_creacion: Int
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
-
   }
 
   type Mutation {

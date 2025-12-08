@@ -1,18 +1,21 @@
 services:
   postgres:
     image: postgres:17
+    container_name: postgres
     restart: always
     environment:
+      TZ: America/La_Paz
       POSTGRES_DB: infra
-      POSTGRES_USER: siaituser
-      POSTGRES_PASSWORD: pass123
+      POSTGRES_USER: infrauser
+      POSTGRES_PASSWORD: 12345
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
   valkey:
     image: valkey/valkey:7
+    container_name: valkey
     restart: always
     command: ["valkey-server"]
     ports:

@@ -1,5 +1,5 @@
 import { Link, routes } from '@redwoodjs/router'
-
+import { gql } from '@redwoodjs/web'
 import Clusters from 'src/components/Cluster/Clusters'
 
 export const QUERY = gql`
@@ -11,45 +11,51 @@ export const QUERY = gql`
       descripcion
       estado
       fecha_creacion
-      usuario_creacion
+      identity_key
       fecha_modificacion
-      usuario_modificacion
-
-      # Nuevos campos
-      id_proxmox_endpoint
-      id_k8s_endpoint
-
-      # Relaciones (opcionales)
-      proxmox_endpoint {
+      creadoPor {
         id
+        nombres 
+        primer_apellido
+        segundo_apellido
+      }
+      modificadoPor {
+        id
+        nombres 
+        primer_apellido
+        segundo_apellido
+      }
+      tipoClusterInfo {
+        codigo
+        nombre 
+      }
+      
+      proxmox_endpoint {
         nombre
       }
-
       k8s_endpoint {
-        id
         nombre
       }
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando clusters...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No clusters yet. '}
-      <Link to={routes.newCluster()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    {'No existen clusters registrados. '}
+    <Link to={routes.newCluster()} className="rw-link">
+      {'Crear uno nuevo'}
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
+// Ya no recibimos 'parametros', solo 'clusters'
 export const Success = ({ clusters }) => {
   return <Clusters clusters={clusters} />
 }

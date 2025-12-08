@@ -1,65 +1,114 @@
+import { gql } from '@redwoodjs/web'
 import Cluster from 'src/components/Cluster/Cluster'
 
 export const QUERY = gql`
   query FindClusterById($id: Int!) {
-    cluster: cluster(id: $id) {
+    cluster(id: $id) {
       id
       nombre
       cod_tipo_cluster
       descripcion
       estado
       fecha_creacion
-      usuario_creacion
       fecha_modificacion
-      usuario_modificacion
+      
+      # 1. INFO DEL TIPO (Objeto)
+      tipoClusterInfo {
+        id
+        codigo
+        nombre
+      }
+
+      # 2. USUARIOS (Objetos)
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
+
+      # 3. RELACIÓN DE NODOS Y MÁQUINAS
       cluster_nodos {
         id
         nombre
         nodoTipo
         rol
-        maquina {
+        
+        # CORRECCIÓN 1: rolInfo es un objeto, pedimos sus campos
+        rolInfo {
           id
           nombre
+          codigo
         }
 
-        # Relación si es nodo físico (servidor)
+        # Nodo vinculado a Servidor Físico
         servidor {
           id
           nombre
-          # Necesario para el Tab de "Máquinas" en lógica Proxmox
+          ip_primaria
+          
+          # Las VMs viven dentro del servidor
           maquinas {
             id
             nombre
             ip
             proxmox_vmid
             ram
-            so
             cpu
-            estado_operativo
+            estado_operativo # Valor crudo (opcional si usas el Info)
             
+            # CORRECCIÓN 2: Objetos dentro de maquinas (Servidor)
+            plataformaInfo {
+              id
+              nombre
+              codigo
+            }
+            estadoOperativoInfo {
+              id
+              nombre
+              codigo
+            }
           }
         }
+        
+        # Nodo vinculado a Máquina Virtual directa
+        maquina {
+            id
+            nombre
+            ip
+            proxmox_vmid
+            ram
+            cpu
+            estado_operativo # Valor crudo
+            
+            # CORRECCIÓN 3: Objetos dentro de maquina (Nodo)
+            plataformaInfo {
+              id
+              nombre
+              codigo
+            }
+            estadoOperativoInfo {
+              id
+              nombre
+              codigo
+            }
+        }
       }
-    }
-
-    # Traemos usuarios para resolver los nombres en la auditoría
-    usuarios {
-      id
-      nombres
-      primer_apellido
-      segundo_apellido
     }
   }
 `
 
-export const Loading = () => <div>Cargando Cluster...</div>
+export const Loading = () => <div>Cargando...</div>
+export const Empty = () => <div>No se encontró el Cluster.</div>
+export const Failure = ({ error }) => <div style={{ color: 'red' }}>Error: {error?.message}</div>
 
-export const Empty = () => <div>El Cluster no existe</div>
-
-export const Failure = ({ error }) => (
-  <div style={{ color: 'red' }}>Error: {error?.message}</div>
-)
-
-export const Success = ({ cluster, usuarios }) => {
-  return <Cluster cluster={cluster} usuarios={usuarios} />
+export const Success = ({ cluster }) => {
+  // Nota: Ya no pasamos 'parametros' porque toda la data viene resuelta en 'cluster'
+  return <Cluster cluster={cluster} />
 }

@@ -3,15 +3,8 @@ import UsuariosCell from 'src/components/Usuario/UsuariosCell'
 
 const UsuariosPage = () => {
   return (
-    <ScaffoldLayout
-      title="Usuarios"
-      titleTo="usuarios"
-      groupTitle="Gestión de Usuarios"
-      buttonLabel="Nuevo Usuario"
-      buttonTo="newUsuario"
-    >
-      <UsuariosCell />
-    </ScaffoldLayout>
+    <UsuariosCell />
+
   )
 }
 

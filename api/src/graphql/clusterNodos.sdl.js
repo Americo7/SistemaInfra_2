@@ -8,7 +8,7 @@ export const schema = gql`
     servidorId: Int
     rol: String
     estado: estado!
-    identity_key: String!
+    identity_key: String
     fecha_creacion: DateTime!
     usuario_creacion: Int!
     fecha_modificacion: DateTime
@@ -16,6 +16,10 @@ export const schema = gql`
     cluster: Cluster!
     maquina: Maquina
     servidor: Servidor
+
+    creadoPor: Usuario
+    modificadoPor: Usuario
+    rolInfo: Parametro
   }
 
   enum estado {
@@ -31,6 +35,9 @@ export const schema = gql`
   type Query {
     clusterNodos: [ClusterNodo!]! @requireAuth
     clusterNodo(id: Int!): ClusterNodo @requireAuth
+
+    # --- QUERIES PARA LOS DROPDOWNS DEL FORMULARIO ---
+    parametrosFormularioClusterNodo: [Parametro!]! @requireAuth
   }
 
   input CreateClusterNodoInput {
@@ -41,8 +48,8 @@ export const schema = gql`
     servidorId: Int
     rol: String
     estado: estado!
-    identity_key: String!
-    usuario_creacion: Int!
+    identity_key: String
+    usuario_creacion: Int
   }
 
   input UpdateClusterNodoInput {
@@ -59,8 +66,7 @@ export const schema = gql`
 
   type Mutation {
     createClusterNodo(input: CreateClusterNodoInput!): ClusterNodo! @requireAuth
-    updateClusterNodo(id: Int!, input: UpdateClusterNodoInput!): ClusterNodo!
-      @requireAuth
+    updateClusterNodo(id: Int!, input: UpdateClusterNodoInput!): ClusterNodo! @requireAuth
     deleteClusterNodo(id: Int!): ClusterNodo! @requireAuth
   }
 `

@@ -1,4 +1,5 @@
 import Componente from 'src/components/Componente/Componente'
+import { gql } from '@redwoodjs/web'
 
 export const QUERY = gql`
   query FindComponenteById($id: Int!) {
@@ -18,6 +19,26 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      entornoInfo {
+        id
+        codigo
+        nombre
+      }
+      categoriaInfo {
+        id
+        codigo
+        nombre
+      }
     }
   }
 `

@@ -1,45 +1,33 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 export const despliegues = () => {
   return db.despliegue.findMany({
-    include: {
-      componentes: {
-        include: {
-          sistemas: true,
-        },
-      },
-      maquinas: {
-        include: {
-          servidores: true,
-        },
-      },
-      servidores: true,
-      despliegue_bitacora: true,
-    },
+    orderBy: { fecha_despliegue: 'desc' },
   })
 }
 
 export const despliegue = ({ id }) => {
   return db.despliegue.findUnique({
     where: { id },
-    include: {
-      componentes: {
-        include: {
-          sistemas: true,
-        },
-      },
-      maquinas: {
-        include: {
-          servidores: true,
-        },
-      },
-      servidores: true,
-      despliegue_bitacora: true,
-    },
   })
 }
 
-export const createDespliegue = ({ input }) => {
+export const parametrosFormularioDespliegue = () => {
+  return db.parametro.findMany({
+    where: {
+      grupo: {
+        in: ['TIPO_RESPALDO', 'ESTADO_DESPLIEGUE']
+      },
+      estado: 'ACTIVO'
+    },
+    orderBy: [{ grupo: 'asc' }, { nombre: 'asc' }]
+  })
+}
+
+export const createDespliegue = async ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.despliegue.create({
     data: {
       id_componente: input.id_componente,
@@ -48,8 +36,8 @@ export const createDespliegue = ({ input }) => {
       descripcion: input.descripcion,
       fecha_despliegue: input.fecha_despliegue,
       estado: input.estado,
+      usuario_creacion: currentUserId,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
       fecha_solicitud: input.fecha_solicitud,
       unidad_solicitante: input.unidad_solicitante,
       solicitante: input.solicitante,
@@ -60,7 +48,9 @@ export const createDespliegue = ({ input }) => {
   })
 }
 
-export const updateDespliegue = ({ id, input }) => {
+export const updateDespliegue = async ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.despliegue.update({
     data: {
       id_componente: input.id_componente,
@@ -68,8 +58,8 @@ export const updateDespliegue = ({ id, input }) => {
       id_servidor: input.id_servidor,
       estado: input.estado,
       descripcion: input.descripcion,
+      usuario_modificacion: currentUserId,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
       fecha_solicitud: input.fecha_solicitud,
       unidad_solicitante: input.unidad_solicitante,
       solicitante: input.solicitante,
@@ -100,4 +90,43 @@ export const Despliegue = {
   despliegue_bitacora: (_obj, { root }) => {
     return db.despliegue.findUnique({ where: { id: root.id } }).despliegue_bitacora()
   },
+
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+
+  tipoRespaldoInfo: (_obj, { root }) => {
+    if (!root.cod_tipo_respaldo) return null
+    return db.parametro.findFirst({
+      where: {
+        codigo: root.cod_tipo_respaldo,
+        grupo: 'TIPO_RESPALDO'
+      }
+    })
+  },
+
+  estadoDespliegueInfo: (_obj, { root }) => {
+    if (!root.estado_despliegue) return null
+    return db.parametro.findFirst({
+      where: {
+        codigo: root.estado_despliegue,
+        grupo: 'ESTADO_DESPLIEGUE'
+      }
+    })
+  },
+}
+
+/* ============================================================
+   QUERY RESOLVERS (Permitir que GraphQL acceda a las queries)
+============================================================ */
+export const Query = {
+  despliegues,
+  despliegue,
+  parametrosFormularioDespliegue,
 }

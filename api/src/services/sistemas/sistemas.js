@@ -1,7 +1,10 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 export const sistemas = () => {
-  return db.sistema.findMany()
+  return db.sistema.findMany({
+    orderBy: { nombre: 'asc' },
+  })
 }
 
 export const sistema = ({ id }) => {
@@ -11,6 +14,8 @@ export const sistema = ({ id }) => {
 }
 
 export const createSistema = async ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   try {
     // Buscar el sistema con el ID más alto
     const lastSistema = await db.sistema.findFirst({
@@ -22,13 +27,10 @@ export const createSistema = async ({ input }) => {
     // Calcular un nuevo ID superior al máximo existente
     const newId = lastSistema ? lastSistema.id + 1 : 1004;
 
-    // Extraemos cualquier id del input
-    const { id, ...dataSinId } = input;
-
     // Crear con ID explícito y todos los campos originales
     return await db.sistema.create({
       data: {
-        id: newId,  // Asignar un ID que sabemos que no existe
+        id: newId,
         id_padre: input.id_padre,
         id_entidad: input.id_entidad,
         codigo: input.codigo,
@@ -37,8 +39,8 @@ export const createSistema = async ({ input }) => {
         descripcion: input.descripcion,
         estado: input.estado,
         ra_creacion: input.ra_creacion,
+        usuario_creacion: currentUserId,
         fecha_creacion: new Date(),
-        usuario_creacion: input.usuario_creacion,
       },
     });
   } catch (error) {
@@ -46,7 +48,10 @@ export const createSistema = async ({ input }) => {
     throw error;
   }
 }
-export const updateSistema = ({ id, input }) => {
+
+export const updateSistema = async ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.sistema.update({
     data: {
       id_padre: input.id_padre,
@@ -57,8 +62,8 @@ export const updateSistema = ({ id, input }) => {
       descripcion: input.descripcion,
       estado: input.estado,
       ra_creacion: input.ra_creacion,
+      usuario_modificacion: currentUserId,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_creacion,
     },
     where: { id },
   })
@@ -86,4 +91,19 @@ export const Sistema = {
   usuario_roles: (_obj, { root }) => {
     return db.sistema.findUnique({ where: { id: root?.id } }).usuario_roles()
   },
+
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+}
+
+export const Query = {
+  sistemas,
+  sistema,
 }

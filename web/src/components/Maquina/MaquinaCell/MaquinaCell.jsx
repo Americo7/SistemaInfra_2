@@ -1,11 +1,10 @@
-// web/src/components/Maquina/MaquinaCell/MaquinaCell.jsx
-
-import { useQuery } from '@redwoodjs/web'
+import { gql } from '@redwoodjs/web'
 import Maquina from 'src/components/Maquina/Maquina'
 
 export const QUERY = gql`
-  query MaquinaCompleta($id: Int!) {
-    maquinaCompleta(id: $id) {
+  query FindMaquinaById($id: Int!) {
+    # Cambiamos 'maquinaCompleta' por 'maquina'
+    maquina(id: $id) {
       id
       nombre
       proxmox_vmid
@@ -14,14 +13,34 @@ export const QUERY = gql`
       so
       ram
       almacenamiento
-      estado_operativo
+      estado_operativo 
       cpu
       estado
       fecha_creacion
-      usuario_creacion
       fecha_modificacion
-      usuario_modificacion
-      cod_plataforma
+      cod_plataforma 
+      
+      # --- USANDO LOS NUEVOS RESOLVERS ---
+      creadoPor {
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
+      modificadoPor {
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
+      plataformaInfo {
+        nombre
+        codigo
+      }
+      estadoOperativoInfo {
+        nombre
+        codigo
+      }
+
+      # --- RELACIONES ---
       servidores {
         id
         nombre
@@ -122,39 +141,11 @@ export const QUERY = gql`
   }
 `
 
-// --------------------------------------
-// QUERY: obtener nombre de tipo cluster
-// --------------------------------------
-// Nota: Esta consulta es ineficiente pero necesaria mientras no tengamos
-// una tabla de parámetros en el esquema principal del Cell. La mantenemos.
-export const GET_TIPO_CLUSTER = gql`
-  query GetTipoCluster($codigo: String!) {
-    parametroByCodigo(codigo: $codigo) {
-      nombre
-    }
-  }
-`
 export const Loading = () => <div>Cargando...</div>
 export const Empty = () => <div>No existe la máquina</div>
 export const Failure = ({ error }) => <div className="rw-cell-error">{error?.message}</div>
 
-export const Success = ({ maquinaCompleta }) => { // Se remueve 'usuarios' de props
-  const codigoTipoCluster =
-    maquinaCompleta?.cluster_nodos?.[0]?.cluster?.cod_tipo_cluster
-
-  // ✔ OPTIMIZACIÓN: Dejar el hook para el Service de Parámetros
-  const { data: tipoClusterData } = useQuery(GET_TIPO_CLUSTER, {
-    variables: { codigo: codigoTipoCluster },
-    skip: !codigoTipoCluster,
-  })
-
-  const tipoClusterNombre = tipoClusterData?.parametroByCodigo?.nombre || null
-
-  return (
-    <Maquina
-      maquina={maquinaCompleta}
-      // ❌ Se remueve 'usuarios' de props
-      tipoClusterNombre={tipoClusterNombre}
-    />
-  )
+// OJO: El prop ahora se llama 'maquina', no 'maquinaCompleta'
+export const Success = ({ maquina }) => {
+  return <Maquina maquina={maquina} />
 }

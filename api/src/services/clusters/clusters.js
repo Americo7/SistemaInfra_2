@@ -1,8 +1,25 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
-/* ============================================
-   Validación: Solo Proxmox o solo K8s
-============================================ */
+/* ============================================================
+   1. UTILIDADES INTERNAS (Identity Key)
+============================================================ */
+const normalizarNombre = (nombre) => {
+  if (!nombre) return ''
+  return nombre.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
+}
+
+const generarIdentityKeyFinal = (nombre, id) => {
+  const slug = normalizarNombre(nombre)
+  if (id) {
+    return `manual:${slug}:${id}`
+  }
+  return `manual:${slug}:manual`
+}
+
+/* ============================================================
+   2. VALIDACIÓN
+============================================================ */
 const validarEndpointUnico = (input) => {
   if (input.id_proxmox_endpoint && input.id_k8s_endpoint) {
     throw new Error(
@@ -11,129 +28,106 @@ const validarEndpointUnico = (input) => {
   }
 }
 
-/* ============================================
-   Helper identity_key seguro
-============================================ */
-const generarIdentityKey = (input) => {
-  const nombre = input.nombre.trim().toLowerCase().replace(/\s+/g, '-')
+/* ============================================================
+   3. QUERIES (Lectura de Datos)
+============================================================ */
 
-  if (input.id_proxmox_endpoint) {
-    return `proxmox-cluster:${input.id_proxmox_endpoint}:${nombre}`
-  }
-
-  if (input.id_k8s_endpoint) {
-    return `k8s-cluster:${input.id_k8s_endpoint}:${nombre}`
-  }
-
-  return `cluster:manual:${nombre}`
-}
-
-/* ============================================
-   LISTA SIMPLE
-============================================ */
+// Para la Tabla (Lista)
 export const clusters = () => {
   return db.cluster.findMany({
-    include: {
-      proxmox_endpoint: true,
-      k8s_endpoint: true,
-    },
+    orderBy: { nombre: 'asc' },
   })
 }
 
-/* ============================================
-   DETALLE SIMPLE
-============================================ */
+// Para la Vista Detalle
 export const cluster = ({ id }) => {
   return db.cluster.findUnique({
     where: { id },
-    include: {
-      proxmox_endpoint: true,
-      k8s_endpoint: true,
-    },
   })
 }
 
-/* ============================================
-   DETALLE COMPLETO SEGÚN TIPO DE CLUSTER
-============================================ */
-export const clusterCompleto = async ({ id }) => {
-  const cl = await db.cluster.findUnique({
-    where: { id },
-    include: {
-      proxmox_endpoint: true,
-      k8s_endpoint: true,
+// Para obtener todos los parámetros necesarios del formulario de Cluster
+export const parametrosFormularioCluster = () => {
+  return db.parametro.findMany({
+    where: {
+      grupo: {
+        in: ['TIPO_CLUSTER']
+      },
+      estado: 'ACTIVO'
     },
+    orderBy: [{ grupo: 'asc' }, { nombre: 'asc' }]
   })
-
-  if (!cl) return null
-
-  // -------- PROXMOX --------
-  if (cl.id_proxmox_endpoint) {
-    return db.cluster.findUnique({
-      where: { id },
-      include: {
-        proxmox_endpoint: true,
-        cluster_nodos: {
-          include: {
-            servidor: {
-              include: { maquinas: true },
-            },
-            maquina: false,
-          },
-        },
-      },
-    })
-  }
-
-  // -------- K8S --------
-  if (cl.id_k8s_endpoint) {
-    return db.cluster.findUnique({
-      where: { id },
-      include: {
-        k8s_endpoint: true,
-        cluster_nodos: {
-          include: {
-            maquina: true,
-            servidor: false,
-          },
-        },
-      },
-    })
-  }
-
-  return cl
 }
 
-/* ============================================
-   CREAR
-============================================ */
-export const createCluster = ({ input }) => {
+/* ============================================================
+   4. MUTATIONS (Crear, Actualizar, Borrar)
+============================================================ */
+export const createCluster = async ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   validarEndpointUnico(input)
 
-  const identity_key = generarIdentityKey(input)
+  // Lógica 1: Generar key temporal
+  let keyToSave = input.identity_key?.trim() || ''
+  if (!keyToSave) {
+    keyToSave = generarIdentityKeyFinal(input.nombre, null)
+  }
 
-  return db.cluster.create({
+  const clusterCreado = await db.cluster.create({
     data: {
       nombre: input.nombre,
       cod_tipo_cluster: input.cod_tipo_cluster,
       descripcion: input.descripcion,
       estado: input.estado,
-      usuario_creacion: input.usuario_creacion,
-      fecha_creacion: new Date(),
-      identity_key,
+
       id_proxmox_endpoint: input.id_proxmox_endpoint || null,
       id_k8s_endpoint: input.id_k8s_endpoint || null,
+
+      identity_key: keyToSave,
+
+      usuario_creacion: currentUserId,
+      fecha_creacion: new Date(),
     },
   })
+
+  // Lógica 2: Actualizar key con el ID real si es manual
+  let clusterFinal = clusterCreado
+
+  if (keyToSave === generarIdentityKeyFinal(clusterCreado.nombre, null)) {
+    const identity_key_final = generarIdentityKeyFinal(clusterCreado.nombre, clusterCreado.id)
+
+    clusterFinal = await db.cluster.update({
+      where: { id: clusterCreado.id },
+      data: { identity_key: identity_key_final },
+    })
+  }
+
+  return clusterFinal
 }
 
-/* ============================================
-   ACTUALIZAR
-============================================ */
-export const updateCluster = ({ id, input }) => {
+export const updateCluster = async ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
+  const clusterExistente = await db.cluster.findUnique({ where: { id } })
+
+  if (!clusterExistente) {
+    throw new Error(`Cluster con ID ${id} no encontrado.`)
+  }
+
   validarEndpointUnico(input)
 
-  const identity_key = generarIdentityKey(input)
+  // Lógica para recalcular identity_key si cambia el nombre
+  // Solo si identity_key comienza con "manual:"
+  let nueva_identity_key = clusterExistente.identity_key
+  const isManualKey = clusterExistente.identity_key.startsWith('manual:')
+
+  if (
+    isManualKey &&
+    input.nombre &&
+    normalizarNombre(input.nombre) !== normalizarNombre(clusterExistente.nombre)
+  ) {
+    nueva_identity_key = generarIdentityKeyFinal(input.nombre, id)
+  }
 
   return db.cluster.update({
     where: { id },
@@ -142,9 +136,7 @@ export const updateCluster = ({ id, input }) => {
       cod_tipo_cluster: input.cod_tipo_cluster,
       descripcion: input.descripcion,
       estado: input.estado,
-      usuario_modificacion: input.usuario_modificacion,
-      fecha_modificacion: new Date(),
-      identity_key,
+
       id_proxmox_endpoint:
         input.id_proxmox_endpoint !== undefined
           ? input.id_proxmox_endpoint
@@ -153,21 +145,24 @@ export const updateCluster = ({ id, input }) => {
         input.id_k8s_endpoint !== undefined
           ? input.id_k8s_endpoint
           : undefined,
+
+      usuario_modificacion: currentUserId,
+      fecha_modificacion: new Date(),
+
+      identity_key: nueva_identity_key,
     },
   })
 }
 
-/* ============================================
-   ELIMINAR
-============================================ */
 export const deleteCluster = ({ id }) => {
   return db.cluster.delete({ where: { id } })
 }
 
-/* ============================================
-   RELACIONADOR
-============================================ */
+/* ============================================================
+   5. RESOLVERS (El motor que conecta los datos)
+============================================================ */
 export const Cluster = {
+  // --- Relaciones de Prisma (Lazy Loading) ---
   proxmox_endpoint: (_obj, { root }) =>
     db.cluster.findUnique({ where: { id: root.id } }).proxmox_endpoint(),
 
@@ -176,4 +171,35 @@ export const Cluster = {
 
   cluster_nodos: (_obj, { root }) =>
     db.cluster.findUnique({ where: { id: root.id } }).cluster_nodos(),
+
+  // --- Relaciones Calculadas: USUARIOS ---
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+
+  // --- Relaciones Calculadas: PARÁMETROS ---
+  tipoClusterInfo: (_obj, { root }) => {
+    if (!root.cod_tipo_cluster) return null
+    return db.parametro.findFirst({
+      where: {
+        codigo: root.cod_tipo_cluster,
+        grupo: 'TIPO_CLUSTER' // Ej: "PROXMOX", "KUBERNETES"
+      }
+    })
+  },
+}
+
+/* ============================================================
+   5. QUERY RESOLVERS (Permitir que GraphQL acceda a las queries)
+============================================================ */
+export const Query = {
+  clusters,
+  cluster,
+  parametrosFormularioCluster,
 }

@@ -19,19 +19,7 @@ const truncate = (text, length = 100) => {
   return text.length > length ? text.substring(0, length) + '...' : text
 }
 
-const formatEnum = (value) => {
-  if (!value) return 'N/A'
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
-}
-
-const getFormattedData = (rows, table, helpers) => {
-  const visibleColumns = table
-    .getVisibleLeafColumns()
-    .filter(
-      (column) =>
-        column.id !== 'mrt-row-actions' && column.id !== 'mrt-row-select'
-    )
-
+const getFormattedData = (rows, visibleColumns, helpers) => {
   const headers = visibleColumns.map((column) => column.columnDef.header)
 
   return {
@@ -40,16 +28,17 @@ const getFormattedData = (rows, table, helpers) => {
       visibleColumns.map((column) => {
         const cellValue = row.original[column.id] ?? 'N/A'
 
-        if (column.id === 'id_padre')
-          return helpers.getNombreServidorPadre(cellValue)
-        if (column.id === 'id_data_center')
-          return helpers.getNombreDataCenter(cellValue)
+        // Usar helpers para formatear valores especiales
+        if (column.id === 'cod_tipo_servidor')
+          return helpers.getNombreTipoServidor(cellValue)
         if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
-          return helpers.getNombreUsuario(cellValue)
+          return helpers.getUsuarioNombre(cellValue)
+        if (column.id === 'estado_operativo')
+          return helpers.getNombreEstadoOperativo(cellValue)
         if (column.id.includes('fecha_'))
           return formatDateTime(cellValue)
-        if (column.id === 'estado' || column.id === 'estado_operativo')
-          return formatEnum(cellValue)
+        if (column.id === 'estado')
+          return cellValue === 'ACTIVO' ? 'Activo' : 'Inactivo'
 
         return truncate(cellValue, 100)
       })
@@ -57,8 +46,8 @@ const getFormattedData = (rows, table, helpers) => {
   }
 }
 
-export const exportToPDF = (rows, table, helpers) => {
-  const { headers, data } = getFormattedData(rows, table, helpers)
+export const exportToPDF = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -113,11 +102,11 @@ export const exportToPDF = (rows, table, helpers) => {
     )
   }
 
-  doc.save(`servidores-${new Date().toISOString()}.pdf`)
+  doc.save(`servidores${suffix}-${new Date().toISOString().split('T')[0]}.pdf`)
 }
 
-export const exportToExcel = (rows, table, helpers) => {
-  const { headers, data } = getFormattedData(rows, table, helpers)
+export const exportToExcel = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet([])
 
@@ -177,11 +166,11 @@ export const exportToExcel = (rows, table, helpers) => {
   ]
 
   XLSX.utils.book_append_sheet(wb, ws, 'Servidores')
-  XLSX.writeFile(wb, `servidores-${new Date().toISOString()}.xlsx`)
+  XLSX.writeFile(wb, `servidores${suffix}-${new Date().toISOString().split('T')[0]}.xlsx`)
 }
 
-export const exportToCSV = (rows, table, helpers) => {
-  const { headers, data } = getFormattedData(rows, table, helpers)
+export const exportToCSV = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
   const csvContent = [
     'Reporte de Servidores',
     `Generado: ${formatDateTime(new Date())}`,
@@ -201,6 +190,6 @@ export const exportToCSV = (rows, table, helpers) => {
   })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `servidores-${new Date().toISOString()}.csv`
+  link.download = `servidores${suffix}-${new Date().toISOString().split('T')[0]}.csv`
   link.click()
 }

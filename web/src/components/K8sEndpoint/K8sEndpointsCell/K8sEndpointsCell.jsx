@@ -1,5 +1,7 @@
 import { Link, routes } from '@redwoodjs/router'
-import K8sEndpoints from 'src/components/K8sEndpoint/K8sEndpoints'
+import { gql } from '@redwoodjs/web'
+// Importación con ruta absoluta
+import K8sEndpoints from 'src/components/K8sEndpoint/K8sEndpoints/K8sEndpoints'
 
 export const QUERY = gql`
   query FindK8sEndpoints {
@@ -11,15 +13,22 @@ export const QUERY = gql`
       descripcion
       fecha_ultima_sync
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
+      
+      # --- RELACIONES ---
       clusters {
         id
         nombre
       }
+
+      # --- AUDITORÍA ---
+      fecha_creacion
+      usuario_creacion
+      fecha_modificacion
+      usuario_modificacion
     }
+
+    # --- LOOKUPS ---
+    # Traemos usuarios para mapear auditoría
     usuarios {
       id
       nombres
@@ -29,18 +38,16 @@ export const QUERY = gql`
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando endpoints Kubernetes...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      No hay Endpoints de Kubernetes registrados.{' '}
-      <Link to={routes.newK8sEndpoint()} className="rw-link">
-        ¿Crear uno?
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    No existen endpoints registrados.{' '}
+    <Link to={routes.newK8sEndpoint()} className="rw-link">
+      Crear uno nuevo
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

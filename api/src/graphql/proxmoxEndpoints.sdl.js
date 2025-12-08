@@ -16,7 +16,11 @@ export const schema = gql`
     usuario_creacion: Int
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    
     clusters: [Cluster!]!
+    
+    creadoPor: Usuario
+    modificadoPor: Usuario
   }
 
   enum estado {
@@ -40,10 +44,6 @@ export const schema = gql`
     token_secret: String!
     descripcion: String
     estado: estado!
-    fecha_creacion: DateTime
-    usuario_creacion: Int!
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   input UpdateProxmoxEndpointInput {
@@ -57,21 +57,11 @@ export const schema = gql`
     token_secret: String
     descripcion: String
     estado: estado
-    fecha_creacion: DateTime
-    usuario_creacion: Int
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   type Mutation {
-    createProxmoxEndpoint(input: CreateProxmoxEndpointInput!): ProxmoxEndpoint!
-      @requireAuth
-
-    updateProxmoxEndpoint(
-      id: Int!
-      input: UpdateProxmoxEndpointInput!
-    ): ProxmoxEndpoint! @requireAuth
-
+    createProxmoxEndpoint(input: CreateProxmoxEndpointInput!): ProxmoxEndpoint! @requireAuth
+    updateProxmoxEndpoint(id: Int!, input: UpdateProxmoxEndpointInput!): ProxmoxEndpoint! @requireAuth
     deleteProxmoxEndpoint(id: Int!): ProxmoxEndpoint! @requireAuth
   }
 `

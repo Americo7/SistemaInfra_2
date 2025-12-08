@@ -19,10 +19,6 @@ export const QUERY = gql`
       celular
       email
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
     }
   }
 `

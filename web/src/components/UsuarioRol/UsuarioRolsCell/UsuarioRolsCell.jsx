@@ -1,6 +1,7 @@
 import { Link, routes } from '@redwoodjs/router'
-
-import UsuarioRols from 'src/components/UsuarioRol/UsuarioRols'
+import { gql } from '@redwoodjs/web'
+// Usamos ruta absoluta para importar el componente correctamente
+import UsuarioRols from 'src/components/UsuarioRol/UsuarioRols/UsuarioRols'
 
 export const QUERY = gql`
   query FindUsuarioRols {
@@ -11,14 +12,10 @@ export const QUERY = gql`
       id_maquina
       id_sistema
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
-      # Usando los nombres que sugiere el error
       usuarios {
         id
         nombres
+        primer_apellido
       }
       roles {
         id
@@ -32,22 +29,30 @@ export const QUERY = gql`
         id
         nombre
       }
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando asignaciones...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No usuarioRols yet. '}
-      <Link to={routes.newUsuarioRol()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    No existen asignaciones registradas.{' '}
+    <Link to={routes.newUsuarioRol()} className="rw-link">
+      Crear una nueva
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

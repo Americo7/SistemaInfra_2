@@ -1,9 +1,10 @@
 import { Link, routes } from '@redwoodjs/router'
+import { gql } from '@redwoodjs/web'
 
 import Componentes from 'src/components/Componente/Componentes'
 
 export const QUERY = gql`
-  query FindComponentes1 {
+  query ListComponentes {
     componentes {
       id
       id_sistema
@@ -20,6 +21,32 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      entornoInfo {
+        id
+        codigo
+        nombre
+      }
+      categoriaInfo {
+        id
+        codigo
+        nombre
+      }
+    }
+    parametrosFormularioComponente {
+      id
+      codigo
+      nombre
+      grupo
     }
   }
 `
@@ -41,6 +68,6 @@ export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ componentes }) => {
-  return <Componentes componentes={componentes} />
+export const Success = ({ componentes, parametrosFormularioComponente }) => {
+  return <Componentes componentes={componentes} parametros={parametrosFormularioComponente} />
 }

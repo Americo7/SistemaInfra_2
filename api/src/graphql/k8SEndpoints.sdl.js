@@ -11,7 +11,11 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    
     clusters: [Cluster]!
+    
+    creadoPor: Usuario
+    modificadoPor: Usuario
   }
 
   enum estado {
@@ -31,9 +35,7 @@ export const schema = gql`
     url_api: String!
     token_bearer: String!
     descripcion: String
-    fecha_ultima_sync: DateTime
     estado: estado!
-    usuario_creacion: Int!
   }
 
   input UpdateK8sEndpointInput {
@@ -41,9 +43,7 @@ export const schema = gql`
     url_api: String
     token_bearer: String
     descripcion: String
-    fecha_ultima_sync: DateTime
     estado: estado
-    usuario_modificacion: Int
   }
 
   type Mutation {

@@ -6,14 +6,19 @@ export const QUERY = gql`
       id
       id_evento
       id_data_center
-
       id_servidor
       id_maquina
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
     }
   }
 `

@@ -10,26 +10,29 @@ export const QUERY = gql`
       sigla
       nombre
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
     }
   }
 `
+export const Loading = () => <div>Cargando entidades...</div>
 
-export const Loading = () => <div>Loading...</div>
-
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No entidads yet. '}
-      <Link to={routes.newEntidad()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    No existen entidades registradas.{' '}
+    <Link to={routes.newEntidad()} className="rw-link">
+      Crear una nueva
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

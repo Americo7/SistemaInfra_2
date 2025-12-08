@@ -10,10 +10,14 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    
     maquinas: Maquina
     roles: Role!
     sistemas: Sistema
     usuarios: Usuario!
+    
+    creadoPor: Usuario
+    modificadoPor: Usuario
   }
 
   enum estado {
@@ -32,10 +36,6 @@ export const schema = gql`
     id_maquina: Int
     id_sistema: Int
     estado: estado!
-    fecha_creacion: DateTime
-    usuario_creacion: Int!
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   input UpdateUsuarioRolInput {
@@ -44,16 +44,11 @@ export const schema = gql`
     id_maquina: Int
     id_sistema: Int
     estado: estado
-    fecha_creacion: DateTime
-    usuario_creacion: Int
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   type Mutation {
     createUsuarioRol(input: CreateUsuarioRolInput!): UsuarioRol! @requireAuth
-    updateUsuarioRol(id: Int!, input: UpdateUsuarioRolInput!): UsuarioRol!
-      @requireAuth
+    updateUsuarioRol(id: Int!, input: UpdateUsuarioRolInput!): UsuarioRol! @requireAuth
     deleteUsuarioRol(id: Int!): UsuarioRol! @requireAuth
   }
 `

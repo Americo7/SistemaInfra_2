@@ -1,4 +1,5 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 export const parametros = ({ grupo }) => {
   let where = { estado: 'ACTIVO' }
@@ -21,6 +22,8 @@ export const parametro = ({ id }) => {
 }
 
 export const createParametro = ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.parametro.create({
     data: {
       codigo: input.codigo,
@@ -29,12 +32,14 @@ export const createParametro = ({ input }) => {
       estado: input.estado,
       descripcion: input.descripcion,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
+      usuario_creacion: currentUserId,
     },
   })
 }
 
 export const updateParametro = ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.parametro.update({
     data: {
       codigo: input.codigo,
@@ -43,7 +48,7 @@ export const updateParametro = ({ id, input }) => {
       estado: input.estado,
       descripcion: input.descripcion,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
+      usuario_modificacion: currentUserId,
     },
     where: { id },
   })
@@ -59,4 +64,22 @@ export const parametroByCodigo = ({ codigo }) => {
   return db.parametro.findFirst({
     where: { codigo, estado: 'ACTIVO' },
   })
+}
+
+export const Parametro = {
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+}
+
+export const Query = {
+  parametros,
+  parametro,
+  parametroByCodigo,
 }

@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-import { useQuery, gql } from '@redwoodjs/web'
 import {
   Box,
   Typography,
@@ -41,31 +40,7 @@ import {
 } from '@mui/icons-material'
 
 /* -----------------------
- * CONSULTAS DE LOOKUP
- * ----------------------- */
-const GET_USUARIOS_QUERY = gql`
-  query UsuariosLookupForMaquina {
-    usuarios {
-      id
-      nombres
-      primer_apellido
-      segundo_apellido
-    }
-  }
-`
-
-const QUERY_PARAMETRICAS = gql`
-  query ParametrosLookupForMaquina {
-    parametros(grupo: ["PLATAFORMA", "ESTADO_OPERATIVO"]) {
-      codigo
-      nombre
-      grupo
-    }
-  }
-`
-
-/* -----------------------
- * HELPERS
+ * HELPERS GLOBALES
  * ----------------------- */
 const fmtDate = (d) => {
   if (!d) return '-'
@@ -85,7 +60,8 @@ const fmtDate = (d) => {
 const parseAlmacenamiento = (value) => {
   if (!value) return []
   try {
-    return Array.isArray(value) ? value : JSON.parse(value)
+    // CORRECCIÓN: Validamos si ya viene como objeto (JSON) o string
+    return typeof value === 'object' ? value : JSON.parse(value)
   } catch {
     return []
   }
@@ -99,22 +75,30 @@ const uniqueById = (arr = []) => {
   return [...map.values()]
 }
 
-/* -----------------------
- * COLOR SEGÚN ESTADO OPERATIVO
- * ----------------------- */
-const getEstadoOperativoColor = (codigo) => {
-  if (!codigo) return 'default'
-  const c = codigo.toUpperCase()
+// Formateador de nombres de usuario
+const formatUserName = (usuarioObj) => {
+  if (!usuarioObj) return '-'
+  if (typeof usuarioObj === 'string') return usuarioObj
+  // Maneja objeto del resolver
+  if (usuarioObj.nombres || usuarioObj.primer_apellido || usuarioObj.segundo_apellido) {
+    return `${usuarioObj.nombres || ''} ${usuarioObj.primer_apellido || ''} ${usuarioObj.segundo_apellido}`.trim()
+  }
+  return '-'
+}
 
-  if (c === 'OPERATIVO') return 'success'
-  if (c === 'FUERA_SERVICIO') return 'error'
-  if (c === 'MANTENIMIENTO') return 'warning'
-
-  return 'default'
+// Mapa de colores UI (Mantenemos esto en el frontend porque es estilo visual)
+const getStatusColor = (codigo) => {
+  const map = {
+    OPERATIVO: 'success',
+    FUERA_SERVICIO: 'error',
+    MANTENIMIENTO: 'warning',
+    UNKNOWN: 'default'
+  }
+  return map[codigo] || 'default'
 }
 
 /* -----------------------
- * ROW ITEM
+ * SUB-COMPONENTES
  * ----------------------- */
 const RowItem = ({ label, value, icon, isLast }) => (
   <Box
@@ -135,25 +119,18 @@ const RowItem = ({ label, value, icon, isLast }) => (
       {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
       {label}
     </Typography>
-
     <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
-      {typeof value === 'string' || typeof value === 'number' ? (
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+      {React.isValidElement(value) ? value : (
+        <Typography variant="body1" sx={{ fontWeight: 600 }}>
           {value}
         </Typography>
-      ) : (
-        value
       )}
     </Box>
   </Box>
 )
 
-/* -----------------------
- * SECTION CARD
- * ----------------------- */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
-
   return (
     <Card
       sx={{
@@ -174,65 +151,35 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
     </Card>
   )
 }
+
 /* -----------------------
- * MAQUINA DETALLE
+ * COMPONENTE PRINCIPAL
  * ----------------------- */
 const Maquina = ({ maquina }) => {
   const theme = useTheme()
   const [tab, setTab] = useState(0)
 
-  const { data: paramData } = useQuery(QUERY_PARAMETRICAS)
-  const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
+  // CORRECCIÓN: Manejo seguro por si servidores es objeto o array
+  const servidorRaw = maquina?.servidores
+  const servidor = Array.isArray(servidorRaw) ? servidorRaw[0] : servidorRaw
 
-  const servidor = maquina?.servidores
   const usuarioRoles = maquina?.usuario_roles || []
   const despliegues = maquina?.despliegue || []
   const infraAfectada = maquina?.infra_afectada || []
   const maquinaClusterNodos = maquina?.cluster_nodos || []
 
-  /* -----------------------
-   * MAPAS CORREGIDOS
-   * ----------------------- */
-
-  const usuariosMap = useMemo(() => {
-    return (
-      usuariosData?.usuarios?.reduce((map, u) => {
-        map[u.id] = `${u.nombres} ${u.primer_apellido}`.trim()
-        return map
-      }, {}) || {}
-    )
-  }, [usuariosData])
-
-  const parametrosMap = useMemo(() => {
-    return (
-      paramData?.parametros?.reduce((map, p) => {
-        map[p.codigo] = p.nombre
-        return map
-      }, {}) || {}
-    )
-  }, [paramData])
-
-  // ESTADO OPERATIVO → NOMBRE REAL (TABLA PARAMETROS)
-  const estadoOperativoMap = useMemo(() => {
-    return (paramData?.parametros || [])
-      .filter((p) => p.grupo === 'ESTADO_OPERATIVO')
-      .reduce((map, p) => {
-        map[p.codigo] = p.nombre
-        return map
-      }, {})
-  }, [paramData])
-
-  const getUserFullName = (id) => usuariosMap[id] || 'Sistema Automático'
-  const getNombrePlataforma = (c) => parametrosMap[c] || c || '-'
-
-  /* -----------------------
-   * CLUSTER
-   * ----------------------- */
+  /* --- CLUSTER INFO --- */
   const clusterInfo = useMemo(() => {
     const arr = []
+    
+    // Validamos que 'servidor' y sus 'cluster_nodos' existan y sean Arrays u Objetos
+    const clusterNodosServidor = Array.isArray(servidor?.cluster_nodos) 
+      ? servidor.cluster_nodos 
+      : (servidor?.cluster_nodos ? [servidor.cluster_nodos] : [])
 
-    if (servidor?.cluster_nodos?.[0]?.cluster) {
-      const cl = servidor.cluster_nodos[0].cluster
+    // Caso 1: Maquina en Host de Virtualización
+    if (clusterNodosServidor.length > 0 && clusterNodosServidor[0]?.cluster) {
+      const cl = clusterNodosServidor[0].cluster
       arr.push({
         titulo: 'Host de Virtualización',
         clusterName: cl.nombre,
@@ -240,7 +187,7 @@ const Maquina = ({ maquina }) => {
         link: routes.cluster({ id: cl.id }),
       })
     }
-
+    // Caso 2: Maquina es un Nodo de un Cluster
     for (const n of maquinaClusterNodos) {
       if (n.cluster) {
         arr.push({
@@ -252,17 +199,14 @@ const Maquina = ({ maquina }) => {
         })
       }
     }
-
     return arr
   }, [servidor, maquinaClusterNodos])
 
   const handleTabChange = (_, v) => setTab(v)
 
-  /* -----------------------
-   * RENDER
-   * ----------------------- */
   return (
     <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
+      {/* HEADER CARD */}
       <Card
         elevation={0}
         sx={{
@@ -271,8 +215,7 @@ const Maquina = ({ maquina }) => {
           mb: 3,
         }}
       >
-        {/* HEADER */}
-        <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Tooltip title="Volver">
             <IconButton
               onClick={() => navigate(routes.maquinas())}
@@ -305,7 +248,6 @@ const Maquina = ({ maquina }) => {
           </Box>
         </Box>
 
-        {/* CONTENIDO */}
         <CardContent sx={{ px: 5 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             {/* IZQUIERDA */}
@@ -315,21 +257,22 @@ const Maquina = ({ maquina }) => {
                 <RowItem label="Identificador" value={maquina.identity_key} icon={<MacIcon />} />
                 <RowItem label="Dirección IP" value={maquina.ip} />
                 <RowItem label="Sistema Operativo" value={maquina.so} icon={<OSIcon />} />
-                <RowItem label="Plataforma" value={getNombrePlataforma(maquina.cod_plataforma)} />
+                
+                {/* --- LÓGICA CORREGIDA: Usar los Resolvers --- */}
+                <RowItem 
+                    label="Plataforma" 
+                    value={maquina.plataformaInfo?.nombre || maquina.cod_plataforma || '-'} 
+                />
 
-                {/* ESTADO OPERATIVO FINAL */}
                 <RowItem
                   label="Estado Operativo"
                   isLast
                   value={
                     <Chip
-                      label={
-                        estadoOperativoMap[maquina.estado_operativo] ||
-                        maquina.estado_operativo ||
-                        'Desconocido'
-                      }
+                      // Usamos Resolver o fallback al código
+                      label={maquina.estadoOperativoInfo?.nombre || maquina.estado_operativo || 'Desconocido'}
                       size="small"
-                      color={getEstadoOperativoColor(maquina.estado_operativo)}
+                      color={getStatusColor(maquina.estado_operativo)} 
                       sx={{
                         height: 20,
                         fontWeight: 700,
@@ -344,7 +287,6 @@ const Maquina = ({ maquina }) => {
               <SectionCard icon={<MemoryIcon />} title="Recursos Asignados" bgcolor={theme.palette.success.main}>
                 <RowItem label="vCPUs" value={`${maquina.cpu} Core(s)`} />
                 <RowItem label="RAM" value={`${maquina.ram} GB`} />
-
                 <RowItem
                   label="Almacenamiento"
                   isLast
@@ -361,9 +303,7 @@ const Maquina = ({ maquina }) => {
                           />
                         ))}
                       </Stack>
-                    ) : (
-                      'Sin información'
-                    )
+                    ) : 'Sin información'
                   }
                 />
               </SectionCard>
@@ -373,7 +313,7 @@ const Maquina = ({ maquina }) => {
             <Stack spacing={2}>
               <SectionCard icon={<ClusterIcon />} title="Infraestructura y Orquestación" bgcolor={theme.palette.info.main}>
                 {clusterInfo.length === 0 ? (
-                  <Typography>No vinculada a ningún host.</Typography>
+                  <Typography variant="body2" color="text.secondary">No vinculada a ningún host.</Typography>
                 ) : (
                   clusterInfo.map((info, idx) => (
                     <Box key={idx} sx={{ mb: 2, pb: 1, borderBottom: idx < clusterInfo.length - 1 ? '1px dashed #ddd' : 'none' }}>
@@ -383,7 +323,7 @@ const Maquina = ({ maquina }) => {
                       <RowItem
                         label="Cluster"
                         value={
-                          <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main }}>
+                          <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
                             {info.clusterName}
                           </Link>
                         }
@@ -407,16 +347,18 @@ const Maquina = ({ maquina }) => {
                   }
                 />
                 <RowItem label="Fecha Creación" value={fmtDate(maquina.fecha_creacion)} />
-                <RowItem label="Creado por" value={getUserFullName(maquina.usuario_creacion)} />
+                
+                {/* --- LÓGICA CORREGIDA: Usar los Resolvers de Usuario --- */}
+                <RowItem label="Creado por" value={formatUserName(maquina.creadoPor)} />
                 <RowItem label="Última Modificación" value={fmtDate(maquina.fecha_modificacion)} />
-                <RowItem label="Modificado por" value={getUserFullName(maquina.usuario_modificacion)} isLast />
+                <RowItem label="Modificado por" value={formatUserName(maquina.modificadoPor)} isLast />
               </SectionCard>
             </Stack>
           </Box>
         </CardContent>
       </Card>
 
-      {/* --------- TABS --------- */}
+      {/* --------- TABS INFERIORES --------- */}
       <Card sx={{ borderRadius: 2 }}>
         <Tabs
           value={tab}
@@ -427,16 +369,17 @@ const Maquina = ({ maquina }) => {
         >
           <Tab label={<Stack direction="row" spacing={1}><UsersIcon fontSize="small" />Usuarios<Chip label={usuarioRoles.length} size="small" /></Stack>} />
           <Tab label={<Stack direction="row" spacing={1}><DeploymentIcon fontSize="small" />Despliegues<Chip label={despliegues.length} size="small" /></Stack>} />
-          <Tab label={<Stack direction="row" spacing={1}><SystemIcon fontSize="small" />Sistemas<Chip label={uniqueById(despliegues.map(d=>d.componentes?.sistemas)).length} size="small" /></Stack>} />
+          <Tab label={<Stack direction="row" spacing={1}><SystemIcon fontSize="small" />Sistemas<Chip label={uniqueById(despliegues.map(d => d.componentes?.sistemas)).length} size="small" /></Stack>} />
           <Tab label={<Stack direction="row" spacing={1}><InfraIcon fontSize="small" />Eventos<Chip label={infraAfectada.length} size="small" /></Stack>} />
         </Tabs>
 
         <CardContent>
-          {tab === 0 &&
-            (usuarioRoles.length ? (
-              <TableContainer component={Paper}>
+          {/* TAB 0: USUARIOS */}
+          {tab === 0 && (
+            usuarioRoles.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{border: '1px solid #eee'}}>
                 <Table size="small">
-                  <TableHead>
+                  <TableHead sx={{ bgcolor: 'grey.50' }}>
                     <TableRow>
                       <TableCell>Usuario</TableCell>
                       <TableCell>Rol</TableCell>
@@ -445,20 +388,23 @@ const Maquina = ({ maquina }) => {
                   <TableBody>
                     {usuarioRoles.map((r) => (
                       <TableRow key={r.id}>
-                        <TableCell>{getUserFullName(r.usuarios?.[0]?.id)}</TableCell>
+                        {/* CORRECCIÓN: Quitamos el [0] porque ahora es objeto directo */}
+                        <TableCell>{formatUserName(r.usuarios)}</TableCell>
                         <TableCell>{r.roles?.nombre}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </TableContainer>
-            ) : <Typography>No hay usuarios asociados.</Typography>)}
+            ) : <Typography variant="body2" color="text.secondary">No hay usuarios asociados.</Typography>
+          )}
 
-          {tab === 1 &&
-            (despliegues.length ? (
-              <TableContainer component={Paper}>
+          {/* TAB 1: DESPLIEGUES */}
+          {tab === 1 && (
+            despliegues.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{border: '1px solid #eee'}}>
                 <Table size="small">
-                  <TableHead>
+                  <TableHead sx={{ bgcolor: 'grey.50' }}>
                     <TableRow>
                       <TableCell>Componente</TableCell>
                       <TableCell>Sistema</TableCell>
@@ -478,25 +424,31 @@ const Maquina = ({ maquina }) => {
                   </TableBody>
                 </Table>
               </TableContainer>
-            ) : <Typography>No hay despliegues registrados.</Typography>)}
+            ) : <Typography variant="body2" color="text.secondary">No hay despliegues registrados.</Typography>
+          )}
 
-          {tab === 2 &&
-            (uniqueById(despliegues.flatMap(d => d.componentes?.sistemas ? [d.componentes.sistemas] : [])).length ? (
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 2 }}>
-                {uniqueById(despliegues.flatMap(d => d.componentes?.sistemas ? [d.componentes.sistemas] : [])).map((s) => (
-                  <Paper key={s.id} sx={{ p: 2 }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{s.nombre}</Typography>
-                    <Typography variant="caption">{s.descripcion}</Typography>
+          {/* TAB 2: SISTEMAS */}
+          {tab === 2 && (() => {
+             const sistemasUnicos = uniqueById(despliegues.flatMap(d => d.componentes?.sistemas ? [d.componentes.sistemas] : []));
+             return sistemasUnicos.length ? (
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))', gap: 2 }}>
+                {sistemasUnicos.map((s) => (
+                  <Paper key={s.id} sx={{ p: 2, border: '1px solid #eee' }} elevation={0}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{s.nombre}</Typography>
+                    <Typography variant="caption" display="block" sx={{mb:1}}>{s.sigla}</Typography>
+                    <Typography variant="body2" color="text.secondary">{s.descripcion}</Typography>
                   </Paper>
                 ))}
               </Box>
-            ) : <Typography>No hay sistemas asociados.</Typography>)}
+            ) : <Typography variant="body2" color="text.secondary">No hay sistemas asociados.</Typography>
+          })()}
 
-          {tab === 3 &&
-            (infraAfectada.length ? (
-              <TableContainer component={Paper}>
+          {/* TAB 3: EVENTOS INFRA */}
+          {tab === 3 && (
+            infraAfectada.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{border: '1px solid #eee'}}>
                 <Table size="small">
-                  <TableHead>
+                  <TableHead sx={{ bgcolor: 'grey.50' }}>
                     <TableRow>
                       <TableCell>Tipo Evento</TableCell>
                       <TableCell>Descripción</TableCell>
@@ -506,20 +458,23 @@ const Maquina = ({ maquina }) => {
                   </TableHead>
                   <TableBody>
                     {infraAfectada.map((ia) => {
-                      const e = ia.eventos?.[0]
+                      // CORRECCIÓN: Manejo seguro para 'eventos' (puede ser array u objeto)
+                      const eList = ia.eventos
+                      const e = Array.isArray(eList) ? eList[0] : eList
                       return (
                         <TableRow key={ia.id}>
-                          <TableCell>{e?.cod_tipo_evento}</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{e?.cod_tipo_evento}</TableCell>
                           <TableCell>{e?.descripcion}</TableCell>
                           <TableCell>{fmtDate(e?.fecha_evento)}</TableCell>
-                          <TableCell><Chip label={ia.estado} size="small" /></TableCell>
+                          <TableCell><Chip label={ia.estado} size="small" variant="outlined" /></TableCell>
                         </TableRow>
                       )
                     })}
                   </TableBody>
                 </Table>
               </TableContainer>
-            ) : <Typography>No hay eventos registrados.</Typography>)}
+            ) : <Typography variant="body2" color="text.secondary">No hay eventos registrados.</Typography>
+          )}
         </CardContent>
       </Card>
     </Box>

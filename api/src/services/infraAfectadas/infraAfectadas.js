@@ -1,7 +1,10 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 export const infraAfectadas = () => {
-  return db.infraAfectada.findMany()
+  return db.infraAfectada.findMany({
+    orderBy: { id: 'desc' },
+  })
 }
 
 export const infraAfectada = ({ id }) => {
@@ -10,32 +13,34 @@ export const infraAfectada = ({ id }) => {
   })
 }
 
-export const createInfraAfectada = ({ input }) => {
+export const createInfraAfectada = async ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.infraAfectada.create({
     data: {
       id_evento: input.id_evento,
       id_data_center: input.id_data_center,
-
       id_servidor: input.id_servidor,
       id_maquina: input.id_maquina,
       estado: input.estado,
+      usuario_creacion: currentUserId,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
     },
   })
 }
 
-export const updateInfraAfectada = ({ id, input }) => {
+export const updateInfraAfectada = async ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.infraAfectada.update({
     data: {
       id_evento: input.id_evento,
       id_data_center: input.id_data_center,
-
       id_servidor: input.id_servidor,
       id_maquina: input.id_maquina,
       estado: input.estado,
+      usuario_modificacion: currentUserId,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })
@@ -56,11 +61,28 @@ export const InfraAfectada = {
   eventos: (_obj, { root }) => {
     return db.infraAfectada.findUnique({ where: { id: root?.id } }).eventos()
   },
-
   maquinas: (_obj, { root }) => {
     return db.infraAfectada.findUnique({ where: { id: root?.id } }).maquinas()
   },
   servidores: (_obj, { root }) => {
     return db.infraAfectada.findUnique({ where: { id: root?.id } }).servidores()
   },
+
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+}
+
+/* ============================================================
+   QUERY RESOLVERS (Permitir que GraphQL acceda a las queries)
+============================================================ */
+export const Query = {
+  infraAfectadas,
+  infraAfectada,
 }

@@ -1,4 +1,5 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 /* -------------------------------------------
  * LISTA DE ENDPOINTS
@@ -28,6 +29,8 @@ export const proxmoxEndpoint = ({ id }) => {
  * CREAR
  * ------------------------------------------- */
 export const createProxmoxEndpoint = ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.proxmoxEndpoint.create({
     data: {
       nombre: input.nombre,
@@ -42,7 +45,7 @@ export const createProxmoxEndpoint = ({ input }) => {
       estado: input.estado,
 
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
+      usuario_creacion: currentUserId,
     },
   })
 }
@@ -51,6 +54,8 @@ export const createProxmoxEndpoint = ({ input }) => {
  * ACTUALIZAR
  * ------------------------------------------- */
 export const updateProxmoxEndpoint = ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.proxmoxEndpoint.update({
     data: {
       nombre: input.nombre,
@@ -65,7 +70,7 @@ export const updateProxmoxEndpoint = ({ id, input }) => {
       estado: input.estado,
 
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
+      usuario_modificacion: currentUserId,
     },
     where: { id },
   })
@@ -89,4 +94,19 @@ export const ProxmoxEndpoint = {
       .findUnique({ where: { id: root.id } })
       .clusters()
   },
+
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+}
+
+export const Query = {
+  proxmoxEndpoints,
+  proxmoxEndpoint,
 }

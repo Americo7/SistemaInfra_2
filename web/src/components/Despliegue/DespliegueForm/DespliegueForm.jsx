@@ -116,29 +116,39 @@ const DespliegueForm = (props) => {
   const theme = useTheme()
   const isEdit = Boolean(props.despliegue?.id)
 
-  // Carga de datos
-  const { data, loading: loadingData } = useQuery(GET_DATA_FORM)
+  // Carga de datos (LEGACY: si no vienen del cell)
+  const { data, loading: loadingData } = useQuery(GET_DATA_FORM, {
+    skip: Boolean(props.componentes && props.maquinas && props.servidores && props.parametros)
+  })
+
+  // Usar datos del cell si existen, si no usar del query
+  const componentes = props.componentes || data?.componentes || []
+  const maquinas = props.maquinas || data?.maquinas || []
+  const servidores = props.servidores || data?.servidores || []
+  const parametros = props.parametros || data?.parametros || []
+  
+  const finalLoadingData = !props.componentes && loadingData
 
   // Filtrado de listas
   const componentesOptions = useMemo(() => 
-    data?.componentes?.filter(c => c.estado === 'ACTIVO') || [], [data])
+    componentes?.filter(c => c.estado === 'ACTIVO') || [], [componentes])
   
   const maquinasOptions = useMemo(() => 
-    data?.maquinas?.filter(m => m.estado === 'ACTIVO') || [], [data])
+    maquinas?.filter(m => m.estado === 'ACTIVO') || [], [maquinas])
   
   const servidoresOptions = useMemo(() => 
-    data?.servidores?.filter(s => s.estado === 'ACTIVO') || [], [data])
+    servidores?.filter(s => s.estado === 'ACTIVO') || [], [servidores])
 
-  const parametros = data?.parametros || []
+  const allParametros = parametros || []
   
   const unidadesOptions = useMemo(() => 
-    parametros.filter(p => p.grupo === 'UNIDAD_AGETIC'), [parametros])
+    allParametros.filter(p => p.grupo === 'UNIDAD_AGETIC'), [allParametros])
 
   const tipoRespaldoOptions = useMemo(() => 
-    parametros.filter(p => p.grupo === 'TIPO_RESPALDO'), [parametros])
+    allParametros.filter(p => p.grupo === 'TIPO_RESPALDO'), [allParametros])
 
   const estadoDespliegueOptions = useMemo(() => 
-    parametros.filter(p => p.grupo === 'E_EVENTO_DESPLIEGUE'), [parametros])
+    allParametros.filter(p => p.grupo === 'E_EVENTO_DESPLIEGUE'), [allParametros])
 
   // Configuración del Formulario
   const formMethods = useForm({
@@ -188,7 +198,7 @@ const DespliegueForm = (props) => {
     props.onSave(payload, props?.despliegue?.id)
   }
 
-  if (loadingData) {
+  if (finalLoadingData) {
     return (
       <Box display="flex" justifyContent="center" p={8}>
         <CircularProgress />

@@ -1,7 +1,10 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 export const usuarios = () => {
-  return db.usuario.findMany()
+  return db.usuario.findMany({
+    orderBy: { nombres: 'asc' },
+  })
 }
 
 export const usuario = ({ id }) => {
@@ -10,7 +13,9 @@ export const usuario = ({ id }) => {
   })
 }
 
-export const createUsuario = ({ input }) => {
+export const createUsuario = async ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.usuario.create({
     data: {
       id_ciudadano_digital: input.id_ciudadano_digital,
@@ -23,13 +28,15 @@ export const createUsuario = ({ input }) => {
       celular: input.celular,
       email: input.email,
       estado: input.estado,
+      usuario_creacion: currentUserId,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion,
     },
   })
 }
 
-export const updateUsuario = ({ id, input }) => {
+export const updateUsuario = async ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.usuario.update({
     data: {
       id_ciudadano_digital: input.id_ciudadano_digital,
@@ -42,8 +49,8 @@ export const updateUsuario = ({ id, input }) => {
       celular: input.celular,
       email: input.email,
       estado: input.estado,
+      usuario_modificacion: currentUserId,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })
@@ -59,4 +66,19 @@ export const Usuario = {
   usuario_roles: (_obj, { root }) => {
     return db.usuario.findUnique({ where: { id: root?.id } }).usuario_roles()
   },
+
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+}
+
+export const Query = {
+  usuarios,
+  usuario,
 }

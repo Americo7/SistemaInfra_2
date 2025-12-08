@@ -1,4 +1,5 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 /* LISTAR TODOS */
 export const k8SEndpoints = () => {
@@ -26,7 +27,9 @@ export const usuarios = () => {
 }
 
 /* CREAR */
-export const createK8sEndpoint = ({ input }) => {
+export const createK8sEndpoint = async ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.k8sEndpoint.create({
     data: {
       nombre: input.nombre,
@@ -35,14 +38,16 @@ export const createK8sEndpoint = ({ input }) => {
       descripcion: input.descripcion,
       fecha_ultima_sync: input.fecha_ultima_sync,
       estado: input.estado,
-      usuario_creacion: input.usuario_creacion,
+      usuario_creacion: currentUserId,
       fecha_creacion: new Date(),
     },
   })
 }
 
 /* ACTUALIZAR */
-export const updateK8sEndpoint = ({ id, input }) => {
+export const updateK8sEndpoint = async ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   return db.k8sEndpoint.update({
     where: { id },
     data: {
@@ -52,7 +57,7 @@ export const updateK8sEndpoint = ({ id, input }) => {
       descripcion: input.descripcion,
       fecha_ultima_sync: input.fecha_ultima_sync,
       estado: input.estado,
-      usuario_modificacion: input.usuario_modificacion,
+      usuario_modificacion: currentUserId,
       fecha_modificacion: new Date(),
     },
   })
@@ -70,4 +75,23 @@ export const K8sEndpoint = {
   clusters: (_obj, { root }) => {
     return db.k8sEndpoint.findUnique({ where: { id: root?.id } }).clusters()
   },
+
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+}
+
+/* ============================================================
+   QUERY RESOLVERS (Permitir que GraphQL acceda a las queries)
+============================================================ */
+export const Query = {
+  k8SEndpoints,
+  k8SEndpoint,
+  usuarios,
 }

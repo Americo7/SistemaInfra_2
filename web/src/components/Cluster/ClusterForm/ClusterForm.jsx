@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Box,
   Card,
@@ -11,6 +11,8 @@ import {
   Avatar,
   Paper,
   useTheme,
+  InputAdornment,
+  FormControl
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 import Select from 'react-select'
@@ -24,16 +26,17 @@ import {
   AddCircle as AddIcon,
   Edit as EditIcon,
   ErrorOutline as ErrorIcon,
+  Lock as LockIcon,
+  Link as LinkIcon
 } from '@mui/icons-material'
-import { useQuery } from '@redwoodjs/web'
-import { gql } from 'graphql-tag'
+import { useQuery, gql } from '@redwoodjs/web'
 
 /* --------------------------------------------------------
- * QUERY
+ * 1. QUERY INTERNA (El Form carga sus propias listas)
  * -------------------------------------------------------- */
-const GET_PARAMETROS = gql`
-  query GetParametrosCluster {
-    parametros {
+const GET_FORM_DATA = gql`
+  query GetClusterFormData {
+    parametros: parametrosFormularioCluster {
       id
       codigo
       nombre
@@ -43,7 +46,7 @@ const GET_PARAMETROS = gql`
 `
 
 /* --------------------------------------------------------
- * SectionCard (Card interno - Estilo preservado)
+ * Componentes Auxiliares
  * -------------------------------------------------------- */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
@@ -72,67 +75,60 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
 }
 
 /* --------------------------------------------------------
- * ClusterForm
+ * ClusterForm Principal
  * -------------------------------------------------------- */
-const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [], onSave, loading, error }) => {
+const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
   const theme = useTheme()
   const isEdit = Boolean(cluster?.id)
 
-  const { data: parametrosData, loading: loadingParametros } = useQuery(GET_PARAMETROS)
+  // 1. CARGA DE DATOS AUXILIARES
+  const { data: remoteData, loading: loadingData } = useQuery(GET_FORM_DATA)
+  
+  const listaParametros = remoteData?.parametros || []
 
-  // form state
+  // Estados del Formulario
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
     cod_tipo_cluster: null,
-    id_proxmox_endpoint: null,
-    id_k8s_endpoint: null,
+    identity_key: '',
   })
 
-  // select states
+  // Estados de Selects
   const [selectedTipoCluster, setSelectedTipoCluster] = useState(null)
-  const [selectedProxmoxEndpoint, setSelectedProxmoxEndpoint] = useState(null)
-  const [selectedK8sEndpoint, setSelectedK8sEndpoint] = useState(null)
 
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
 
+  // 2. EFECTO PARA CARGAR DATOS EN EDICIÓN
   useEffect(() => {
-    if (!loadingParametros && cluster) {
-      setForm((prev) => ({
-        ...prev,
+    // Si estamos editando y ya llegaron los datos de la query interna
+    if (!loadingData && cluster) {
+      setForm({
         nombre: cluster.nombre ?? '',
         descripcion: cluster.descripcion ?? '',
         cod_tipo_cluster: cluster.cod_tipo_cluster ?? null,
-        id_proxmox_endpoint: cluster.id_proxmox_endpoint ?? null,
-        id_k8s_endpoint: cluster.id_k8s_endpoint ?? null,
-      }))
+        identity_key: cluster.identity_key ?? '',
+      })
 
-      if (cluster.cod_tipo_cluster && parametrosData?.parametros) {
-        const match = parametrosData.parametros.find(
+      // Mapear Tipo Cluster
+      if (cluster.cod_tipo_cluster && listaParametros.length > 0) {
+        const match = listaParametros.find(
           (p) => p.grupo === 'TIPO_CLUSTER' && p.codigo === cluster.cod_tipo_cluster
         )
         if (match) setSelectedTipoCluster({ value: match.codigo, label: match.nombre })
       }
-
-      if (cluster.id_proxmox_endpoint && proxmoxEndpoints) {
-        const m = proxmoxEndpoints.find((p) => p.id === cluster.id_proxmox_endpoint)
-        if (m) setSelectedProxmoxEndpoint({ value: m.id, label: `${m.nombre} (${m.ip || m.dominio})` })
-      }
-
-      if (cluster.id_k8s_endpoint && k8sEndpoints) {
-        const k = k8sEndpoints.find((k) => k.id === cluster.id_k8s_endpoint)
-        if (k) setSelectedK8sEndpoint({ value: k.id, label: k.nombre })
-      }
     }
-  }, [loadingParametros, parametrosData, cluster, proxmoxEndpoints, k8sEndpoints])
+  }, [cluster, loadingData, listaParametros])
 
-  const tipoClusterOptions =
-    parametrosData?.parametros?.filter((p) => p.grupo === 'TIPO_CLUSTER')?.map((p) => ({ value: p.codigo, label: p.nombre })) || []
+  // 3. PREPARAR OPCIONES PARA SELECTS
+  const tipoClusterOptions = useMemo(() => 
+    listaParametros
+      .filter((p) => p.grupo === 'TIPO_CLUSTER')
+      .map((p) => ({ value: p.codigo, label: p.nombre })), 
+  [listaParametros])
 
-  const proxmoxOptions = proxmoxEndpoints?.map((p) => ({ value: p.id, label: `${p.nombre} (${p.ip || p.dominio})` })) || []
-  const k8sOptions = k8sEndpoints?.map((k) => ({ value: k.id, label: k.nombre })) || []
-
+  // Estilos Select
   const customSelectStyles = {
     control: (base, state) => ({
       ...base,
@@ -145,6 +141,7 @@ const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [],
     menu: (base) => ({ ...base, zIndex: 9999 }),
   }
 
+  // Handlers
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }))
@@ -168,8 +165,9 @@ const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [],
       nombre: form.nombre,
       descripcion: form.descripcion,
       cod_tipo_cluster: selectedTipoCluster?.value || null,
-      id_proxmox_endpoint: selectedTipoCluster?.value === 'PX' ? selectedProxmoxEndpoint?.value || null : null,
-      id_k8s_endpoint: selectedTipoCluster?.value === 'K8S' ? selectedK8sEndpoint?.value || null : null,
+      // Endpoints gestionados por backend (setup-calico-ipam.sh)
+      id_proxmox_endpoint: null,
+      id_k8s_endpoint: null,
       estado: 'ACTIVO',
     }
 
@@ -180,46 +178,25 @@ const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [],
     }
   }
 
-  if (loadingParametros) {
-    return (
-      <Box sx={{ textAlign: 'center', p: 4 }}>
-        <Typography>Cargando parámetros...</Typography>
-      </Box>
-    )
-  }
+  // Helper visual para identity_key
+  const isIdentityLocked = useMemo(() => {
+    if (!form.identity_key) return false
+    return form.identity_key.startsWith('manual:') || form.identity_key.startsWith('sync:')
+  }, [form.identity_key])
 
   return (
     <Box sx={{ width: '100%', maxWidth: 900, mx: 'auto', p: 2 }}>
-      
-      {/* CARD PRINCIPAL */}
-      <Card 
-        elevation={3} 
-        sx={{ 
-          borderRadius: 4, // Bordes más redondeados
-          overflow: 'hidden' // Asegura que el contenido respete los bordes redondeados
-        }}
-      >
+      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'hidden' }}>
         
-        {/* HEADER MODIFICADO: Fondo blanco y sin línea */}
-        <Box sx={{
-          px: 4,
-          py: 4,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2,
-          bgcolor: '#fff', // Fondo blanco
-          // Sin borderBottom
-        }}>
+        {/* HEADER */}
+        <Box sx={{ px: 4, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff' }}>
           <Avatar sx={{ 
-            width: 48, 
-            height: 48, 
+            width: 48, height: 48, 
             background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', 
-            color: 'white', 
-            boxShadow: 3 
+            color: 'white', boxShadow: 3 
           }}>
             {isEdit ? <EditIcon /> : <AddIcon />}
           </Avatar>
-
           <Box>
             <Typography variant="h5" fontWeight={800} sx={{
               lineHeight: 1.2,
@@ -237,21 +214,14 @@ const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [],
         </Box>
 
         <CardContent sx={{ px: 5, pb: 5, pt: 0, bgcolor: '#fff' }}>
-          
-          {/* Mensaje de Error */}
           {error && (
-            <Paper sx={{
-              p: 2, mb: 3, bgcolor: '#fff4f4', borderColor: '#ffcdd2',
-              color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2
-            }}>
+            <Paper sx={{ p: 2, mb: 3, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
               <ErrorIcon color="error" />
               <Typography variant="body2" fontWeight={600}>{error?.message || 'Error al guardar el registro'}</Typography>
             </Paper>
           )}
 
           <Box component="form" onSubmit={handleSubmit} noValidate>
-            
-            {/* SectionCard Único con Stack vertical */}
             <SectionCard icon={<InfoIcon />} title="Información" bgcolor={theme.palette.primary.main}>
               <Stack spacing={3}>
                 
@@ -271,7 +241,7 @@ const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [],
                   />
                 </Box>
 
-                {/* Tipo */}
+                {/* Tipo de Cluster */}
                 <Box>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
                     Tipo de Cluster *
@@ -280,15 +250,40 @@ const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [],
                     value={selectedTipoCluster}
                     onChange={(v) => {
                       setSelectedTipoCluster(v)
-                      setSelectedProxmoxEndpoint(null)
-                      setSelectedK8sEndpoint(null)
                     }}
                     options={tipoClusterOptions}
                     styles={customSelectStyles}
-                    placeholder="Seleccionar tipo..."
+                    placeholder={loadingData ? "Cargando..." : "Seleccionar tipo..."}
+                    isLoading={loadingData}
                   />
                   {errors.cod_tipo_cluster && <Typography color="error" variant="caption" sx={{ ml: 1, mt: 0.5, display: 'block' }}>{errors.cod_tipo_cluster}</Typography>}
                 </Box>
+
+                {/* Identity Key (Read-only) */}
+                <FormControl fullWidth>
+                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
+                      Identificador (Key)
+                    </Typography>
+                    <TextField 
+                      size="small" 
+                      value={form.identity_key || (isEdit ? 'No disponible' : 'Se generará automáticamente...')} 
+                      disabled={true} 
+                      InputProps={{ 
+                        readOnly: true,
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                {isIdentityLocked ? <LockIcon fontSize="small" color="disabled" /> : <LinkIcon fontSize="small" color="disabled" />}
+                            </InputAdornment>
+                        ),
+                        style: { backgroundColor: '#f5f5f5', color: '#777' }
+                      }} 
+                      helperText={
+                        isEdit 
+                          ? "Clave gestionada por el sistema (No editable)." 
+                          : "La clave se asignará al guardar."
+                      }
+                    />
+                </FormControl>
 
                 {/* Descripción */}
                 <Box>
@@ -306,61 +301,20 @@ const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [],
                   />
                 </Box>
 
-                {/* Endpoint Proxmox (Condicional) */}
-                {selectedTipoCluster?.value === 'PX' && (
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
-                      Endpoint Proxmox
-                    </Typography>
-                    <Select
-                      value={selectedProxmoxEndpoint}
-                      onChange={setSelectedProxmoxEndpoint}
-                      options={proxmoxOptions}
-                      styles={customSelectStyles}
-                      placeholder="Seleccionar endpoint Proxmox..."
-                      isClearable
-                    />
-                    {errors.id_proxmox_endpoint && <Typography color="error" variant="caption" sx={{ ml: 1, mt: 0.5, display: 'block' }}>{errors.id_proxmox_endpoint}</Typography>}
-                  </Box>
-                )}
-
-                {/* Endpoint K8s (Condicional) */}
-                {selectedTipoCluster?.value === 'K8S' && (
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
-                      Endpoint Kubernetes
-                    </Typography>
-                    <Select
-                      value={selectedK8sEndpoint}
-                      onChange={setSelectedK8sEndpoint}
-                      options={k8sOptions}
-                      styles={customSelectStyles}
-                      placeholder="Seleccionar API K8s..."
-                      isClearable
-                    />
-                    {errors.id_k8s_endpoint && <Typography color="error" variant="caption" sx={{ ml: 1, mt: 0.5, display: 'block' }}>{errors.id_k8s_endpoint}</Typography>}
-                  </Box>
-                )}
               </Stack>
             </SectionCard>
 
-            {/* Botones de Acción */}
+            {/* Botones */}
             <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <Button
                 variant="outlined"
                 color="inherit"
                 startIcon={<CancelIcon />}
                 onClick={() => navigate(routes.clusters())}
-                sx={{ 
-                  minWidth: 140, 
-                  borderRadius: 2, 
-                  textTransform: 'none',
-                  borderColor: 'rgba(0, 0, 0, 0.23)' 
-                }}
+                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
               >
                 Cancelar
               </Button>
-
               <LoadingButton
                 type="submit"
                 variant="contained"
@@ -368,11 +322,7 @@ const ClusterForm = ({ cluster = null, proxmoxEndpoints = [], k8sEndpoints = [],
                 startIcon={<SaveIcon />}
                 sx={{
                   background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
-                  boxShadow: 4,
-                  minWidth: 160,
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  fontWeight: 700
+                  boxShadow: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
                 }}
               >
                 {isEdit ? 'Guardar Cambios' : 'Guardar Cluster'}

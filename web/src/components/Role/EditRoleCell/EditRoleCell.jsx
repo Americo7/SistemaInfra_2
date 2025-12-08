@@ -1,6 +1,6 @@
 import { navigate, routes } from '@redwoodjs/router'
 
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import RoleForm from 'src/components/Role/RoleForm'
@@ -18,6 +18,12 @@ export const QUERY = gql`
       fecha_modificacion
       usuario_modificacion
     }
+    parametros {
+      id
+      codigo
+      nombre
+      grupo
+    }
   }
 `
 
@@ -26,13 +32,8 @@ const UPDATE_ROLE_MUTATION = gql`
     updateRole(id: $id, input: $input) {
       id
       nombre
-      cod_tipo_rol
-      descripcion
       estado
-      fecha_creacion
-      usuario_creacion
       fecha_modificacion
-      usuario_modificacion
     }
   }
 `
@@ -43,7 +44,7 @@ export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ role }) => {
+export const Success = ({ role, parametros }) => {
   const [updateRole, { loading, error }] = useMutation(UPDATE_ROLE_MUTATION, {
     onCompleted: () => {
       toast.success('Role updated')
@@ -66,7 +67,7 @@ export const Success = ({ role }) => {
         </h2>
       </header>
       <div className="rw-segment-main">
-        <RoleForm role={role} onSave={onSave} error={error} loading={loading} />
+        <RoleForm role={role} parametros={parametros} onSave={onSave} error={error} loading={loading} />
       </div>
     </div>
   )

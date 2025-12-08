@@ -11,38 +11,42 @@ export const QUERY = gql`
       descripcion
       fecha_despliegue
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
       fecha_solicitud
       unidad_solicitante
       solicitante
       cod_tipo_respaldo
       referencia_respaldo
       estado_despliegue
-
-      # RELACIONES AUTOMÁTICAS
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      tipoRespaldoInfo {
+        id
+        codigo
+        nombre
+      }
+      estadoDespliegueInfo {
+        id
+        codigo
+        nombre
+      }
       componentes {
         id
         nombre
         dominio
         descripcion
-        cod_entorno
-        cod_categoria
-        tecnologia
-        estado
-
         sistemas {
           id
           nombre
-          sigla
-          codigo
-          descripcion
-          estado
         }
       }
-
       maquinas {
         id
         nombre
@@ -50,44 +54,14 @@ export const QUERY = gql`
         so
         ram
         cpu
-        cod_plataforma
-        estado
-        fecha_creacion
-        usuario_creacion
-
-        servidores {
-          id
-          nombre
-          cod_tipo_servidor
-          id_padre
-        }
       }
-
       servidores {
         id
         nombre
-        cod_tipo_servidor
-        id_padre
-      }
-
-      despliegue_bitacora {
-        id
-        estado_anterior
-        estado_actual
-        fecha_creacion
-        usuario_creacion
-        descripcion
       }
     }
-
-    usuarios {
+    parametrosFormularioDespliegue {
       id
-      nombres
-      primer_apellido
-      segundo_apellido
-    }
-
-    parametros {
       codigo
       nombre
       grupo
@@ -103,16 +77,14 @@ export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ despliegue, usuarios, parametros }) => {
+export const Success = ({ despliegue, parametrosFormularioDespliegue }) => {
   return (
     <Despliegue
       despliegue={despliegue}
       componente={despliegue.componentes}
       maquina={despliegue.maquinas}
       servidor={despliegue.servidores}
-      bitacora={despliegue.despliegue_bitacora}
-      usuarios={usuarios}
-      parametros={parametros}
+      parametros={parametrosFormularioDespliegue}
     />
   )
 }

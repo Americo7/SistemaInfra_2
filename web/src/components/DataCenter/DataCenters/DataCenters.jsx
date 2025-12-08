@@ -1,417 +1,424 @@
-import React, { useMemo, useState } from 'react'
+import React, { useState, useMemo } from 'react'
+import { Link, routes } from '@redwoodjs/router'
+import { useMutation, gql } from '@redwoodjs/web'
+import { toast } from '@redwoodjs/web/toast'
+import { useTheme } from '@mui/material/styles'
+
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
+
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
-  FileDownload as FileDownloadIcon,
-  MoreVert as MoreVertIcon,
+  Apartment as DataCenterIcon,
+  GridOn as ExcelIcon,
+  PictureAsPdf as PdfIcon,
+  TextSnippet as CsvIcon,
+  DeleteForever as HardDeleteIcon,
+  PowerOff as SoftDeleteIcon,
 } from '@mui/icons-material'
 
 import {
   Box,
-  Button,
   Chip,
-  Dialog,
-  DialogContent,
-  DialogActions,
-  DialogTitle,
   IconButton,
   Tooltip,
   Menu,
   MenuItem,
+  Stack,
   ListItemIcon,
-  ListItemText,
-  Switch,
-  FormControlLabel,
+  Typography,
+  Divider,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
+import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/dataCentersExporter'
 
-import { Link, routes } from '@redwoodjs/router'
-import { useMutation, useQuery } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
 
-import {
-  exportToPDF,
-  exportToExcel,
-  exportToCSV,
-} from 'src/lib/exporter/dataCentersExporter'
-
-import { QUERY } from 'src/components/DataCenter/DataCentersCell'
+// --- GRAPHQL ---
+const UPDATE_DATA_CENTER_MUTATION = gql`
+  mutation UpdateDataCenter($id: Int!, $input: UpdateDataCenterInput!) {
+    updateDataCenter(id: $id, input: $input) {
+      id
+      estado
+    }
+  }
+`
 
 const DELETE_DATA_CENTER_MUTATION = gql`
-  mutation DeleteDataCenterMutation($id: Int!) {
+  mutation DeleteDataCenter($id: Int!) {
     deleteDataCenter(id: $id) {
       id
     }
   }
 `
 
-// --- Usuarios para mostrar nombre ---
-const USUARIOS_QUERY = gql`
-  query UsuariosForDataCenters {
-    usuarios {
+const QUERY_REFETCH = gql`
+  query FindDataCentersRefetch {
+    dataCenters {
       id
-      nombres
-      primer_apellido
-      segundo_apellido
+      estado
     }
   }
 `
 
-// --- Helpers ---
-const formatDateTime = (value) => {
-  if (!value) return '-'
-  return new Date(value).toLocaleString('es-BO', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+// --- HELPERS ---
+const formatDate = (d) => {
+  if (!d) return '-'
+  try {
+    return new Date(d).toLocaleString('es-BO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return '-' }
+}
+
+const DataCenters = ({ dataCenters, parametros, usuarios }) => {
+  const theme = useTheme()
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
+  
+  const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
+
+  const [updateDataCenter] = useMutation(UPDATE_DATA_CENTER_MUTATION, {
+    onError: (error) => toast.error(error.message),
+    refetchQueries: [{ query: QUERY_REFETCH }],
   })
-}
-
-const formatEnum = (value) => {
-  if (!value) return '-'
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
-}
-
-const DataCentersList = ({ dataCenters = [] }) => {
-  const { data: usuariosData } = useQuery(USUARIOS_QUERY)
-  const usuarios = usuariosData?.usuarios || []
-
-  const [exportMenu, setExportMenu] = useState({ all: null, page: null, sel: null })
-  const [showInactive, setShowInactive] = useState(false)
-  const [actionMenu, setActionMenu] = useState({ anchorEl: null, row: null })
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null })
 
   const [deleteDataCenter] = useMutation(DELETE_DATA_CENTER_MUTATION, {
-    onCompleted: () => {
-      toast.success('DataCenter eliminado')
-      setDeleteDialog({ open: false, id: null })
-    },
-    onError: (e) => toast.error(e.message),
-    refetchQueries: [{ query: QUERY }],
+    onError: (error) => toast.error(error.message),
+    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
+    refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  const helpers = {
-    getNombreUsuario: (id) => {
-      if (!id) return '-'
-      const u = usuarios.find((x) => x.id === id)
-      if (!u) return `ID: ${id}`
-      return `${u.nombres} ${u.primer_apellido}`.trim()
-    },
+  const closeAllDialogs = () => {
+    setExportMenuAnchorEl(null)
+    setBulkMenuAnchorEl(null)
   }
 
-  const filteredData = useMemo(
-    () =>
-      showInactive
-        ? dataCenters
-        : dataCenters.filter((dc) => dc.estado === 'ACTIVO'),
-    [dataCenters, showInactive]
-  )
+  // --- HANDLERS DE ELIMINACIÓN ---
+  const handleSoftDelete = (rows) => {
+    rows.forEach((dc) => {
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      updateDataCenter({
+        variables: { id: dc.id, input: { estado: newState, usuario_modificacion: 1 } },
+      })
+    })
+    
+    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
 
-  // ----------------- Columnas Tabla -----------------
+  const handleHardDelete = (rows) => {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
+        closeAllDialogs()
+        return
+    }
+
+    rows.forEach((dc) => {
+      deleteDataCenter({ variables: { id: dc.id } })
+    })
+    
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  // --- MAPEOS ---
+  const usuariosMap = useMemo(() => {
+    return (usuarios || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
+  }, [usuarios])
+
+  const helpers = {
+    getUsuarioNombre: (id) => usuariosMap[id] || `ID: ${id}`,
+  }
+
+  // --- DATOS ---
+  const filteredData = useMemo(() => {
+    if (!dataCenters) return []
+    return dataCenters.filter((dc) =>
+      showDeleted ? dc.estado === 'INACTIVO' : dc.estado === 'ACTIVO'
+    )
+  }, [dataCenters, showDeleted])
+
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
-
-      { accessorKey: 'nombre', header: 'Nombre', size: 200 },
-
+      {
+        accessorKey: 'nombre',
+        header: 'Nombre Data Center',
+        size: 200,
+        Cell: ({ row }) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <DataCenterIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+            <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+              {row.original.nombre}
+            </Typography>
+          </Box>
+        ),
+      },
       { accessorKey: 'ubicacion', header: 'Ubicación', size: 200 },
-
       {
         accessorKey: 'estado',
         header: 'Estado',
         size: 100,
         Cell: ({ cell }) => (
-          <Chip
-            size="small"
-            label={formatEnum(cell.getValue())}
-            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
+          <Chip 
+              label={cell.getValue()} 
+              color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
+              size="small" 
+              variant="outlined" 
+              sx={{ fontSize: '0.7rem' }}
           />
         ),
       },
-
-      {
-        accessorKey: 'fecha_creacion',
-        header: 'Fecha Creación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-
-      {
-        accessorKey: 'usuario_creacion',
-        header: 'Creado por',
-        size: 180,
-        Cell: ({ cell }) => helpers.getNombreUsuario(cell.getValue()),
-      },
-
-      {
-        accessorKey: 'fecha_modificacion',
-        header: 'Fecha Modificación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-
-      {
-        accessorKey: 'usuario_modificacion',
-        header: 'Modificado por',
-        size: 180,
-        Cell: ({ cell }) => helpers.getNombreUsuario(cell.getValue()),
-      },
-    ],
-    [usuarios]
+      { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+      { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+      { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+      { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+    ], [usuariosMap]
   )
 
-  // ----------------- Tabla -----------------
+  // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
     columns,
     data: filteredData,
-
     enableRowActions: true,
     enableRowSelection: true,
-
+    enableGlobalFilter: true,
+    enableRowVirtualization: true,
+    rowVirtualizerOptions: { overscan: 5 },
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: {
-        id: false,
+      columnVisibility: { 
+        id: false, 
+        estado: false,
+        fecha_creacion: false, 
+        usuario_creacion: false, 
+        fecha_modificacion: false, 
+        usuario_modificacion: false 
       },
     },
-
-    renderRowActions: ({ row }) => (
-      <Tooltip title="Acciones">
-        <IconButton
-          onClick={(e) => setActionMenu({ anchorEl: e.currentTarget, row: row.original })}
-        >
-          <MoreVertIcon />
-        </IconButton>
-      </Tooltip>
-    ),
-
-    renderTopToolbarCustomActions: ({ table }) => {
-      const selected = table.getSelectedRowModel().rows
-
-      return (
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', p: 1 }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={showInactive}
-                onChange={() => setShowInactive(!showInactive)}
-              />
-            }
-            label="Mostrar inactivos"
-          />
-
-          {/* Exportar Todos */}
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            sx={{ backgroundColor: '#0F284D' }}
-            onClick={(e) => setExportMenu({ ...exportMenu, all: e.currentTarget })}
-          >
-            Exportar Todos
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.all}
-            open={!!exportMenu.all}
-            onClose={() => setExportMenu({ ...exportMenu, all: null })}
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(table.getPrePaginationRowModel().rows.map((v) => v.original))
-                setExportMenu({ ...exportMenu, all: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToExcel(table.getPrePaginationRowModel().rows.map((v) => v.original))
-                setExportMenu({ ...exportMenu, all: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToCSV(table.getPrePaginationRowModel().rows.map((v) => v.original))
-                setExportMenu({ ...exportMenu, all: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          {/* Exportar Página */}
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            sx={{ backgroundColor: '#0F284D' }}
-            onClick={(e) => setExportMenu({ ...exportMenu, page: e.currentTarget })}
-          >
-            Exportar Página
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.page}
-            open={!!exportMenu.page}
-            onClose={() => setExportMenu({ ...exportMenu, page: null })}
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(table.getRowModel().rows.map((v) => v.original))
-                setExportMenu({ ...exportMenu, page: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToExcel(table.getRowModel().rows.map((v) => v.original))
-                setExportMenu({ ...exportMenu, page: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToCSV(table.getRowModel().rows.map((v) => v.original))
-                setExportMenu({ ...exportMenu, page: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          {/* Exportar Selección */}
-          <Button
-            disabled={selected.length === 0}
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            sx={{ backgroundColor: '#0F284D' }}
-            onClick={(e) => setExportMenu({ ...exportMenu, sel: e.currentTarget })}
-          >
-            Exportar Selección ({selected.length})
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.sel}
-            open={!!exportMenu.sel}
-            onClose={() => setExportMenu({ ...exportMenu, sel: null })}
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(selected.map((v) => v.original))
-                setExportMenu({ ...exportMenu, sel: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToExcel(selected.map((v) => v.original))
-                setExportMenu({ ...exportMenu, sel: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToCSV(selected.map((v) => v.original))
-                setExportMenu({ ...exportMenu, sel: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-        </Box>
-      )
+    muiTablePaperProps: {
+      elevation: 0,
+      sx: {
+        maxWidth: 1500,
+        mx: 'auto',
+        px: 2, 
+        py: 1,
+        border: `1px solid ${theme.palette.divider}`,
+        borderTop: 'none', 
+        borderRadius: 2, 
+        borderTopLeftRadius: '0 !important',
+        borderTopRightRadius: '0 !important',
+        backgroundColor: 'background.paper',
+        overflow: 'hidden',
+      },
     },
+    muiTableContainerProps: {
+       sx: {
+         border: `1px solid ${theme.palette.divider}`,
+         borderRadius: 2, 
+         overflow: 'auto', 
+       }
+    },
+    muiTopToolbarProps: {
+      sx: {
+        pl: 1, 
+        pr: 1,
+        backgroundColor: 'background.paper',
+        mb: 1, 
+      }
+    },
+    muiBottomToolbarProps: {
+        sx: {
+            backgroundColor: 'background.paper',
+            border: 'none', 
+            boxShadow: 'none',
+        }
+    },
+    renderTopToolbarCustomActions: () => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Data Centers
+        </Typography>
+      </Box>
+    ),
+    muiTableHeadCellProps: {
+      sx: {
+        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
+        color: 'text.primary',
+        fontWeight: 'bold',
+        fontSize: '0.85rem',
+        borderBottom: `1px solid ${theme.palette.divider}`, 
+        borderRight: `1px solid ${theme.palette.divider}`,  
+        '&:last-child': { borderRight: 'none' },
+      }
+    },
+    muiTableBodyCellProps: {
+        sx: {
+            borderBottom: `1px solid ${theme.palette.divider}`,
+        }
+    },
+    muiTableBodyRowProps: ({ row }) => ({
+      sx: {
+        '&:hover': {
+          backgroundColor: theme.palette.action.hover,
+        },
+      }
+    }),
+    renderRowActions: ({ row }) => (
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title="Ver Detalles">
+          <IconButton component={Link} to={routes.dataCenter({ id: row.original.id })} size="small">
+            <VisibilityIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Editar">
+          <IconButton component={Link} to={routes.editDataCenter({ id: row.original.id })} size="small">
+            <EditIcon fontSize="small" color="info" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    ),
   })
 
-  // ----------------- Eliminar -----------------
-  const confirmarEliminar = () => {
-    deleteDataCenter({ variables: { id: deleteDialog.id } })
+  // --- LOGICA DE EXPORTACIÓN OPTIMIZADA ---
+  const handleExport = (scope, suffix, format) => {
+    let rowsToExport = []
+
+    if (scope === 'page') {
+      const allRows = table.getPrePaginationRowModel().rows
+      
+      const { pageIndex, pageSize } = table.getState().pagination
+      const startRow = pageIndex * pageSize
+      const endRow = startRow + pageSize
+      
+      rowsToExport = allRows.slice(startRow, endRow)
+    }
+
+    if (scope === 'all') {
+       rowsToExport = table.getPrePaginationRowModel().rows
+    }
+
+    if (scope === 'selected') {
+      rowsToExport = table.getSelectedRowModel().rows
+    }
+
+    if (!rowsToExport || rowsToExport.length === 0) {
+        toast.error('No hay datos para exportar')
+        return
+    }
+
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
+    
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
+    
+    closeAllDialogs()
   }
 
-  return (
-    <Box sx={{ p: 1 }}>
-      <MaterialReactTable table={table} />
+  // --- CONFIG PARA SCAFFOLD ---
+  const listActionsConfig = useMemo(() => {
+    const selectedRowCount = table.getSelectedRowModel().rows.length
+    
+    const ExportMenu = (
+      <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
+        {/* EXCEL */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+        
+        <Divider />
 
-      {/* Menú de acciones por fila */}
-      <Menu
-        anchorEl={actionMenu.anchorEl}
-        open={!!actionMenu.anchorEl}
-        onClose={() => setActionMenu({ anchorEl: null, row: null })}
-      >
-        <MenuItem
-          component={Link}
-          to={actionMenu.row ? routes.dataCenter({ id: actionMenu.row.id }) : '#'}
-        >
-          <ListItemIcon>
-            <VisibilityIcon fontSize="small" color="primary" />
-          </ListItemIcon>
-          <ListItemText>Ver detalles</ListItemText>
+        {/* PDF */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
 
-        <MenuItem
-          component={Link}
-          to={actionMenu.row ? routes.editDataCenter({ id: actionMenu.row.id }) : '#'}
-        >
-          <ListItemIcon>
-            <EditIcon fontSize="small" color="info" />
-          </ListItemIcon>
-          <ListItemText>Editar</ListItemText>
-        </MenuItem>
+        <Divider />
 
-        <MenuItem
-          onClick={() => {
-            if (actionMenu.row) {
-              setDeleteDialog({ open: true, id: actionMenu.row.id })
-            }
-            setActionMenu({ anchorEl: null, row: null })
-          }}
-        >
-          <ListItemIcon>
-            <DeleteIcon fontSize="small" color="error" />
-          </ListItemIcon>
-          <ListItemText>Eliminar</ListItemText>
+        {/* CSV */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
       </Menu>
+    )
 
-      {/* Dialog eliminar */}
-      <Dialog
-        open={deleteDialog.open}
-        onClose={() => setDeleteDialog({ open: false, id: null })}
+    const BulkActionMenu = (
+      <Menu
+        anchorEl={bulkMenuAnchorEl}
+        open={Boolean(bulkMenuAnchorEl)}
+        onClose={closeAllDialogs}
       >
-        <DialogTitle>Eliminar Data Center</DialogTitle>
-        <DialogContent>
-          ¿Deseas eliminar el DataCenter #{deleteDialog.id}?
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialog({ open: false, id: null })}>
-            Cancelar
-          </Button>
-          <Button variant="contained" color="error" onClick={confirmarEliminar}>
-            Eliminar
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
+          Desactivar (Soft Delete)
+        </MenuItem>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
+          Eliminar de Base de Datos
+        </MenuItem>
+      </Menu>
+    )
+
+    return {
+      showDeleted,
+      selectedRowCount,
+      handleSwitchChange: (e) => setShowDeleted(e.target.checked),
+      
+      handleBulkAction: (e) => {
+        if (showDeleted) {
+            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+        } else {
+            setBulkMenuAnchorEl(e.currentTarget)
+        }
+      },
+      
+      handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
+      exportMenu: ExportMenu,
+      bulkActionMenu: BulkActionMenu,
+    }
+  }, [
+    table, 
+    showDeleted, 
+    exportMenuAnchorEl, 
+    bulkMenuAnchorEl, 
+    table.getState().rowSelection,
+    table.getState().pagination
+  ])
+
+  return (
+    <ScaffoldLayout
+      title="Data Centers"
+      titleTo="dataCenters"
+      groupTitle="Infraestructura"
+      buttonLabel="Nuevo Data Center"
+      buttonTo="newDataCenter"
+      listActionsConfig={listActionsConfig}
+    >
+      <MaterialReactTable table={table} />
+    </ScaffoldLayout>
   )
 }
 
-export default DataCentersList
+export default DataCenters

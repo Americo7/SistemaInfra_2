@@ -13,11 +13,15 @@ export const schema = gql`
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    
     componentes: [Componente]!
     entidades: Entidad!
     sistemas: Sistema
     other_sistemas: [Sistema]!
     usuario_roles: [UsuarioRol]!
+    
+    creadoPor: Usuario
+    modificadoPor: Usuario
   }
 
   enum estado {
@@ -35,10 +39,8 @@ input SistemaOrderByInput {
 
 
   type Query {
-    sistemas: [Sistema!]! @requireAuth
-    sistema(id: Int!): Sistema @requireAuth
     sistemas(limit: Int, orderBy: SistemaOrderByInput): [Sistema!]! @requireAuth
-
+    sistema(id: Int!): Sistema @requireAuth
   }
 
   input CreateSistemaInput {
@@ -50,10 +52,6 @@ input SistemaOrderByInput {
     descripcion: String!
     estado: estado!
     ra_creacion: String
-    fecha_creacion: DateTime
-    usuario_creacion: Int!
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   input UpdateSistemaInput {
@@ -65,10 +63,6 @@ input SistemaOrderByInput {
     descripcion: String
     estado: estado
     ra_creacion: String
-    fecha_creacion: DateTime
-    usuario_creacion: Int
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   type Mutation {

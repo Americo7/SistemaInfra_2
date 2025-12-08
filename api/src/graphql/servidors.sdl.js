@@ -13,20 +13,32 @@ export const schema = gql`
     almacenamiento: Int
     ip_primaria: String
     sistema_operativo: String
+    
+    # Estados
     estado_operativo: String!
     estado: estado!
+    
+    # Auditoría
+    identity_key: String!
     fecha_creacion: DateTime!
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
-    identity_key:  String!
+    
+    # Relaciones
     data_centers: DataCenter
-    servidores_padre: Servidor
-    servidores_hijos: [Servidor!]!
+    servidores_padre: Servidor     # Es singular porque un servidor tiene 1 padre
+    servidores_hijos: [Servidor!]! # Es plural porque un servidor puede tener N hijos
     maquinas: [Maquina!]!
     cluster_nodos: [ClusterNodo!]!
     despliegue: [Despliegue!]!
     infra_afectada: [InfraAfectada!]!
+
+    # Relaciones Calculadas / Helpers
+    creadoPor: Usuario
+    modificadoPor: Usuario
+    tipoServidorInfo: Parametro
+    estadoOperativoInfo: Parametro
   }
 
   enum estado {
@@ -34,18 +46,13 @@ export const schema = gql`
     INACTIVO
   }
 
-  # ------------------------
-  # Queries
-  # ------------------------
   type Query {
     servidores: [Servidor!]! @requireAuth
     servidor(id: Int!): Servidor @requireAuth
-    servidorCompleto(id: Int!): Servidor @requireAuth
+    
+    # Dropdowns
+    parametrosFormularioServidor: [Parametro!]! @requireAuth
   }
-
-  # ------------------------
-  # Inputs
-  # ------------------------
 
   input CreateServidorInput {
     id_data_center: Int
@@ -62,8 +69,9 @@ export const schema = gql`
     sistema_operativo: String
     estado_operativo: String!
     estado: estado!
-    usuario_creacion: Int!
-    identity_key: String
+    
+    # Opcional en creación, el sistema lo genera si falta
+    identity_key: String 
   }
 
   input UpdateServidorInput {
@@ -81,13 +89,8 @@ export const schema = gql`
     sistema_operativo: String
     estado_operativo: String
     estado: estado
-    usuario_modificacion: Int
-    identity_key: String
+    # identity_key ELIMINADO: La lógica de actualización no permite cambiar esto manualmente
   }
-
-  # ------------------------
-  # Mutations
-  # ------------------------
 
   type Mutation {
     createServidor(input: CreateServidorInput!): Servidor! @requireAuth

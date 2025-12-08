@@ -1,461 +1,418 @@
 import React, { useState, useMemo } from 'react'
+import { Link, routes } from '@redwoodjs/router'
+import { useMutation, gql } from '@redwoodjs/web'
+import { toast } from '@redwoodjs/web/toast'
+import { useTheme } from '@mui/material/styles'
+
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
+
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
-  FileDownload as FileDownloadIcon,
-  MoreVert as MoreVertIcon,
-  Check as CheckIcon,
+  Security as RoleIcon, // Icono de seguridad para Roles
+  GridOn as ExcelIcon,
+  PictureAsPdf as PdfIcon,
+  TextSnippet as CsvIcon,
+  DeleteForever as HardDeleteIcon,
+  PowerOff as SoftDeleteIcon,
 } from '@mui/icons-material'
 
 import {
   Box,
-  Button,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
   Tooltip,
-  Typography,
   Menu,
   MenuItem,
-  Switch,
-  FormControlLabel,
+  Stack,
   ListItemIcon,
-  ListItemText,
-  useTheme,
+  Typography,
+  Divider,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
+import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/rolesExporter'
 
-import { Link, routes } from '@redwoodjs/router'
-import { useQuery, useMutation } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
-
-import { QUERY } from 'src/components/Role/RolesCell'
-import {
-  UPDATE_ROLE_MUTATION,
-  GET_USUARIOS_QUERY,
-  formatDateTime,
-  truncate,
-  formatEnum,
-  exportToPDF,
-  exportToExcel,
-  exportToCSV,
-} from 'src/lib/exporter/rolesExporter'
-
-const RolesList = ({ roles = [] }) => {
-  const theme = useTheme()
-
-  if (!Array.isArray(roles)) {
-    return (
-      <Box sx={{ p: 4, textAlign: 'center' }}>
-        <Typography color="error">Error: Datos no válidos</Typography>
-      </Box>
-    )
+// --- GRAPHQL ---
+const UPDATE_ROLE_MUTATION = gql`
+  mutation UpdateRole($id: Int!, $input: UpdateRoleInput!) {
+    updateRole(id: $id, input: $input) {
+      id
+      estado
+    }
   }
+`
 
-  const [deleteState, setDeleteState] = useState({ open: false, id: null })
-  const [exportMenuAnchor, setExportMenuAnchor] = useState({
-    all: null,
-    page: null,
-    selection: null,
-  })
-  const [showInactive, setShowInactive] = useState(false)
-  const [usuariosMap, setUsuariosMap] = useState({})
-  const [actionMenu, setActionMenu] = useState({
-    anchorEl: null,
-    row: null,
-  })
+const DELETE_ROLE_MUTATION = gql`
+  mutation DeleteRole($id: Int!) {
+    deleteRole(id: $id) {
+      id
+    }
+  }
+`
 
-  // Cargar usuarios
-  useQuery(GET_USUARIOS_QUERY, {
-    onCompleted: (data) => {
-      const map = data.usuarios.reduce((acc, u) => {
-        acc[u.id] = `${u.nombres} ${u.primer_apellido}`
-        return acc
-      }, {})
-      setUsuariosMap(map)
-    },
-  })
+const QUERY_REFETCH = gql`
+  query FindRolesRefetch {
+    roles {
+      id
+      estado
+    }
+  }
+`
+
+const Roles = ({ roles, creators }) => {
+  const theme = useTheme()
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
+  const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
   const [updateRole] = useMutation(UPDATE_ROLE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Estado del rol actualizado')
-      setDeleteState({ open: false, id: null })
-    },
     onError: (error) => toast.error(error.message),
-    refetchQueries: [{ query: QUERY }],
-    awaitRefetchQueries: true,
+    refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  const getNombreUsuario = (id) =>
-    id ? usuariosMap[id] || `(ID: ${id})` : 'N/A'
+  const [deleteRole] = useMutation(DELETE_ROLE_MUTATION, {
+    onError: (error) => toast.error(error.message),
+    onCompleted: () => toast.success('Roles eliminados permanentemente.'),
+    refetchQueries: [{ query: QUERY_REFETCH }],
+  })
 
-  const filteredRoles = useMemo(
-    () =>
-      showInactive ? roles : roles.filter((r) => r.estado === 'ACTIVO'),
-    [roles, showInactive]
-  )
+  const closeAllDialogs = () => {
+    setExportMenuAnchorEl(null)
+    setBulkMenuAnchorEl(null)
+  }
 
-  const getFormattedData = (rows, table) => {
-    const visible = table
-      .getVisibleLeafColumns()
-      .filter(
-        (c) => c.id !== 'mrt-row-actions' && c.id !== 'mrt-row-select'
-      )
-
-    const headers = visible.map((c) => c.columnDef.header)
-
-    const data = rows.map((row) =>
-      visible.map((col) => {
-        const v = row.original[col.id]
-        if (col.id.includes('fecha_')) return formatDateTime(v)
-        if (col.id === 'estado') return formatEnum(v)
-        if (
-          col.id === 'usuario_creacion' ||
-          col.id === 'usuario_modificacion'
-        )
-          return getNombreUsuario(v)
-        return truncate(v, 100)
+  // --- HANDLERS DE ELIMINACIÓN ---
+  const handleSoftDelete = (rows) => {
+    rows.forEach((row) => {
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      updateRole({
+        variables: { id: row.id, input: { estado: newState, usuario_modificacion: 1 } },
       })
+    })
+    
+    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  const handleHardDelete = (rows) => {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} rol(es)?\n\nEsta acción no se puede deshacer.`)) {
+        closeAllDialogs()
+        return
+    }
+
+    rows.forEach((row) => {
+      deleteRole({ variables: { id: row.id } })
+    })
+    
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  // --- MAPEOS Y HELPERS ---
+  const creatorsMap = useMemo(() => {
+    return (creators || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
+  }, [creators])
+
+  const helpers = {
+    getUsuarioNombre: (id) => creatorsMap[id] || `ID: ${id}`,
+  }
+
+  const formatDate = (d) => {
+    if (!d) return '-'
+    try {
+      return new Date(d).toLocaleString('es-BO', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    } catch { return '-' }
+  }
+
+  // --- DATOS ---
+  const filteredData = useMemo(() => {
+    if (!roles) return []
+    return roles.filter((r) =>
+      showDeleted ? r.estado === 'INACTIVO' : r.estado === 'ACTIVO'
     )
+  }, [roles, showDeleted])
 
-    return { headers, data }
-  }
-
-  const handleExport = (type, rows, table) => {
-    const { headers, data } = getFormattedData(rows, table)
-
-    if (type === 'pdf') exportToPDF(headers, data, 'Reporte de Roles')
-    if (type === 'excel')
-      exportToExcel(headers, data, 'Reporte de Roles')
-    if (type === 'csv') exportToCSV(headers, data, 'Reporte de Roles')
-  }
-
-  const columns = useMemo(
-    () => [
-      { accessorKey: 'id', header: 'ID', size: 60 },
-      { accessorKey: 'nombre', header: 'Nombre', size: 150 },
-      { accessorKey: 'cod_tipo_rol', header: 'Código Tipo', size: 120 },
-      { accessorKey: 'descripcion', header: 'Descripción', size: 200 },
-      {
-        accessorKey: 'estado',
-        header: 'Estado',
-        size: 100,
+  // --- COLUMNAS ---
+  const columns = useMemo(() => [
+    { accessorKey: 'id', header: 'ID', size: 60 },
+    { 
+        accessorKey: 'nombre', 
+        header: 'Nombre', 
+        size: 150,
         Cell: ({ row }) => (
-          <Chip
-            label={formatEnum(row.original.estado)}
-            color={
-              row.original.estado === 'ACTIVO' ? 'success' : 'error'
-            }
-            size="small"
-          />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <RoleIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+              <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+                {row.original.nombre}
+              </Typography>
+            </Box>
         ),
-      },
-      {
-        accessorKey: 'fecha_creacion',
-        header: 'Fecha Creación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_creacion',
-        header: 'Creado por',
-        size: 150,
-        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
-      },
-      {
-        accessorKey: 'fecha_modificacion',
-        header: 'Modificado',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_modificacion',
-        header: 'Modificado por',
-        size: 150,
-        Cell: ({ cell }) => getNombreUsuario(cell.getValue()),
-      },
-    ],
-    [usuariosMap]
-  )
+    },
+    { accessorKey: 'cod_tipo_rol', header: 'Cód. Tipo', size: 100 },
+    { accessorKey: 'descripcion', header: 'Descripción', size: 250 },
+    {
+      accessorKey: 'estado',
+      header: 'Estado',
+      size: 100,
+      Cell: ({ cell }) => (
+        <Chip 
+            label={cell.getValue()} 
+            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
+            size="small" 
+            variant="outlined" 
+            sx={{ fontSize: '0.7rem' }}
+        />
+      ),
+    },
+    { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+    { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+    { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+    { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+  ], [creatorsMap])
 
+  // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
     columns,
-    data: filteredRoles,
-    enableRowSelection: true,
+    data: filteredData,
     enableRowActions: true,
-
+    enableRowSelection: true,
+    enableGlobalFilter: true,
+    enableRowVirtualization: true,
+    rowVirtualizerOptions: { overscan: 5 },
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: {
-        id: false,
+      columnVisibility: { 
+        id: false, 
+        fecha_creacion: false, 
+        usuario_creacion: false, 
+        fecha_modificacion: false, 
+        usuario_modificacion: false 
       },
     },
-
-    muiTableBodyRowProps: ({ row }) => ({
-      onClick: row.getToggleSelectedHandler(),
+    muiTablePaperProps: {
+      elevation: 0,
       sx: {
-        cursor: 'pointer',
-        backgroundColor: row.getIsSelected()
-          ? 'rgba(25,118,210,0.08)'
-          : undefined,
+        maxWidth: 1500,
+        mx: 'auto',
+        px: 2, 
+        py: 1,
+        border: `1px solid ${theme.palette.divider}`,
+        borderTop: 'none', 
+        borderRadius: 2, 
+        borderTopLeftRadius: '0 !important',
+        borderTopRightRadius: '0 !important',
+        backgroundColor: 'background.paper',
+        overflow: 'hidden',
       },
-    }),
-
-    // --- MENU DE ACCIONES ---
-    renderRowActions: ({ row }) => (
-      <Tooltip title="Acciones">
-        <IconButton
-          size="small"
-          onClick={(e) =>
-            setActionMenu({ anchorEl: e.currentTarget, row: row.original })
-          }
-        >
-          <MoreVertIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-    ),
-
-    // --- BOTONES SUPERIORES ---
-    renderTopToolbarCustomActions: ({ table }) => {
-      const selected = table.getSelectedRowModel().rows
-      const hasSel = selected.length > 0
-
-      return (
-        <Box sx={{ display: 'flex', gap: 2, p: 1, flexWrap: 'wrap' }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={showInactive}
-                onChange={() => setShowInactive(!showInactive)}
-              />
-            }
-            label="Mostrar inactivos"
-          />
-
-          {/* Exportar todos */}
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            sx={{ backgroundColor: theme.palette.primary.main }}
-            disabled={table.getPrePaginationRowModel().rows.length === 0}
-            onClick={(e) =>
-              setExportMenuAnchor({
-                ...exportMenuAnchor,
-                all: e.currentTarget,
-              })
-            }
-          >
-            Exportar Todos
-          </Button>
-
-          <Menu
-            anchorEl={exportMenuAnchor.all}
-            open={Boolean(exportMenuAnchor.all)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-            }
-          >
-            <MenuItem
-              onClick={() => {
-                handleExport(
-                  'pdf',
-                  table.getPrePaginationRowModel().rows,
-                  table
-                )
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                handleExport(
-                  'excel',
-                  table.getPrePaginationRowModel().rows,
-                  table
-                )
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                handleExport(
-                  'csv',
-                  table.getPrePaginationRowModel().rows,
-                  table
-                )
-                setExportMenuAnchor({ ...exportMenuAnchor, all: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          {/* Exportar selección */}
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            disabled={!hasSel}
-            sx={{ backgroundColor: theme.palette.primary.main }}
-            onClick={(e) =>
-              setExportMenuAnchor({
-                ...exportMenuAnchor,
-                selection: e.currentTarget,
-              })
-            }
-          >
-            Exportar Selección ({selected.length})
-          </Button>
-
-          <Menu
-            anchorEl={exportMenuAnchor.selection}
-            open={Boolean(exportMenuAnchor.selection)}
-            onClose={() =>
-              setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-            }
-          >
-            <MenuItem
-              onClick={() => {
-                handleExport('pdf', selected, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                handleExport('excel', selected, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                handleExport('csv', selected, table)
-                setExportMenuAnchor({ ...exportMenuAnchor, selection: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-        </Box>
-      )
     },
+    muiTableContainerProps: {
+       sx: {
+         border: `1px solid ${theme.palette.divider}`,
+         borderRadius: 2, 
+         overflow: 'auto', 
+       }
+    },
+    muiTopToolbarProps: {
+      sx: {
+        pl: 1, 
+        pr: 1,
+        backgroundColor: 'background.paper',
+        mb: 1, 
+      }
+    },
+    muiBottomToolbarProps: {
+        sx: {
+            backgroundColor: 'background.paper',
+            border: 'none', 
+            boxShadow: 'none',
+        }
+    },
+    renderTopToolbarCustomActions: () => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Roles del Sistema
+        </Typography>
+      </Box>
+    ),
+    muiTableHeadCellProps: {
+      sx: {
+        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
+        color: 'text.primary',
+        fontWeight: 'bold',
+        fontSize: '0.85rem',
+        borderBottom: `1px solid ${theme.palette.divider}`, 
+        borderRight: `1px solid ${theme.palette.divider}`,  
+        '&:last-child': { borderRight: 'none' },
+      }
+    },
+    muiTableBodyCellProps: {
+        sx: {
+            borderBottom: `1px solid ${theme.palette.divider}`,
+        }
+    },
+    muiTableBodyRowProps: ({ row }) => ({
+      sx: {
+        '&:hover': {
+          backgroundColor: theme.palette.action.hover,
+        },
+      }
+    }),
+    renderRowActions: ({ row }) => (
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title="Ver Detalles">
+          <IconButton component={Link} to={routes.role({ id: row.original.id })} size="small">
+            <VisibilityIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Editar">
+          <IconButton component={Link} to={routes.editRole({ id: row.original.id })} size="small">
+            <EditIcon fontSize="small" color="info" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    ),
   })
 
-  const confirmarDesactivacion = () => {
-    updateRole({
-      variables: {
-        id: deleteState.id,
-        input: {
-          estado: 'INACTIVO',
-          fecha_modificacion: new Date().toISOString(),
-        },
-      },
-    })
+  // --- LOGICA DE EXPORTACIÓN ---
+  const handleExport = (scope, suffix, format) => {
+    let rowsToExport = []
+
+    if (scope === 'page') {
+      const allRows = table.getPrePaginationRowModel().rows
+      const { pageIndex, pageSize } = table.getState().pagination
+      const startRow = pageIndex * pageSize
+      const endRow = startRow + pageSize
+      rowsToExport = allRows.slice(startRow, endRow)
+    }
+
+    if (scope === 'all') {
+       rowsToExport = table.getPrePaginationRowModel().rows
+    }
+
+    if (scope === 'selected') {
+      rowsToExport = table.getSelectedRowModel().rows
+    }
+
+    if (!rowsToExport || rowsToExport.length === 0) {
+        toast.error('No hay datos para exportar')
+        return
+    }
+
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
+    
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
+    
+    closeAllDialogs()
   }
 
-  return (
-    <Box sx={{ p: 1 }}>
-      <MaterialReactTable table={table} />
+  // --- CONFIG PARA SCAFFOLD ---
+  const listActionsConfig = useMemo(() => {
+    const selectedRowCount = table.getSelectedRowModel().rows.length
+    
+    const ExportMenu = (
+      <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
+        {/* EXCEL */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+        
+        <Divider />
 
-      {/* --- MENU DE ACCIONES POR FILA --- */}
-      <Menu
-        anchorEl={actionMenu.anchorEl}
-        open={Boolean(actionMenu.anchorEl)}
-        onClose={() => setActionMenu({ anchorEl: null, row: null })}
-      >
-        <MenuItem
-          component={Link}
-          to={
-            actionMenu.row ? routes.role({ id: actionMenu.row.id }) : '#'
-          }
-          onClick={() => setActionMenu({ anchorEl: null, row: null })}
-        >
-          <ListItemIcon>
-            <VisibilityIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Ver detalles</ListItemText>
+        {/* PDF */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
 
-        <MenuItem
-          component={Link}
-          to={
-            actionMenu.row
-              ? routes.editRole({ id: actionMenu.row.id })
-              : '#'
-          }
-          onClick={() => setActionMenu({ anchorEl: null, row: null })}
-        >
-          <ListItemIcon>
-            <EditIcon fontSize="small" color="info" />
-          </ListItemIcon>
-          <ListItemText>Editar</ListItemText>
-        </MenuItem>
+        <Divider />
 
-        <MenuItem
-          onClick={() => {
-            if (actionMenu.row) {
-              setDeleteState({
-                open: true,
-                id: actionMenu.row.id,
-              })
-            }
-            setActionMenu({ anchorEl: null, row: null })
-          }}
-        >
-          <ListItemIcon>
-            {actionMenu.row?.estado === 'ACTIVO' ? (
-              <DeleteIcon fontSize="small" color="error" />
-            ) : (
-              <CheckIcon fontSize="small" color="success" />
-            )}
-          </ListItemIcon>
-          <ListItemText>
-            {actionMenu.row?.estado === 'ACTIVO'
-              ? 'Desactivar'
-              : 'Activar'}
-          </ListItemText>
+        {/* CSV */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
       </Menu>
+    )
 
-      {/* --- DIALOGO --- */}
-      <Dialog
-        open={deleteState.open}
-        onClose={() => setDeleteState({ open: false, id: null })}
+    const BulkActionMenu = (
+      <Menu
+        anchorEl={bulkMenuAnchorEl}
+        open={Boolean(bulkMenuAnchorEl)}
+        onClose={closeAllDialogs}
       >
-        <DialogTitle>Confirmar Desactivación</DialogTitle>
-        <DialogContent>
-          <Typography>
-            ¿Desea desactivar el rol {deleteState.id}?
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteState({ open: false, id: null })}>
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={confirmarDesactivacion}
-          >
-            Desactivar
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
+          Desactivar (Soft Delete)
+        </MenuItem>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
+          Eliminar de Base de Datos
+        </MenuItem>
+      </Menu>
+    )
+
+    return {
+      showDeleted,
+      selectedRowCount,
+      handleSwitchChange: (e) => setShowDeleted(e.target.checked),
+      
+      handleBulkAction: (e) => {
+        if (showDeleted) {
+            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+        } else {
+            setBulkMenuAnchorEl(e.currentTarget)
+        }
+      },
+      
+      handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
+      exportMenu: ExportMenu,
+      bulkActionMenu: BulkActionMenu,
+    }
+  }, [
+    table, 
+    showDeleted, 
+    exportMenuAnchorEl, 
+    bulkMenuAnchorEl, 
+    table.getState().rowSelection,
+    table.getState().pagination
+  ])
+
+  return (
+    <ScaffoldLayout
+      title="Roles"
+      titleTo="roles"
+      groupTitle="Gestión de Usuarios"
+      buttonLabel="Nuevo Rol"
+      buttonTo="newRole"
+      listActionsConfig={listActionsConfig}
+    >
+      <MaterialReactTable table={table} />
+    </ScaffoldLayout>
   )
 }
 
-export default RolesList
+export default Roles

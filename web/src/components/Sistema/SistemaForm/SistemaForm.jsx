@@ -96,17 +96,23 @@ const SistemaForm = (props) => {
   const theme = useTheme()
   const isEdit = Boolean(props.sistema?.id)
 
-  // Carga de datos auxiliares (Sistemas padres y Entidades)
-  const { data, loading: loadingData } = useQuery(OBTENER_DATA_FORM)
+  // Carga de datos auxiliares (LEGACY: si no vienen del cell)
+  const { data, loading: loadingData } = useQuery(OBTENER_DATA_FORM, {
+    skip: Boolean(props.sistemas && props.entidads)
+  })
+
+  // Usar datos del cell si existen, si no usar del query
+  const sistemas = props.sistemas || data?.sistemas || []
+  const entidads = props.entidads || data?.entidads || []
 
   // Preparar opciones filtradas
   const sistemasOptions = useMemo(() => 
-    data?.sistemas?.filter((s) => s.estado === 'ACTIVO') || [], 
-  [data])
+    sistemas?.filter((s) => s.estado === 'ACTIVO') || [], 
+  [sistemas])
 
   const entidadesOptions = useMemo(() => 
-    data?.entidads?.filter((e) => e.estado === 'ACTIVO') || [], 
-  [data])
+    entidads?.filter((e) => e.estado === 'ACTIVO') || [], 
+  [entidads])
 
   // Configuración del Formulario
   const formMethods = useForm({

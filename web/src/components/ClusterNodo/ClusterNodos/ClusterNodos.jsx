@@ -2,53 +2,40 @@ import React, { useState, useMemo } from 'react'
 import { Link, routes } from '@redwoodjs/router'
 import { useMutation, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
+import { useTheme } from '@mui/material/styles'
+
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
 
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
-  Check as CheckIcon,
-  FileDownload as FileDownloadIcon,
-  MoreVert as MoreVertIcon,
+  Dns as NodeIcon,
+  GridOn as ExcelIcon,
+  PictureAsPdf as PdfIcon,
+  TextSnippet as CsvIcon,
+  DeleteForever as HardDeleteIcon,
+  PowerOff as SoftDeleteIcon,
   Computer as MachineIcon,
   Storage as ServerIcon,
-  Dns as ClusterIcon,
 } from '@mui/icons-material'
 
 import {
   Box,
-  Button,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
   Tooltip,
-  Switch,
-  FormControlLabel,
   Menu,
   MenuItem,
   Stack,
   ListItemIcon,
-  ListItemText,
-  Avatar,
   Typography,
+  Divider,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
+import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/clusterNodosExporter'
 
-// Asegúrate de crear este archivo o apuntar al genérico si tienes uno
-import {
-  exportToPDF,
-  exportToExcel,
-  exportToCSV,
-} from 'src/lib/exporter/componentesExporter'
-
-import { QUERY as QUERY_CLUSTER_NODOS } from 'src/components/ClusterNodo/ClusterNodosCell'
-
-/* ----------------------- QUERIES & MUTATIONS ----------------------- */
-
+// --- GRAPHQL ---
 const UPDATE_CLUSTER_NODO_MUTATION = gql`
   mutation UpdateClusterNodo($id: Int!, $input: UpdateClusterNodoInput!) {
     updateClusterNodo(id: $id, input: $input) {
@@ -59,411 +46,443 @@ const UPDATE_CLUSTER_NODO_MUTATION = gql`
 `
 
 const DELETE_CLUSTER_NODO_MUTATION = gql`
-  mutation DeleteClusterNodoMutation($id: Int!) {
+  mutation DeleteClusterNodo($id: Int!) {
     deleteClusterNodo(id: $id) {
       id
     }
   }
 `
 
-/* ----------------------- HELPERS ----------------------- */
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '-'
-  try {
-    return new Date(dateStr).toLocaleDateString('es-BO', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return '-'
+const QUERY_REFETCH = gql`
+  query FindClusterNodosRefetch {
+    clusterNodos {
+      id
+      estado
+    }
   }
+`
+
+// --- HELPERS ---
+const formatDate = (d) => {
+  if (!d) return '-'
+  try {
+    return new Date(d).toLocaleString('es-BO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return '-' }
 }
 
-const truncate = (text, length = 50) => {
-  if (!text) return 'N/A'
-  return text.length > length ? `${text.substring(0, length)}...` : text
-}
+// CORRECCIÓN: Eliminamos 'parametros' de los props
+const ClusterNodos = ({ clusterNodos }) => {
+  const theme = useTheme()
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
+  const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
-/* ----------------------- COMPONENT ----------------------- */
-
-const ClusterNodosList = ({ clusterNodos = [] }) => {
-  const [showInactive, setShowInactive] = useState(false)
-  const [exportMenu, setExportMenu] = useState({ all: null, page: null, sel: null })
-
-  // Estado para el diálogo de Activar/Desactivar
-  const [estadoDialog, setEstadoDialog] = useState({ open: false, id: null, estado: 'ACTIVO' })
-  // Estado para el diálogo de Eliminar (Hard Delete)
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, nombre: '' })
-
-  const [actionMenu, setActionMenu] = useState({ anchorEl: null, row: null })
-
-  // Mutation para cambiar estado
   const [updateClusterNodo] = useMutation(UPDATE_CLUSTER_NODO_MUTATION, {
-    onCompleted: () => {
-      toast.success('Estado del nodo actualizado')
-      setEstadoDialog({ open: false, id: null, estado: 'ACTIVO' })
-    },
-    onError: (err) => toast.error(err.message),
-    refetchQueries: [{ query: QUERY_CLUSTER_NODOS }],
-    awaitRefetchQueries: true,
+    onError: (error) => toast.error(error.message),
+    refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  // Mutation para eliminar definitivamente
   const [deleteClusterNodo] = useMutation(DELETE_CLUSTER_NODO_MUTATION, {
-    onCompleted: () => {
-      toast.success('Nodo eliminado correctamente')
-      setDeleteDialog({ open: false, id: null, nombre: '' })
-    },
-    onError: (err) => toast.error(err.message),
-    refetchQueries: [{ query: QUERY_CLUSTER_NODOS }],
-    awaitRefetchQueries: true,
+    onError: (error) => toast.error(error.message),
+    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
+    refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  /* ------------ FILTRO LOCAL DE INACTIVOS ----------- */
+  const closeAllDialogs = () => {
+    setExportMenuAnchorEl(null)
+    setBulkMenuAnchorEl(null)
+  }
 
+  // --- HANDLERS DE ELIMINACIÓN ---
+  const handleSoftDelete = (rows) => {
+    rows.forEach((nodo) => {
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      // TODO: Ajustar usuario_modificacion según el auth actual si es necesario
+      updateClusterNodo({
+        variables: { id: nodo.id, input: { estado: newState, usuario_modificacion: 1 } },
+      })
+    })
+    
+    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  const handleHardDelete = (rows) => {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
+        closeAllDialogs()
+        return
+    }
+
+    rows.forEach((nodo) => {
+      deleteClusterNodo({ variables: { id: nodo.id } })
+    })
+    
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  // CORRECCIÓN: Eliminamos tiposNodoMap ya que no tenemos 'parametros'
+
+  const helpers = {
+    // CORRECCIÓN: Retornamos el valor directo ya que no hay mapa
+    getNombreTipoNodo: (c) => c || '-', 
+    
+    getUsuarioNombre: (userObj) => {
+        if (!userObj) return '-'
+        return `${userObj.nombres} ${userObj.primer_apellido} ${userObj.segundo_apellido || ''}`.trim()
+    },
+    getRecurso: (nodo) => {
+      if (nodo.nodoTipo === 'VIRTUAL' && nodo.maquina) return nodo.maquina.nombre
+      if (nodo.nodoTipo === 'FISICO' && nodo.servidor) return nodo.servidor.nombre
+      return '-'
+    },
+  }
+
+  // --- DATOS ---
   const filteredData = useMemo(() => {
-    if (!Array.isArray(clusterNodos)) return []
-    return showInactive
-      ? clusterNodos.filter((c) => c.estado === 'INACTIVO')
-      : clusterNodos.filter((c) => c.estado === 'ACTIVO')
-  }, [clusterNodos, showInactive])
-
-  /* ----------------------- COLUMNS ----------------------- */
+    if (!clusterNodos) return []
+    return clusterNodos.filter((n) =>
+      showDeleted ? n.estado === 'INACTIVO' : n.estado === 'ACTIVO'
+    )
+  }, [clusterNodos, showDeleted])
 
   const columns = useMemo(() => [
     { accessorKey: 'id', header: 'ID', size: 60 },
-
     {
       accessorKey: 'nombre',
-      header: 'Nombre del Nodo',
-      Cell: ({ cell }) => <span style={{ fontWeight: 600 }}>{cell.getValue()}</span>,
-    },
-
-    {
-      id: 'cluster',
-      accessorFn: (row) => row.cluster?.nombre || row.clusterId,
-      header: 'Cluster',
-      Cell: ({ cell }) => (
-        <Stack direction="row" spacing={1} alignItems="center">
-          <ClusterIcon fontSize="small" color="primary" />
-          <span>{cell.getValue()}</span>
-        </Stack>
+      header: 'Nombre Nodo',
+      size: 150,
+      Cell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <NodeIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+          <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+            {row.original.nombre}
+          </Typography>
+        </Box>
       ),
     },
-
-    {
-      accessorKey: 'nodoTipo',
-      header: 'Tipo',
-      size: 100,
-      Cell: ({ cell }) => (
-        <Chip
-          label={cell.getValue()}
-          size="small"
-          variant="outlined"
-          color={cell.getValue() === 'FISICO' ? 'warning' : 'info'}
-          sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
-        />
-      ),
+    { 
+      accessorKey: 'cluster.nombre', 
+      header: 'Cluster', 
+      size: 120, 
+      Cell: ({ row }) => row.original.cluster?.nombre || '-' 
     },
-
+    { 
+      accessorKey: 'nodoTipo', 
+      header: 'Tipo Nodo', 
+      size: 120, 
+      Cell: ({ cell }) => helpers.getNombreTipoNodo(cell.getValue()) 
+    },
+    { 
+      id: 'rol', 
+      // Aquí seguimos aprovechando rolInfo que sí viene de la Query
+      accessorFn: (row) => row.rolInfo?.nombre || row.rol || '-',
+      header: 'Rol', 
+      size: 100 
+    },
     {
       id: 'recurso',
       header: 'Recurso Asignado',
-      accessorFn: (row) => {
-        if (row.nodoTipo === 'VIRTUAL' && row.maquina) return row.maquina.nombre
-        if (row.nodoTipo === 'FISICO' && row.servidor) return row.servidor.nombre
-        return 'Sin Asignar'
-      },
+      size: 150,
       Cell: ({ row }) => {
+        const recurso = helpers.getRecurso(row.original)
         const tipo = row.original.nodoTipo
-        const nombre =
-          tipo === 'VIRTUAL'
-            ? row.original.maquina?.nombre
-            : row.original.servidor?.nombre
-
-        if (!nombre) return <span style={{ color: '#999', fontStyle: 'italic' }}>Sin asignar</span>
-
         return (
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={0.5} alignItems="center">
             {tipo === 'VIRTUAL' ? (
               <MachineIcon fontSize="small" color="info" />
             ) : (
               <ServerIcon fontSize="small" color="warning" />
             )}
-            <span>{nombre}</span>
+            <span>{recurso}</span>
           </Stack>
         )
       },
     },
-
-    { accessorKey: 'rol', header: 'Rol' },
-
-    {
-      accessorKey: 'identity_key',
-      header: 'Identificador',
-      Cell: ({ cell }) => {
-        const val = cell.getValue()
-        return val ? <Tooltip title={val}><span>{truncate(val, 15)}</span></Tooltip> : '-'
-      }
-    },
-
+    { accessorKey: 'identity_key', header: 'Identity Key', size: 200 },
     {
       accessorKey: 'estado',
       header: 'Estado',
-      size: 90,
+      size: 100,
       Cell: ({ cell }) => (
-        <Chip
-          label={cell.getValue() === 'ACTIVO' ? 'Activo' : 'Inactivo'}
-          size="small"
-          color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
+        <Chip 
+            label={cell.getValue()} 
+            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
+            size="small" 
+            variant="outlined" 
+            sx={{ fontSize: '0.7rem' }}
         />
       ),
     },
-
-    {
-      accessorKey: 'fecha_creacion',
-      header: 'Creación',
-      Cell: ({ cell }) => formatDate(cell.getValue()),
+    { accessorKey: 'fecha_creacion', header: 'F. creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+    { 
+        accessorFn: (row) => row.creadoPor, 
+        id: 'creadoPor',
+        header: 'Creado por', 
+        size: 150, 
+        Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) 
     },
-    {
-      accessorKey: 'fecha_modificacion',
-      header: 'Modificación',
-      Cell: ({ cell }) => formatDate(cell.getValue()),
+    { accessorKey: 'fecha_modificacion', header: 'F. modificación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+    { 
+        accessorFn: (row) => row.modificadoPor,
+        id: 'modificadoPor',
+        header: 'Modif. por', 
+        size: 150, 
+        Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) 
     },
-  ], [])
+  // CORRECCIÓN: Eliminamos tiposNodoMap de las dependencias
+  ], []) 
 
   /* ----------------------- TABLE CONFIG ----------------------- */
 
   const table = useMaterialReactTable({
     columns,
     data: filteredData,
-    layoutMode: 'semantic',
-    enableColumnResizing: true,
-    columnResizeMode: 'onChange',
-
-    displayColumnDefOptions: {
-      'mrt-row-select': {
-        size: 40,
-        muiTableHeadCellProps: { sx: { width: 40, minWidth: 40, maxWidth: 40 } },
-        muiTableBodyCellProps: { sx: { width: 40, minWidth: 40, maxWidth: 40 } },
-      },
-      'mrt-row-actions': {
-        size: 48,
-        muiTableHeadCellProps: { sx: { width: 48, minWidth: 48, maxWidth: 48 } },
-        muiTableBodyCellProps: { sx: { width: 48, minWidth: 48, maxWidth: 48 } },
-      },
-    },
-
+    enableRowActions: true,
+    enableRowSelection: true,
+    enableGlobalFilter: true,
+    enableRowVirtualization: true,
+    rowVirtualizerOptions: { overscan: 5 },
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: {
-        id: false,
+      columnVisibility: { 
+        id: false, 
+        estado: false,
         identity_key: false,
-        fecha_creacion: false,
-        fecha_modificacion: false,
+        fecha_creacion: false, 
+        creadoPor: false, 
+        fecha_modificacion: false, 
+        modificadoPor: false 
       },
     },
-
     muiTablePaperProps: {
-      sx: { overflowX: 'auto' },
+      elevation: 0,
+      sx: {
+        maxWidth: 1500,
+        mx: 'auto',
+        px: 2, 
+        py: 1,
+        border: `1px solid ${theme.palette.divider}`,
+        borderTop: 'none', 
+        borderRadius: 2, 
+        borderTopLeftRadius: '0 !important',
+        borderTopRightRadius: '0 !important',
+        backgroundColor: 'background.paper',
+        overflow: 'hidden',
+      },
     },
-
-    enableRowActions: true,
-    enableRowSelection: true,
-
-    renderRowActions: ({ row }) => (
-      <IconButton onClick={(e) => setActionMenu({ anchorEl: e.currentTarget, row: row.original })}>
-        <MoreVertIcon />
-      </IconButton>
+    muiTableContainerProps: {
+       sx: {
+         border: `1px solid ${theme.palette.divider}`,
+         borderRadius: 2, 
+         overflow: 'auto', 
+       }
+    },
+    muiTopToolbarProps: {
+      sx: {
+        pl: 1, 
+        pr: 1,
+        backgroundColor: 'background.paper',
+        mb: 1, 
+      }
+    },
+    muiBottomToolbarProps: {
+        sx: {
+            backgroundColor: 'background.paper',
+            border: 'none', 
+            boxShadow: 'none',
+        }
+    },
+    renderTopToolbarCustomActions: () => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Nodos de Cluster
+        </Typography>
+      </Box>
     ),
-
-    renderTopToolbarCustomActions: ({ table }) => {
-      const selected = table.getSelectedRowModel().rows
-
-      return (
-        <Box sx={{ display: 'flex', gap: 2, p: 1, alignItems: 'center' }}>
-          <FormControlLabel
-            label="Mostrar inactivos"
-            control={<Switch checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />}
-          />
-
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            onClick={(e) => setExportMenu({ ...exportMenu, all: e.currentTarget })}
-            sx={{ backgroundColor: '#0F284D' }}
-          >
-            Exportar Todos
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.all}
-            open={!!exportMenu.all}
-            onClose={() => setExportMenu({ ...exportMenu, all: null })}
-          >
-            <MenuItem onClick={() => { exportToPDF(table.getPrePaginationRowModel().rows, table, {}); setExportMenu({ ...exportMenu, all: null }) }}>PDF</MenuItem>
-            <MenuItem onClick={() => { exportToExcel(table.getPrePaginationRowModel().rows, table, {}); setExportMenu({ ...exportMenu, all: null }) }}>Excel</MenuItem>
-            <MenuItem onClick={() => { exportToCSV(table.getPrePaginationRowModel().rows, table, {}); setExportMenu({ ...exportMenu, all: null }) }}>CSV</MenuItem>
-          </Menu>
-
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            onClick={(e) => setExportMenu({ ...exportMenu, page: e.currentTarget })}
-            sx={{ backgroundColor: '#0F284D' }}
-          >
-            Exportar Página
-          </Button>
-
-          <Menu anchorEl={exportMenu.page} open={!!exportMenu.page} onClose={() => setExportMenu({ ...exportMenu, page: null })}>
-            <MenuItem onClick={() => { exportToPDF(table.getRowModel().rows, table, {}); setExportMenu({ ...exportMenu, page: null }) }}>PDF</MenuItem>
-            <MenuItem onClick={() => { exportToExcel(table.getRowModel().rows, table, {}); setExportMenu({ ...exportMenu, page: null }) }}>Excel</MenuItem>
-            <MenuItem onClick={() => { exportToCSV(table.getRowModel().rows, table, {}); setExportMenu({ ...exportMenu, page: null }) }}>CSV</MenuItem>
-          </Menu>
-
-          <Button
-            disabled={selected.length === 0}
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            onClick={(e) => setExportMenu({ ...exportMenu, sel: e.currentTarget })}
-            sx={{ backgroundColor: '#0F284D' }}
-          >
-            Exportar Selección ({selected.length})
-          </Button>
-
-          <Menu anchorEl={exportMenu.sel} open={!!exportMenu.sel} onClose={() => setExportMenu({ ...exportMenu, sel: null })}>
-            <MenuItem onClick={() => { exportToPDF(selected, table, {}); setExportMenu({ ...exportMenu, sel: null }) }}>PDF</MenuItem>
-            <MenuItem onClick={() => { exportToExcel(selected, table, {}); setExportMenu({ ...exportMenu, sel: null }) }}>Excel</MenuItem>
-            <MenuItem onClick={() => { exportToCSV(selected, table, {}); setExportMenu({ ...exportMenu, sel: null }) }}>CSV</MenuItem>
-          </Menu>
-        </Box>
-      )
+    muiTableHeadCellProps: {
+      sx: {
+        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
+        color: 'text.primary',
+        fontWeight: 'bold',
+        fontSize: '0.85rem',
+        borderBottom: `1px solid ${theme.palette.divider}`, 
+        borderRight: `1px solid ${theme.palette.divider}`,  
+        '&:last-child': { borderRight: 'none' },
+      }
     },
+    muiTableBodyCellProps: {
+        sx: {
+            borderBottom: `1px solid ${theme.palette.divider}`,
+        }
+    },
+    muiTableBodyRowProps: ({ row }) => ({
+      sx: {
+        '&:hover': {
+          backgroundColor: theme.palette.action.hover,
+        },
+      }
+    }),
+    renderRowActions: ({ row }) => (
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title="Ver Detalles">
+          <IconButton component={Link} to={routes.clusterNodo({ id: row.original.id })} size="small">
+            <VisibilityIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Editar">
+          <IconButton component={Link} to={routes.editClusterNodo({ id: row.original.id })} size="small">
+            <EditIcon fontSize="small" color="info" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    ),
   })
 
-  /* ----------------------- ACTIONS ----------------------- */
+  /* -------------------- EXPORT HANDLERS -------------------- */
 
-  const confirmarCambioEstado = () => {
-    updateClusterNodo({
-      variables: {
-        id: estadoDialog.id,
-        input: {
-          estado: estadoDialog.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO',
-          // fecha_modificacion se maneja en el servicio
-        },
-      },
-    })
+  const handleExport = (scope, suffix, format) => {
+    let rowsToExport = []
+
+    if (scope === 'page') {
+      const allRows = table.getPrePaginationRowModel().rows
+      
+      const { pageIndex, pageSize } = table.getState().pagination
+      const startRow = pageIndex * pageSize
+      const endRow = startRow + pageSize
+      
+      rowsToExport = allRows.slice(startRow, endRow)
+    }
+
+    if (scope === 'all') {
+       rowsToExport = table.getPrePaginationRowModel().rows
+    }
+
+    if (scope === 'selected') {
+      rowsToExport = table.getSelectedRowModel().rows
+    }
+
+    if (!rowsToExport || rowsToExport.length === 0) {
+        toast.error('No hay datos para exportar')
+        return
+    }
+
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
+    
+    // Aseguramos que los helpers coincidan con la data que se pasa
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
+    
+    closeAllDialogs()
   }
 
-  const confirmarEliminacion = () => {
-    deleteClusterNodo({
-      variables: { id: deleteDialog.id }
-    })
-  }
+  // --- CONFIG PARA SCAFFOLD ---
 
-  return (
-    <Box sx={{ p: 2 }}>
-      <MaterialReactTable table={table} />
+  const listActionsConfig = useMemo(() => {
+    const selectedRowCount = table.getSelectedRowModel().rows.length
+    
+    const ExportMenu = (
+      <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
+        {/* EXCEL */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+        
+        <Divider />
 
-      {/* --- DIALOG: CAMBIO DE ESTADO --- */}
-      <Dialog open={estadoDialog.open} onClose={() => setEstadoDialog({ open: false })}>
-        <DialogTitle>
-          {estadoDialog.estado === 'ACTIVO' ? 'Desactivar Nodo' : 'Activar Nodo'}
-        </DialogTitle>
-        <DialogContent>
-          ¿Deseas cambiar el estado del nodo #{estadoDialog.id}?
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEstadoDialog({ open: false })}>Cancelar</Button>
-          <Button
-            onClick={confirmarCambioEstado}
-            variant="contained"
-            color={estadoDialog.estado === 'ACTIVO' ? 'error' : 'success'}
-          >
-            Confirmar
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* --- DIALOG: ELIMINAR --- */}
-      <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false })}>
-        <DialogTitle>Eliminar Nodo</DialogTitle>
-        <DialogContent>
-          ¿Estás seguro de que deseas eliminar permanentemente el nodo <strong>{deleteDialog.nombre}</strong> (ID: {deleteDialog.id})? <br/>
-          Esta acción no se puede deshacer.
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialog({ open: false })}>Cancelar</Button>
-          <Button onClick={confirmarEliminacion} variant="contained" color="error">
-            Eliminar
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* --- MENU DE ACCIONES --- */}
-      <Menu
-        anchorEl={actionMenu.anchorEl}
-        open={Boolean(actionMenu.anchorEl)}
-        onClose={() => setActionMenu({ anchorEl: null, row: null })}
-      >
-        <MenuItem
-          component={Link}
-          to={actionMenu.row ? routes.clusterNodo({ id: actionMenu.row.id }) : '#'}
-          onClick={() => setActionMenu({ anchorEl: null, row: null })}
-        >
-          <ListItemIcon><VisibilityIcon fontSize="small" color="primary" /></ListItemIcon>
-          <ListItemText>Ver detalles</ListItemText>
+        {/* PDF */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
 
-        <MenuItem
-          component={Link}
-          to={actionMenu.row ? routes.editClusterNodo({ id: actionMenu.row.id }) : '#'}
-          onClick={() => setActionMenu({ anchorEl: null, row: null })}
-        >
-          <ListItemIcon><EditIcon fontSize="small" color="info" /></ListItemIcon>
-          <ListItemText>Editar</ListItemText>
-        </MenuItem>
+        <Divider />
 
-        <MenuItem
-          onClick={() => {
-            if (actionMenu.row) {
-              setEstadoDialog({ open: true, id: actionMenu.row.id, estado: actionMenu.row.estado })
-            }
-            setActionMenu({ anchorEl: null, row: null })
-          }}
-        >
-          <ListItemIcon>
-            {actionMenu.row?.estado === 'ACTIVO'
-              ? <CheckIcon fontSize="small" color="warning" />
-              : <CheckIcon fontSize="small" color="success" />}
-          </ListItemIcon>
-          <ListItemText>
-            {actionMenu.row?.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}
-          </ListItemText>
+        {/* CSV */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
         </MenuItem>
-
-         <MenuItem
-          onClick={() => {
-            if (actionMenu.row) {
-              setDeleteDialog({ open: true, id: actionMenu.row.id, nombre: actionMenu.row.nombre })
-            }
-            setActionMenu({ anchorEl: null, row: null })
-          }}
-        >
-          <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
-          <ListItemText>Eliminar</ListItemText>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
       </Menu>
-    </Box>
+    )
+
+    const BulkActionMenu = (
+      <Menu
+        anchorEl={bulkMenuAnchorEl}
+        open={Boolean(bulkMenuAnchorEl)}
+        onClose={closeAllDialogs}
+      >
+        <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
+          Desactivar (Soft Delete)
+        </MenuItem>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
+          Eliminar de Base de Datos
+        </MenuItem>
+      </Menu>
+    )
+
+    return {
+      showDeleted,
+      selectedRowCount,
+      handleSwitchChange: (e) => setShowDeleted(e.target.checked),
+      
+      handleBulkAction: (e) => {
+        if (showDeleted) {
+            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+        } else {
+            setBulkMenuAnchorEl(e.currentTarget)
+        }
+      },
+      
+      handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
+      exportMenu: ExportMenu,
+      bulkActionMenu: BulkActionMenu,
+    }
+  }, [
+    table, 
+    showDeleted, 
+    exportMenuAnchorEl, 
+    bulkMenuAnchorEl, 
+    table.getState().rowSelection,
+    table.getState().pagination
+  ])
+
+  return (
+    <ScaffoldLayout
+      title="Nodos de Cluster"
+      titleTo="clusterNodos"
+      groupTitle="Infraestructura"
+      buttonLabel="Nuevo Nodo"
+      buttonTo="newClusterNodo"
+      listActionsConfig={listActionsConfig}
+    >
+      <MaterialReactTable table={table} />
+    </ScaffoldLayout>
   )
 }
 
-export default ClusterNodosList
+export default ClusterNodos

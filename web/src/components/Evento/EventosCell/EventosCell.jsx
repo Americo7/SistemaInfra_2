@@ -1,6 +1,6 @@
 import { Link, routes } from '@redwoodjs/router'
-
-import Eventos from 'src/components/Evento/Eventos'
+import { gql } from '@redwoodjs/web'
+import Eventos from 'src/components/Evento/Eventos/Eventos'
 
 export const QUERY = gql`
   query FindEventos {
@@ -19,22 +19,40 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      tipoEventoInfo {
+        id
+        codigo
+        nombre
+      }
+      estadoEventoInfo {
+        id
+        codigo
+        nombre
+      }
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando eventos...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No eventos yet. '}
-      <Link to={routes.newEvento()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    No existen eventos registrados.{' '}
+    <Link to={routes.newEvento()} className="rw-link">
+      Crear uno nuevo
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

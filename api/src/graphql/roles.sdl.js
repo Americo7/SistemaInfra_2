@@ -10,6 +10,10 @@ export const schema = gql`
     fecha_modificacion: DateTime
     usuario_modificacion: Int
     usuario_roles: [UsuarioRol]!
+    
+    creadoPor: Usuario
+    modificadoPor: Usuario
+    tipoRolInfo: Parametro
   }
 
   enum estado {
@@ -20,6 +24,9 @@ export const schema = gql`
   type Query {
     roles: [Role!]! @requireAuth
     role(id: Int!): Role @requireAuth
+    
+    # --- QUERIES PARA LOS DROPDOWNS DEL FORMULARIO ---
+    parametrosFormularioRole: [Parametro!]! @requireAuth
   }
 
   input CreateRoleInput {
@@ -27,10 +34,6 @@ export const schema = gql`
     cod_tipo_rol: String!
     descripcion: String!
     estado: estado!
-    fecha_creacion: DateTime
-    usuario_creacion: Int!
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   input UpdateRoleInput {
@@ -38,10 +41,6 @@ export const schema = gql`
     cod_tipo_rol: String
     descripcion: String
     estado: estado
-    fecha_creacion: DateTime
-    usuario_creacion: Int
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   type Mutation {

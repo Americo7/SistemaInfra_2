@@ -137,7 +137,7 @@ const SectionCard = ({ title, icon, children, color }) => {
 /* ---------------------------------------------
  * 4. COMPONENTE PRINCIPAL
  * --------------------------------------------- */
-export default function ServidorForm({ servidor, onSave, loading, error }) {
+export default function ServidorForm({ servidor, dataCenters, servidores, parametros, onSave, loading, error }) {
   const theme = useTheme()
   const isEdit = Boolean(servidor?.id)
   
@@ -146,12 +146,23 @@ export default function ServidorForm({ servidor, onSave, loading, error }) {
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
 
-  // --- CARGA DE DATOS ---
-  const { data: dcData, loading: dcLoading } = useQuery(GET_DATA_CENTERS)
-  const { data: srvData, loading: srvLoading } = useQuery(GET_SERVIDORES)
-  const { data: paramData, loading: paramLoading } = useQuery(GET_PARAMETROS)
+  // --- CARGA DE DATOS (LEGACY: si no vienen del cell) ---
+  const { data: dcData, loading: dcLoading } = useQuery(GET_DATA_CENTERS, {
+    skip: Boolean(dataCenters && dataCenters.length > 0)
+  })
+  const { data: srvData, loading: srvLoading } = useQuery(GET_SERVIDORES, {
+    skip: Boolean(servidores && servidores.length > 0)
+  })
+  const { data: paramData, loading: paramLoading } = useQuery(GET_PARAMETROS, {
+    skip: Boolean(parametros && parametros.length > 0)
+  })
 
-  const isLoadingData = dcLoading || srvLoading || paramLoading
+  // Usar datos del cell si existen, si no usar del query
+  const finalDataCenters = dataCenters || dcData?.dataCenters || []
+  const finalServidores = servidores || srvData?.servidores || []
+  const finalParametros = parametros || paramData?.parametros || []
+  
+  const isLoadingData = (!dataCenters && dcLoading) || (!servidores && srvLoading) || (!parametros && paramLoading)
 
   // --- EFECTO: CARGAR DATOS EN EDICIÓN ---
   useEffect(() => {
@@ -176,21 +187,21 @@ export default function ServidorForm({ servidor, onSave, loading, error }) {
   }, [servidor, isEdit])
 
   // --- PREPARACIÓN DE LISTAS ---
-  const listDataCenters = dcData?.dataCenters || []
-  const listParametros = paramData?.parametros || []
+  const listDataCenters = finalDataCenters || []
+  const listParametros = finalParametros || []
   
   const opcionesTipoServidor = listParametros.filter(p => p.grupo === 'TIPO_SERVIDOR')
   const opcionesEstadoOperativo = listParametros.filter(p => p.grupo === 'ESTADO_OPERATIVO')
 
   // Filtrar servidores padre
   const opcionesPadre = useMemo(() => {
-    if (!form.id_data_center || !srvData?.servidores) return []
-    return srvData.servidores.filter(s => 
+    if (!form.id_data_center || !finalServidores) return []
+    return finalServidores.filter(s => 
       s.id !== servidor?.id && 
       s.estado === 'ACTIVO' &&
       s.id_data_center === parseInt(form.id_data_center)
     )
-  }, [srvData, form.id_data_center, servidor])
+  }, [finalServidores, form.id_data_center, servidor])
 
 
   // --- MANEJADORES ---

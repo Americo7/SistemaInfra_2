@@ -10,12 +10,17 @@ export const schema = gql`
     segundo_apellido: String!
     celular: String!
     email: String!
+    nombre_completo: String
     estado: estado!
     fecha_creacion: DateTime!
     usuario_creacion: Int!
     fecha_modificacion: DateTime
     usuario_modificacion: Int
+    
     usuario_roles: [UsuarioRol]!
+    
+    creadoPor: Usuario
+    modificadoPor: Usuario
   }
 
   enum estado {
@@ -39,10 +44,6 @@ export const schema = gql`
     celular: String!
     email: String!
     estado: estado!
-    fecha_creacion: DateTime
-    usuario_creacion: Int!
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   input UpdateUsuarioInput {
@@ -56,10 +57,6 @@ export const schema = gql`
     celular: String
     email: String
     estado: estado
-    fecha_creacion: DateTime
-    usuario_creacion: Int
-    fecha_modificacion: DateTime
-    usuario_modificacion: Int
   }
 
   type Mutation {

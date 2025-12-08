@@ -1,7 +1,10 @@
 import { db } from 'src/lib/db'
+import { context } from '@redwoodjs/graphql-server'
 
 export const eventos = () => {
-  return db.evento.findMany()
+  return db.evento.findMany({
+    orderBy: { fecha_evento: 'desc' },
+  })
 }
 
 export const evento = ({ id }) => {
@@ -10,7 +13,21 @@ export const evento = ({ id }) => {
   })
 }
 
+export const parametrosFormularioEvento = () => {
+  return db.parametro.findMany({
+    where: {
+      grupo: {
+        in: ['TIPO_EVENTO', 'ESTADO_EVENTO']
+      },
+      estado: 'ACTIVO'
+    },
+    orderBy: [{ grupo: 'asc' }, { nombre: 'asc' }]
+  })
+}
+
 export const createEvento = async ({ input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
+
   // 1. Validar que el tipo de evento exista
   const tipoEvento = await db.parametro.findUnique({
     where: { codigo: input.cod_tipo_evento }
@@ -65,12 +82,14 @@ export const createEvento = async ({ input }) => {
       cite: input.cite,
       solicitante: input.solicitante,
       estado: input.estado || 'ACTIVO',
+      usuario_creacion: currentUserId,
       fecha_creacion: new Date(),
-      usuario_creacion: input.usuario_creacion || context.currentUser?.id || 1,
     }
   })
 }
-export const updateEvento = ({ id, input }) => {
+
+export const updateEvento = async ({ id, input }) => {
+  const currentUserId = context.currentUser?.id ?? 1
 
   return db.evento.update({
     data: {
@@ -83,8 +102,8 @@ export const updateEvento = ({ id, input }) => {
       cite: input.cite,
       solicitante: input.solicitante,
       estado: input.estado,
+      usuario_modificacion: currentUserId,
       fecha_modificacion: new Date(),
-      usuario_modificacion: input.usuario_modificacion,
     },
     where: { id },
   })
@@ -103,4 +122,43 @@ export const Evento = {
   infra_afectada: (_obj, { root }) => {
     return db.evento.findUnique({ where: { id: root?.id } }).infra_afectada()
   },
+
+  creadoPor: (_obj, { root }) => {
+    if (!root.usuario_creacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
+  },
+
+  modificadoPor: (_obj, { root }) => {
+    if (!root.usuario_modificacion) return null
+    return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
+  },
+
+  tipoEventoInfo: (_obj, { root }) => {
+    if (!root.cod_tipo_evento) return null
+    return db.parametro.findFirst({
+      where: {
+        codigo: root.cod_tipo_evento,
+        grupo: 'TIPO_EVENTO'
+      }
+    })
+  },
+
+  estadoEventoInfo: (_obj, { root }) => {
+    if (!root.estado_evento) return null
+    return db.parametro.findFirst({
+      where: {
+        codigo: root.estado_evento,
+        grupo: 'ESTADO_EVENTO'
+      }
+    })
+  },
+}
+
+/* ============================================================
+   QUERY RESOLVERS (Permitir que GraphQL acceda a las queries)
+============================================================ */
+export const Query = {
+  eventos,
+  evento,
+  parametrosFormularioEvento,
 }

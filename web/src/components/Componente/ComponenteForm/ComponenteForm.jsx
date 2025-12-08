@@ -187,24 +187,32 @@ const ComponenteForm = (props) => {
   const theme = useTheme()
   const isEdit = Boolean(props.componente?.id)
 
-  // Queries
-  const { data: sistemasData, loading: loadingSistemas } = useQuery(OBTENER_SISTEMAS)
-  const { data: parametrosData, loading: loadingParams } = useQuery(GET_PARAMETROS)
+  // Queries (LEGACY: si no vienen del cell)
+  const { data: sistemasData, loading: loadingSistemas } = useQuery(OBTENER_SISTEMAS, {
+    skip: Boolean(props.sistemas)
+  })
+  const { data: parametrosData, loading: loadingParams } = useQuery(GET_PARAMETROS, {
+    skip: Boolean(props.parametros)
+  })
 
-  const loadingData = loadingSistemas || loadingParams
+  // Usar datos del cell si existen, si no usar del query
+  const sistemas = props.sistemas || sistemasData?.sistemas || []
+  const allParametros = props.parametros || parametrosData?.parametros || []
+  
+  const loadingData = (!props.sistemas && loadingSistemas) || (!props.parametros && loadingParams)
 
   // Listas
   const sistemasOptions = useMemo(() => 
-    sistemasData?.sistemas?.filter(s => s.estado === 'ACTIVO') || [], 
-  [sistemasData])
+    sistemas?.filter(s => s.estado === 'ACTIVO') || [], 
+  [sistemas])
 
   const categorias = useMemo(() => 
-    parametrosData?.parametros?.filter(p => p.grupo === 'CATEGORIA') || [], 
-  [parametrosData])
+    allParametros?.filter(p => p.grupo === 'CATEGORIA') || [], 
+  [allParametros])
 
   const entornos = useMemo(() => 
-    parametrosData?.parametros?.filter(p => p.grupo === 'ENTORNO') || [], 
-  [parametrosData])
+    allParametros?.filter(p => p.grupo === 'ENTORNO') || [], 
+  [allParametros])
 
   // React Hook Form
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
@@ -234,14 +242,14 @@ const ComponenteForm = (props) => {
   }
 
   const tecnologiasDisponibles = useMemo(() => {
-    if (!watchedCategoria || !parametrosData?.parametros) return []
+    if (!watchedCategoria || !allParametros) return []
     const prefix = CATEGORY_PREFIXES[watchedCategoria]
     if (!prefix) return []
     
-    return parametrosData.parametros.filter(p => 
+    return allParametros.filter(p => 
       p.grupo === 'COMP_TECH' && p.codigo.startsWith(prefix)
     )
-  }, [watchedCategoria, parametrosData])
+  }, [watchedCategoria, allParametros])
 
   // Limpiar tecnologías si cambia la categoría (opcional, depende de requerimiento de negocio)
   // useEffect(() => {

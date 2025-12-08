@@ -2,69 +2,69 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx-js-style'
 
-/* ----------------------- Helpers ----------------------- */
+const formatDateTime = (dateString) => {
+  if (!dateString) return 'N/A'
+  const date = new Date(dateString)
+  return date.toLocaleString('es-ES', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
-const formatDate = (value) => {
-  if (!value) return '-'
-  try {
-    return new Date(value).toLocaleDateString('es-BO', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return '-'
-  }
+const truncate = (text, length = 100) => {
+  if (!text) return 'N/A'
+  return text.length > length ? text.substring(0, length) + '...' : text
 }
 
 const parseTecnologia = (value) => {
   try {
     if (!value) return []
-    if (typeof value === 'string') value = JSON.parse(value)
+    if (typeof value === 'string') {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : [parsed]
+    }
     return Array.isArray(value) ? value : [value]
   } catch {
     return []
   }
 }
 
-const jsonTruncate = (value) => {
-  try {
-    const tecnologias = parseTecnologia(value)
-    if (!tecnologias || tecnologias.length === 0) return 'Sin tecnologías'
-    return tecnologias
-      .map((t) => `${t.nombre}${t.version ? ` v${t.version}` : ''}`)
-      .join(', ')
-  } catch {
-    return '-'
+const formatTecnologia = (value) => {
+  const techs = parseTecnologia(value)
+  if (!techs.length) return 'Sin tecnologías'
+  return techs.map((t) => `${t.nombre}${t.version ? ` v${t.version}` : ''}`).join(', ')
+}
+
+const getFormattedData = (rows, visibleColumns, helpers) => {
+  const headers = visibleColumns.map((column) => column.columnDef.header)
+
+  return {
+    headers,
+    data: rows.map((row) =>
+      visibleColumns.map((column) => {
+        const cellValue = row.original[column.id] ?? 'N/A'
+
+        // Usar helpers para formatear valores especiales
+        if (column.id === 'usuario_creacion' || column.id === 'usuario_modificacion')
+          return helpers.getUsuarioNombre(cellValue)
+        if (column.id.includes('fecha_'))
+          return formatDateTime(cellValue)
+        if (column.id === 'estado')
+          return cellValue === 'ACTIVO' ? 'Activo' : 'Inactivo'
+        if (column.id === 'tecnologia')
+          return formatTecnologia(cellValue)
+
+        return truncate(cellValue, 100)
+      })
+    ),
   }
 }
 
-/* ----------------------- PDF ----------------------- */
-
-export const exportToPDF = (rows, table, helpers) => {
-  const visibleCols = table
-    .getVisibleLeafColumns()
-    .filter((c) => c.id !== 'mrt-row-actions' && c.id !== 'mrt-row-select')
-
-  const headers = visibleCols.map((c) => c.columnDef.header)
-
-  const data = rows.map((row) =>
-    visibleCols.map((col) => {
-      const value = row.original[col.id]
-
-      if (col.id.includes('fecha_')) return formatDate(value)
-      if (col.id === 'id_sistema') return helpers.getNombreSistema(value)
-      if (col.id === 'usuario_creacion') return helpers.getNombreUsuario(value)
-      if (col.id === 'usuario_modificacion') return helpers.getNombreUsuario(value)
-      if (col.id === 'estado') return value === 'ACTIVO' ? 'Activo' : 'Inactivo'
-      if (col.id === 'tecnologia') return jsonTruncate(value)
-
-      return value ?? '-'
-    })
-  )
-
+export const exportToPDF = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
@@ -77,7 +77,7 @@ export const exportToPDF = (rows, table, helpers) => {
 
   doc.setFontSize(10)
   doc.setTextColor(100)
-  doc.text(`Generado: ${formatDate(new Date())}`, 14, 22)
+  doc.text(`Generado: ${formatDateTime(new Date())}`, 14, 22)
 
   autoTable(doc, {
     head: [
@@ -90,11 +90,11 @@ export const exportToPDF = (rows, table, helpers) => {
         },
       })),
     ],
-    body: data.map((row, i) =>
+    body: data.map((row, rowIndex) =>
       row.map((cell) => ({
         content: cell,
         styles: {
-          fillColor: i % 2 === 0 ? [248, 249, 250] : [255, 255, 255],
+          fillColor: rowIndex % 2 === 0 ? [248, 249, 250] : [255, 255, 255],
         },
       }))
     ),
@@ -119,33 +119,11 @@ export const exportToPDF = (rows, table, helpers) => {
     )
   }
 
-  doc.save(`componentes-${new Date().toISOString()}.pdf`)
+  doc.save(`componentes${suffix}-${new Date().toISOString().split('T')[0]}.pdf`)
 }
 
-/* ----------------------- Excel ----------------------- */
-
-export const exportToExcel = (rows, table, helpers) => {
-  const visibleCols = table
-    .getVisibleLeafColumns()
-    .filter((c) => c.id !== 'mrt-row-actions' && c.id !== 'mrt-row-select')
-
-  const headers = visibleCols.map((c) => c.columnDef.header)
-
-  const data = rows.map((row) =>
-    visibleCols.map((col) => {
-      const value = row.original[col.id]
-
-      if (col.id.includes('fecha_')) return formatDate(value)
-      if (col.id === 'id_sistema') return helpers.getNombreSistema(value)
-      if (col.id === 'usuario_creacion') return helpers.getNombreUsuario(value)
-      if (col.id === 'usuario_modificacion') return helpers.getNombreUsuario(value)
-      if (col.id === 'estado') return value === 'ACTIVO' ? 'Activo' : 'Inactivo'
-      if (col.id === 'tecnologia') return jsonTruncate(value)
-
-      return value ?? '-'
-    })
-  )
-
+export const exportToExcel = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet([])
 
@@ -162,18 +140,21 @@ export const exportToExcel = (rows, table, helpers) => {
   }
 
   XLSX.utils.sheet_add_aoa(ws, [['Reporte de Componentes']], { origin: 'A1' })
-  XLSX.utils.sheet_add_aoa(ws, [[`Generado: ${formatDate(new Date())}`]], {
-    origin: 'A2',
-  })
+  XLSX.utils.sheet_add_aoa(
+    ws,
+    [[`Generado: ${formatDateTime(new Date())}`]],
+    { origin: 'A2' }
+  )
+
   XLSX.utils.sheet_add_aoa(ws, [headers], { origin: 'A4' })
   XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A5' })
 
   const range = XLSX.utils.decode_range(ws['!ref'])
-  for (let C = range.s.c; C <= range.e.c; C++) {
+  for (let C = range.s.c; C <= range.e.c; ++C) {
     const headerCell = XLSX.utils.encode_cell({ r: 3, c: C })
     ws[headerCell].s = headerStyle
 
-    for (let R = 4; R <= range.e.r; R++) {
+    for (let R = 4; R <= range.e.r; ++R) {
       const cell = XLSX.utils.encode_cell({ r: R, c: C })
       if (!ws[cell]) ws[cell] = {}
       ws[cell].s = {
@@ -189,7 +170,11 @@ export const exportToExcel = (rows, table, helpers) => {
   }
 
   ws['!cols'] = headers.map((_, col) => ({
-    wch: Math.max(...data.map((r) => String(r[col]).length), headers[col].length) + 2,
+    wch:
+      Math.max(
+        ...data.map((row) => String(row[col]).length),
+        headers[col].length
+      ) + 2,
   }))
 
   ws['!merges'] = [
@@ -198,46 +183,30 @@ export const exportToExcel = (rows, table, helpers) => {
   ]
 
   XLSX.utils.book_append_sheet(wb, ws, 'Componentes')
-  XLSX.writeFile(wb, `componentes-${new Date().toISOString()}.xlsx`)
+  XLSX.writeFile(wb, `componentes${suffix}-${new Date().toISOString().split('T')[0]}.xlsx`)
 }
 
-/* ----------------------- CSV ----------------------- */
-
-export const exportToCSV = (rows, table, helpers) => {
-  const visibleCols = table
-    .getVisibleLeafColumns()
-    .filter((c) => c.id !== 'mrt-row-actions' && c.id !== 'mrt-row-select')
-
-  const headers = visibleCols.map((c) => c.columnDef.header)
-
-  const data = rows.map((row) =>
-    visibleCols.map((col) => {
-      const value = row.original[col.id]
-
-      if (col.id.includes('fecha_')) return formatDate(value)
-      if (col.id === 'id_sistema') return helpers.getNombreSistema(value)
-      if (col.id === 'usuario_creacion') return helpers.getNombreUsuario(value)
-      if (col.id === 'usuario_modificacion') return helpers.getNombreUsuario(value)
-      if (col.id === 'estado') return value === 'ACTIVO' ? 'Activo' : 'Inactivo'
-      if (col.id === 'tecnologia') return jsonTruncate(value)
-
-      return value ?? '-'
-    })
-  )
-
-  const csv = [
+export const exportToCSV = (rows, visibleColumns, helpers, suffix = '') => {
+  const { headers, data } = getFormattedData(rows, visibleColumns, helpers)
+  const csvContent = [
     'Reporte de Componentes',
-    `Generado: ${formatDate(new Date())}`,
+    `Generado: ${formatDateTime(new Date())}`,
     '',
     headers.join(','),
     ...data.map((row) =>
       row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
     ),
+    '',
+    `*Este archivo fue generado automáticamente el ${formatDateTime(
+      new Date()
+    )}`,
   ].join('\n')
 
-  const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8;' })
+  const blob = new Blob(['\ufeff', csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `componentes-${new Date().toISOString()}.csv`
+  link.download = `componentes${suffix}-${new Date().toISOString().split('T')[0]}.csv`
   link.click()
 }

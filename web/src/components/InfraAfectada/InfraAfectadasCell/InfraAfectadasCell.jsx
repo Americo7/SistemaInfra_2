@@ -1,6 +1,7 @@
 import { Link, routes } from '@redwoodjs/router'
-
-import InfraAfectadas from 'src/components/InfraAfectada/InfraAfectadas'
+import { gql } from '@redwoodjs/web'
+// Ruta absoluta para evitar errores
+import InfraAfectadas from 'src/components/InfraAfectada/InfraAfectadas/InfraAfectadas'
 
 export const QUERY = gql`
   query FindInfraAfectadas {
@@ -11,26 +12,30 @@ export const QUERY = gql`
       id_servidor
       id_maquina
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
     }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando registros de infraestructura afectada...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No infraAfectadas yet. '}
-      <Link to={routes.newInfraAfectada()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+export const Empty = () => (
+  <div className="rw-text-center">
+    No existen registros.{' '}
+    <Link to={routes.newInfraAfectada()} className="rw-link">
+      Crear uno nuevo
+    </Link>
+  </div>
+)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

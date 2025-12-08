@@ -17,11 +17,17 @@ export const schema = gql`
     fecha_modificacion: DateTime
     usuario_modificacion: Int
     id_servidor: Int
+  
     servidores: Servidor
     despliegue: [Despliegue!]!
     infra_afectada: [InfraAfectada!]!
     cluster_nodos: [ClusterNodo!]!
     usuario_roles: [UsuarioRol!]!
+
+    creadoPor: Usuario
+    modificadoPor: Usuario
+    plataformaInfo: Parametro
+    estadoOperativoInfo: Parametro
   }
 
   enum estado {
@@ -32,7 +38,9 @@ export const schema = gql`
   type Query {
     maquinas: [Maquina!]! @requireAuth
     maquina(id: Int!): Maquina @requireAuth
-    maquinaCompleta(id: Int!): Maquina @requireAuth
+    
+    # --- QUERIES PARA LOS DROPDOWNS DEL FORMULARIO ---
+    parametrosFormularioMaquina: [Parametro!]! @requireAuth
   }
 
   input CreateMaquinaInput {
@@ -50,7 +58,7 @@ export const schema = gql`
     id_servidor: Int
     estado: estado!
     fecha_creacion: DateTime
-    usuario_creacion: Int!
+    usuario_creacion: Int
     fecha_modificacion: DateTime
     usuario_modificacion: Int
   }

@@ -1,33 +1,13 @@
 import { navigate, routes } from '@redwoodjs/router'
-import { useMutation, useQuery } from '@redwoodjs/web'
+import { useMutation } from '@redwoodjs/web' // Quitamos useQuery de aquí
 import { toast } from '@redwoodjs/web/toast'
+import { gql } from '@redwoodjs/web'
 
 import MaquinaForm from 'src/components/Maquina/MaquinaForm'
 
-// --- CONSULTAS PARA DROPDOWNS ---
-const GET_SERVIDORES = gql`
-  query GetServidoresForEditMaquina {
-    servidores {
-      id
-      nombre
-    }
-  }
-`
-
-const GET_PARAMETROS = gql`
-  query GetParametrosForEditMaquina {
-    parametros(grupo: ["ESTADO", "PLATAFORMA"]) {
-      id
-      codigo
-      nombre
-      grupo
-    }
-  }
-`
-// --------------------------------
-
 export const QUERY = gql`
   query EditMaquinaById($id: Int!) {
+    # 1. Datos de la máquina
     maquina: maquina(id: $id) {
       id
       nombre
@@ -46,6 +26,18 @@ export const QUERY = gql`
       usuario_modificacion
       fecha_creacion
       fecha_modificacion
+    }
+
+    servidores {
+      id
+      nombre
+    }
+    
+    parametros: parametrosFormularioMaquina {
+      id
+      codigo
+      nombre
+      grupo
     }
   }
 `
@@ -69,11 +61,9 @@ export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ maquina }) => {
-  // ✔ Cargar datos para los Selects del formulario
-  const { data: servidoresData } = useQuery(GET_SERVIDORES)
-  const { data: parametrosData } = useQuery(GET_PARAMETROS)
-
+// Ahora recibimos todo junto en los props: maquina, servidores, parametros
+export const Success = ({ maquina, servidores, parametros }) => {
+  
   const [updateMaquina, { loading, error }] = useMutation(
     UPDATE_MAQUINA_MUTATION,
     {
@@ -99,9 +89,9 @@ export const Success = ({ maquina }) => {
           onSave={onSave}
           error={error}
           loading={loading}
-          // ✔ Pasamos las listas al formulario
-          servidores={servidoresData?.servidores || []}
-          parametros={parametrosData?.parametros || []}
+          // Pasamos los datos que ya cargó el Cell
+          servidores={servidores}
+          parametros={parametros}
         />
       </div>
     </div>

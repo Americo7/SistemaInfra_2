@@ -1,50 +1,41 @@
 import React, { useState, useMemo } from 'react'
 import { Link, routes } from '@redwoodjs/router'
-import { useQuery, useMutation } from '@redwoodjs/web'
+import { useMutation, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
+import { useTheme } from '@mui/material/styles'
+
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
+
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
-  Check as CheckIcon,
-  FileDownload as FileDownloadIcon,
-  MoreVert as MoreVertIcon,
+  Computer as ServerIcon,
+  GridOn as ExcelIcon,
+  PictureAsPdf as PdfIcon,
+  TextSnippet as CsvIcon,
+  DeleteForever as HardDeleteIcon,
+  PowerOff as SoftDeleteIcon,
 } from '@mui/icons-material'
 
 import {
   Box,
-  Button,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
   Tooltip,
-  Switch,
-  FormControlLabel,
   Menu,
   MenuItem,
   Stack,
   ListItemIcon,
-  ListItemText,
+  Typography,
+  Divider,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
+import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/servidoresExporter'
 
-import {
-  exportToPDF,
-  exportToExcel,
-  exportToCSV,
-} from 'src/lib/exporter/servidoresExporter'
-
-import { QUERY } from 'src/components/Servidor/ServidorsCell'
-
+// --- GRAPHQL ---
 const UPDATE_SERVIDOR_MUTATION = gql`
-  mutation UpdateServidorMutation_fromServidores(
-    $id: Int!
-    $input: UpdateServidorInput!
-  ) {
+  mutation UpdateServidor($id: Int!, $input: UpdateServidorInput!) {
     updateServidor(id: $id, input: $input) {
       id
       estado
@@ -52,420 +43,436 @@ const UPDATE_SERVIDOR_MUTATION = gql`
   }
 `
 
-const GET_USUARIOS_QUERY = gql`
-  query GetUsuariosForServidoresList {
-    usuarios {
+const DELETE_SERVIDOR_MUTATION = gql`
+  mutation DeleteServidor($id: Int!) {
+    deleteServidor(id: $id) {
       id
-      nombres
-      primer_apellido
-      segundo_apellido
     }
   }
 `
 
-const GET_PARAMETROS = gql`
-  query GetParametrosInventario {
-    parametros(grupo: ["AGETIC_INV", "TIPO_SERV"]) {
-      codigo
-      nombre
+const QUERY_REFETCH = gql`
+  query FindServidoresRefetch {
+    servidores {
+      id
+      estado
     }
   }
 `
 
-const formatDateTime = (dateString) => {
-  if (!dateString) return '-'
+// --- HELPERS ---
+const getStatusColor = (codigo) => {
+  if (!codigo) return 'default'
+  const c = codigo.toUpperCase()
+  if (['OPERATIVO', 'ACTIVO', 'ONLINE', 'RUNNING'].includes(c)) return 'success'
+  if (['FUERA_SERVICIO', 'BAJA', 'ERROR', 'STOPPED', 'OFFLINE', 'FALLA', 'APAGADO'].includes(c)) return 'error'
+  if (['MANTENIMIENTO', 'WARNING', 'RESTARTING', 'DISPONIBLE'].includes(c)) return 'warning'
+  return 'default'
+}
+
+
+const formatDate = (d) => {
+  if (!d) return '-'
   try {
-    return new Date(dateString).toLocaleDateString('es-BO', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(d).toLocaleString('es-BO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
     })
-  } catch {
-    return '-'
-  }
+  } catch { return '-' }
 }
 
-const getEstadoColor = (estadoOperativo) => {
-  switch (estadoOperativo) {
-    case 'OPERATIVO': return '#4caf50'
-    case 'online': return '#4caf50'
-    case 'MANTENIMIENTO': return '#ff9800'
-    case 'DISPONIBLE': return '#2196f3'
-    case 'FALLA': return '#f44336'
-    case 'APAGADO': return '#9e9e9e'
-    case 'FUERA_SERVICIO': return '#d32f2f'
-    default: return '#e0e0e0'
-  }
-}
-
-const formatEnum = (value) => {
-  if (!value) return '-'
-  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
-}
-
-const ServidorsList = ({ servidores = [] }) => {
-  const [showInactive, setShowInactive] = useState(false)
-  const [exportMenu, setExportMenu] = useState({ all: null, page: null, sel: null })
-  const [estadoDialog, setEstadoDialog] = useState({ open: false, id: null, estado: 'ACTIVO' })
-  const [actionMenu, setActionMenu] = useState({ anchorEl: null, row: null })
-
-  const { data: parametrosData } = useQuery(GET_PARAMETROS)
-  const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
+const Servidores = ({ servidores, parametros, usuarios }) => {
+  const theme = useTheme()
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
+  
+  const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
   const [updateServidor] = useMutation(UPDATE_SERVIDOR_MUTATION, {
-    onCompleted: () => {
-      toast.success('Estado actualizado')
-      setEstadoDialog({ open: false, id: null, estado: 'ACTIVO' })
-    },
     onError: (error) => toast.error(error.message),
-    refetchQueries: [{ query: QUERY }],
-    awaitRefetchQueries: true,
+    refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  const helpers = {
-    getNombreServidorPadre: (sv) => {
-      if (sv.servidores_padre?.nombre) return sv.servidores_padre.nombre
-      return sv.id_padre ? `ID: ${sv.id_padre}` : '-'
-    },
-    getNombreDataCenter: (sv) => {
-      if (sv.data_centers?.nombre) return sv.data_centers.nombre
-      return sv.id_data_center ? `ID: ${sv.id_data_center}` : '-'
-    },
-    getNombreParametro: (codigo) => {
-      if (!codigo || !parametrosData?.parametros) return codigo || '-'
-      const p = parametrosData.parametros.find((pp) => pp.codigo === codigo)
-      return p ? p.nombre : codigo
-    },
-    getNombreUsuario: (id) => {
-      if (!id) return '-'
-      const u = usuariosData?.usuarios?.find((uu) => uu.id === id)
-      return u ? `${u.nombres} ${u.primer_apellido}` : `ID: ${id}`
-    },
+  const [deleteServidor] = useMutation(DELETE_SERVIDOR_MUTATION, {
+    onError: (error) => toast.error(error.message),
+    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
+    refetchQueries: [{ query: QUERY_REFETCH }],
+  })
+
+  const closeAllDialogs = () => {
+    setExportMenuAnchorEl(null)
+    setBulkMenuAnchorEl(null)
   }
 
-  const filteredServidores = useMemo(() => {
+  // --- HANDLERS DE ELIMINACIÓN ---
+  const handleSoftDelete = (rows) => {
+    rows.forEach((servidor) => {
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      updateServidor({
+        variables: { id: servidor.id, input: { estado: newState, usuario_modificacion: 1 } },
+      })
+    })
+    
+    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  const handleHardDelete = (rows) => {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
+        closeAllDialogs()
+        return
+    }
+
+    rows.forEach((servidor) => {
+      deleteServidor({ variables: { id: servidor.id } })
+    })
+    
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  // --- MAPEOS ---
+  const tiposServidorMap = useMemo(() => {
+    return (parametros || []).reduce((a, p) => { a[p.codigo] = p.nombre; return a }, {})
+  }, [parametros])
+
+  const estadosOperativosMap = useMemo(() => {
+    return (parametros || [])
+      .filter((p) => p.grupo === 'ESTADO_OPERATIVO')
+      .reduce((acc, p) => {
+        acc[p.codigo] = p.nombre
+        return acc
+      }, {})
+  }, [parametros])
+
+  const usuariosMap = useMemo(() => {
+    return (usuarios || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
+  }, [usuarios])
+
+  const helpers = {
+    getNombreTipoServidor: (c) => tiposServidorMap[c] || c || '-',
+    getUsuarioNombre: (id) => usuariosMap[id] || `ID: ${id}`,
+    getNombreEstadoOperativo: (c) => estadosOperativosMap[c] || c || 'Desconocido',
+  }
+
+  // --- DATOS ---
+  const filteredData = useMemo(() => {
     if (!servidores) return []
     return servidores.filter((s) =>
-      showInactive ? s.estado === 'INACTIVO' : s.estado === 'ACTIVO'
+      showDeleted ? s.estado === 'INACTIVO' : s.estado === 'ACTIVO'
     )
-  }, [servidores, showInactive])
+  }, [servidores, showDeleted])
 
-  const columns = useMemo(
-    () => [
-      { accessorKey: 'id', header: 'ID', size: 50, enableHiding: false },
-      { accessorKey: 'nombre', header: 'Nombre Host', size: 150 },
-
-      { accessorKey: 'ip_primaria', header: 'IP Primaria', size: 120 },
-      { accessorKey: 'sistema_operativo', header: 'OS', size: 150 },
-
-      {
-        accessorKey: 'cod_inventario_agetic',
-        header: 'Código Inventario',
-        size: 150,
-        Cell: ({ cell }) => helpers.getNombreParametro(cell.getValue()),
-      },
-
-      { accessorKey: 'serie', header: 'Serie', size: 120 },
-      { accessorKey: 'marca', header: 'Marca', size: 100 },
-      { accessorKey: 'modelo', header: 'Modelo', size: 100 },
-
-      {
-        accessorKey: 'ram',
-        header: 'RAM',
-        size: 80,
-        Cell: ({ cell }) => `${cell.getValue()} GB`,
-      },
-      {
-        accessorKey: 'almacenamiento',
-        header: 'Almacenamiento',
-        size: 120,
-        Cell: ({ cell }) => `${cell.getValue()} GB`,
-      },
-
-      {
-        accessorKey: 'data_centers.nombre',
-        header: 'Data Center',
-        size: 150,
-        Cell: ({ row }) => helpers.getNombreDataCenter(row.original),
-      },
-
-      {
-        accessorKey: 'cod_tipo_servidor',
-        header: 'Tipo Servidor',
-        size: 120,
-        Cell: ({ cell }) => helpers.getNombreParametro(cell.getValue()),
-      },
-
-      {
-        accessorKey: 'servidores_padre.nombre',
-        header: 'Servidor Padre',
-        size: 150,
-        Cell: ({ row }) => helpers.getNombreServidorPadre(row.original),
-      },
-
-      {
-        accessorKey: 'estado_operativo',
-        header: 'Estado Operativo',
-        size: 150,
-        Cell: ({ row }) => (
-          <Chip
-            label={formatEnum(row.original.estado_operativo)}
-            size="small"
-            sx={{
-              backgroundColor: getEstadoColor(row.original.estado_operativo),
-              color: '#fff',
-              fontWeight: 'bold',
-            }}
+  const columns = useMemo(() => [
+    { accessorKey: 'id', header: 'ID', size: 60 },
+    {
+      accessorKey: 'nombre',
+      header: 'Nombre Servidor',
+      size: 200,
+      Cell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ServerIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+          <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+            {row.original.nombre}
+          </Typography>
+        </Box>
+      ),
+    },
+    { accessorKey: 'ip_primaria', header: 'IP Primaria', size: 130 },
+    { accessorKey: 'marca', header: 'Marca', size: 100 },
+    { accessorKey: 'modelo', header: 'Modelo', size: 150 },
+    { accessorKey: 'serie', header: 'Serie', size: 120 },
+    { accessorKey: 'ram', header: 'RAM', size: 90, Cell: ({ cell }) => `${cell.getValue()} GB` },
+    { accessorKey: 'almacenamiento', header: 'Almacenamiento', size: 130, Cell: ({ cell }) => `${cell.getValue()} GB` },
+    { accessorKey: 'sistema_operativo', header: 'Sistema Operativo', size: 180 },
+    { accessorKey: 'cod_tipo_servidor', header: 'Tipo Servidor', size: 140, Cell: ({ cell }) => helpers.getNombreTipoServidor(cell.getValue()) },
+    { accessorKey: 'data_centers.nombre', header: 'Data Center', size: 140, Cell: ({ row }) => row.original.data_centers?.nombre || '-' },
+    { accessorKey: 'servidores_padre.nombre', header: 'Servidor Padre', size: 140, Cell: ({ row }) => row.original.servidores_padre?.nombre || '-' },
+    { accessorKey: 'cod_inventario_agetic', header: 'Cod. Inventario', size: 140 },
+    {
+      accessorKey: 'estado_operativo',
+      header: 'Estado Operativo',
+      size: 150,
+      Cell: ({ cell }) => {
+        const codigo = cell.getValue()
+        const label = helpers.getNombreEstadoOperativo(codigo)
+        const color = getStatusColor(codigo)
+        
+        return (
+          <Chip 
+            size="small" 
+            label={label} 
+            color={color} 
+            variant={codigo ? 'filled' : 'outlined'} 
+            sx={{ fontWeight: 'bold' }} 
           />
-        ),
+        )
       },
+    },
+    {
+      accessorKey: 'estado',
+      header: 'Estado',
+      size: 100,
+      Cell: ({ cell }) => (
+        <Chip 
+            label={cell.getValue()} 
+            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
+            size="small" 
+            variant="outlined" 
+            sx={{ fontSize: '0.7rem' }}
+        />
+      ),
+    },
+    { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+    { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+    { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
+    { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
+  ], [tiposServidorMap, usuariosMap, estadosOperativosMap])
 
-      {
-        accessorKey: 'estado',
-        header: 'Estado',
-        size: 90,
-        Cell: ({ cell }) => (
-          <Chip
-            size="small"
-            label={cell.getValue() === 'ACTIVO' ? 'Activo' : 'Inactivo'}
-            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
-          />
-        ),
-      },
-
-      /* ========== AUDITORÍA (OCULTA POR DEFECTO) ========== */
-      {
-        accessorKey: 'fecha_creacion',
-        header: 'Fecha Creación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_creacion',
-        header: 'Creado por',
-        size: 150,
-        Cell: ({ cell }) => helpers.getNombreUsuario(cell.getValue()),
-      },
-      {
-        accessorKey: 'fecha_modificacion',
-        header: 'Fecha Modificación',
-        size: 150,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_modificacion',
-        header: 'Modificado por',
-        size: 150,
-        Cell: ({ cell }) => helpers.getNombreUsuario(cell.getValue()),
-      },
-    ],
-    [parametrosData, usuariosData]
-  )
-
+  // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
     columns,
-    data: filteredServidores,
-
+    data: filteredData,
     enableRowActions: true,
     enableRowSelection: true,
-
+    enableGlobalFilter: true,
+    enableRowVirtualization: true,
+    rowVirtualizerOptions: { overscan: 5 },
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-
-      columnVisibility: {
-        id: false,
-        cod_inventario_agetic:false,
-        serie: false,
+      columnVisibility: { 
+        id: false, 
+        serie: false, 
+        cod_inventario_agetic: false,
         estado: false,
-        fecha_creacion: false,
-        usuario_creacion: false,
-        fecha_modificacion: false,
-        usuario_modificacion: false,
+        fecha_creacion: false, 
+        usuario_creacion: false, 
+        fecha_modificacion: false, 
+        usuario_modificacion: false 
       },
     },
-
-    renderRowActions: ({ row }) => (
-      <Tooltip title="Acciones">
-        <IconButton
-          onClick={(e) => setActionMenu({ anchorEl: e.currentTarget, row: row.original })}
-        >
-          <MoreVertIcon />
-        </IconButton>
-      </Tooltip>
-    ),
-
-    renderTopToolbarCustomActions: ({ table }) => {
-      const selected = table.getSelectedRowModel().rows
-
-      return (
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', p: 1 }}>
-          <FormControlLabel
-            label="Mostrar inactivos"
-            control={
-              <Switch
-                checked={showInactive}
-                onChange={(e) => setShowInactive(e.target.checked)}
-              />
-            }
-          />
-
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            onClick={(e) => setExportMenu({ ...exportMenu, all: e.currentTarget })}
-            sx={{ backgroundColor: '#0F284D' }}
-          >
-            Exportar Todos
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.all}
-            open={!!exportMenu.all}
-            onClose={() => setExportMenu({ ...exportMenu, all: null })}
-          >
-            <MenuItem onClick={() => { exportToPDF(table.getPrePaginationRowModel().rows, table, helpers); setExportMenu({ ...exportMenu, all: null }) }}>PDF</MenuItem>
-            <MenuItem onClick={() => { exportToExcel(table.getPrePaginationRowModel().rows, table, helpers); setExportMenu({ ...exportMenu, all: null }) }}>Excel</MenuItem>
-            <MenuItem onClick={() => { exportToCSV(table.getPrePaginationRowModel().rows, table, helpers); setExportMenu({ ...exportMenu, all: null }) }}>CSV</MenuItem>
-          </Menu>
-
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            onClick={(e) => setExportMenu({ ...exportMenu, page: e.currentTarget })}
-            sx={{ backgroundColor: '#0F284D' }}
-          >
-            Exportar Página
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.page}
-            open={!!exportMenu.page}
-            onClose={() => setExportMenu({ ...exportMenu, page: null })}
-          >
-            <MenuItem onClick={() => { exportToPDF(table.getRowModel().rows, table, helpers); setExportMenu({ ...exportMenu, page: null }) }}>PDF</MenuItem>
-            <MenuItem onClick={() => { exportToExcel(table.getRowModel().rows, table, helpers); setExportMenu({ ...exportMenu, page: null }) }}>Excel</MenuItem>
-            <MenuItem onClick={() => { exportToCSV(table.getRowModel().rows, table, helpers); setExportMenu({ ...exportMenu, page: null }) }}>CSV</MenuItem>
-          </Menu>
-
-          <Button
-            disabled={selected.length === 0}
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            onClick={(e) => setExportMenu({ ...exportMenu, sel: e.currentTarget })}
-            sx={{ backgroundColor: '#0F284D' }}
-          >
-            Exportar Selección ({selected.length})
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.sel}
-            open={!!exportMenu.sel}
-            onClose={() => setExportMenu({ ...exportMenu, sel: null })}
-          >
-            <MenuItem onClick={() => { exportToPDF(selected, table, helpers); setExportMenu({ ...exportMenu, sel: null }) }}>PDF</MenuItem>
-            <MenuItem onClick={() => { exportToExcel(selected, table, helpers); setExportMenu({ ...exportMenu, sel: null }) }}>Excel</MenuItem>
-            <MenuItem onClick={() => { exportToCSV(selected, table, helpers); setExportMenu({ ...exportMenu, sel: null }) }}>CSV</MenuItem>
-          </Menu>
-        </Box>
-      )
+    muiTablePaperProps: {
+      elevation: 0,
+      sx: {
+        maxWidth: 1500,
+        mx: 'auto',
+        px: 2, 
+        py: 1,
+        border: `1px solid ${theme.palette.divider}`,
+        borderTop: 'none', 
+        borderRadius: 2, 
+        borderTopLeftRadius: '0 !important',
+        borderTopRightRadius: '0 !important',
+        backgroundColor: 'background.paper',
+        overflow: 'hidden',
+      },
     },
+    muiTableContainerProps: {
+       sx: {
+         border: `1px solid ${theme.palette.divider}`,
+         borderRadius: 2, 
+         overflow: 'auto', 
+       }
+    },
+    muiTopToolbarProps: {
+      sx: {
+        pl: 1, 
+        pr: 1,
+        backgroundColor: 'background.paper',
+        mb: 1, 
+      }
+    },
+    muiBottomToolbarProps: {
+        sx: {
+            backgroundColor: 'background.paper',
+            border: 'none', 
+            boxShadow: 'none',
+        }
+    },
+    renderTopToolbarCustomActions: () => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Servidores
+        </Typography>
+      </Box>
+    ),
+    muiTableHeadCellProps: {
+      sx: {
+        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
+        color: 'text.primary',
+        fontWeight: 'bold',
+        fontSize: '0.85rem',
+        borderBottom: `1px solid ${theme.palette.divider}`, 
+        borderRight: `1px solid ${theme.palette.divider}`,  
+        '&:last-child': { borderRight: 'none' },
+      }
+    },
+    muiTableBodyCellProps: {
+        sx: {
+            borderBottom: `1px solid ${theme.palette.divider}`,
+        }
+    },
+    muiTableBodyRowProps: ({ row }) => ({
+      sx: {
+        '&:hover': {
+          backgroundColor: theme.palette.action.hover,
+        },
+      }
+    }),
+    renderRowActions: ({ row }) => (
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title="Ver Detalles">
+          <IconButton component={Link} to={routes.servidor({ id: row.original.id })} size="small">
+            <VisibilityIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Editar">
+          <IconButton component={Link} to={routes.editServidor({ id: row.original.id })} size="small">
+            <EditIcon fontSize="small" color="info" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    ),
   })
 
-  const confirmarEstado = () => {
-    updateServidor({
-      variables: {
-        id: estadoDialog.id,
-        input: {
-          estado: estadoDialog.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO',
-          usuario_modificacion: 1,
-          fecha_modificacion: new Date().toISOString(),
-        },
-      },
-    })
+  // --- LOGICA DE EXPORTACIÓN OPTIMIZADA ---
+  const handleExport = (scope, suffix, format) => {
+    let rowsToExport = []
+
+    if (scope === 'page') {
+      const allRows = table.getPrePaginationRowModel().rows
+      
+      const { pageIndex, pageSize } = table.getState().pagination
+      const startRow = pageIndex * pageSize
+      const endRow = startRow + pageSize
+      
+      rowsToExport = allRows.slice(startRow, endRow)
+    }
+
+    if (scope === 'all') {
+       rowsToExport = table.getPrePaginationRowModel().rows
+    }
+
+    if (scope === 'selected') {
+      rowsToExport = table.getSelectedRowModel().rows
+    }
+
+    if (!rowsToExport || rowsToExport.length === 0) {
+        toast.error('No hay datos para exportar')
+        return
+    }
+
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
+    
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
+    
+    closeAllDialogs()
   }
 
-  return (
-    <Box sx={{ px: 0, py: 0 }}>
-      <MaterialReactTable table={table} />
+  // --- CONFIG PARA SCAFFOLD ---
+  const listActionsConfig = useMemo(() => {
+    const selectedRowCount = table.getSelectedRowModel().rows.length
+    
+    const ExportMenu = (
+      <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
+        {/* EXCEL */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+        
+        <Divider />
 
-      <Dialog open={estadoDialog.open} onClose={() => setEstadoDialog({ open: false })}>
-        <DialogTitle>
-          {estadoDialog.estado === 'ACTIVO' ? 'Desactivar Servidor' : 'Activar Servidor'}
-        </DialogTitle>
-        <DialogContent>
-          ¿Deseas cambiar el estado del servidor #{estadoDialog.id}?
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEstadoDialog({ open: false })}>Cancelar</Button>
-          <Button
-            onClick={confirmarEstado}
-            color={estadoDialog.estado === 'ACTIVO' ? 'error' : 'success'}
-            variant="contained"
-          >
-            Confirmar
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Menu
-        anchorEl={actionMenu.anchorEl}
-        open={Boolean(actionMenu.anchorEl)}
-        onClose={() => setActionMenu({ anchorEl: null, row: null })}
-      >
-        <MenuItem
-          component={Link}
-          to={actionMenu.row ? routes.servidor({ id: actionMenu.row.id }) : '#'}
-          onClick={() => setActionMenu({ anchorEl: null, row: null })}
-        >
-          <ListItemIcon>
-            <VisibilityIcon fontSize="small" color="primary" />
-          </ListItemIcon>
-          <ListItemText>Ver detalles</ListItemText>
+        {/* PDF */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
 
-        <MenuItem
-          component={Link}
-          to={actionMenu.row ? routes.editServidor({ id: actionMenu.row.id }) : '#'}
-          onClick={() => setActionMenu({ anchorEl: null, row: null })}
-        >
-          <ListItemIcon>
-            <EditIcon fontSize="small" color="info" />
-          </ListItemIcon>
-          <ListItemText>Editar</ListItemText>
-        </MenuItem>
+        <Divider />
 
-        <MenuItem
-          onClick={() => {
-            if (actionMenu.row) {
-              setEstadoDialog({
-                open: true,
-                id: actionMenu.row.id,
-                estado: actionMenu.row.estado,
-              })
-            }
-            setActionMenu({ anchorEl: null, row: null })
-          }}
-        >
-          <ListItemIcon>
-            {actionMenu.row?.estado === 'ACTIVO' ? (
-              <DeleteIcon fontSize="small" color="error" />
-            ) : (
-              <CheckIcon fontSize="small" color="success" />
-            )}
-          </ListItemIcon>
-          <ListItemText>
-            {actionMenu.row?.estado === 'ACTIVO' ? 'Eliminar' : 'Activar'}
-          </ListItemText>
+        {/* CSV */}
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
       </Menu>
-    </Box>
+    )
+
+    const BulkActionMenu = (
+      <Menu
+        anchorEl={bulkMenuAnchorEl}
+        open={Boolean(bulkMenuAnchorEl)}
+        onClose={closeAllDialogs}
+      >
+        <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
+          Desactivar (Soft Delete)
+        </MenuItem>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
+          Eliminar de Base de Datos
+        </MenuItem>
+      </Menu>
+    )
+
+    return {
+      showDeleted,
+      selectedRowCount,
+      handleSwitchChange: (e) => setShowDeleted(e.target.checked),
+      
+      handleBulkAction: (e) => {
+        if (showDeleted) {
+            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+        } else {
+            setBulkMenuAnchorEl(e.currentTarget)
+        }
+      },
+      
+      handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
+      exportMenu: ExportMenu,
+      bulkActionMenu: BulkActionMenu,
+    }
+  }, [
+    table, 
+    showDeleted, 
+    exportMenuAnchorEl, 
+    bulkMenuAnchorEl, 
+    table.getState().rowSelection,
+    table.getState().pagination
+  ])
+
+  return (
+    <ScaffoldLayout
+      title="Servidores"
+      titleTo="servidores"
+      groupTitle="Infraestructura"
+      buttonLabel="Nuevo Servidor"
+      buttonTo="newServidor"
+      listActionsConfig={listActionsConfig}
+    >
+      <MaterialReactTable table={table} />
+    </ScaffoldLayout>
   )
 }
 
-export default ServidorsList
+export default Servidores

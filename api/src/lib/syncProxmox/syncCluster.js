@@ -58,7 +58,7 @@ export const syncCluster = async (endpoint) => {
     descripcion: descripcionCluster,
     identity_key: identityKey,
     id_proxmox_endpoint: endpoint.id,
-    cod_tipo_cluster: 'PX',
+    cod_tipo_cluster: 'PXM',
   }
 
   /* -----------------------------------

@@ -1,4 +1,5 @@
 import { Link, routes } from '@redwoodjs/router'
+import { gql } from '@redwoodjs/web'
 
 import DataCenters from 'src/components/DataCenter/DataCenters'
 
@@ -13,6 +14,16 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+      }
     }
   }
 `

@@ -88,19 +88,24 @@ const RoleForm = (props) => {
   const theme = useTheme()
   const isEdit = Boolean(props.role?.id)
 
-  // Carga de datos
-  const { data: parametrosData, loading: parametrosLoading } = useQuery(GET_PARAMETROS)
+  // Carga de datos (LEGACY: si no vienen del cell)
+  const { data: parametrosData, loading: parametrosLoading } = useQuery(GET_PARAMETROS, {
+    skip: Boolean(props.parametros)
+  })
+
+  // Usar datos del cell si existen, si no usar del query
+  const allParametros = props.parametros || parametrosData?.parametros || []
 
   // Opciones de Tipo de Rol
   const tipoRolOptions = useMemo(() => {
-    if (!parametrosData?.parametros) return []
-    return parametrosData.parametros
+    if (!allParametros) return []
+    return allParametros
       .filter((p) => p.grupo === 'TIPO_ROL')
       .map((p) => ({
         value: p.codigo,
         label: p.nombre,
       }))
-  }, [parametrosData])
+  }, [allParametros])
 
   // Configuración del Formulario
   const formMethods = useForm({
