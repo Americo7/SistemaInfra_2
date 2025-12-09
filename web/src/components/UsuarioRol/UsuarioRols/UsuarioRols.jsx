@@ -9,12 +9,15 @@ import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  AssignmentInd as UserRolIcon, // Icono representativo
+  AssignmentInd as UserRolIcon,
+  Computer as VmIcon,
+  Dns as SystemIcon,
   GridOn as ExcelIcon,
   PictureAsPdf as PdfIcon,
   TextSnippet as CsvIcon,
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
+  RestoreFromTrash as RestoreIcon,
 } from '@mui/icons-material'
 
 import {
@@ -60,7 +63,28 @@ const QUERY_REFETCH = gql`
   }
 `
 
-const UsuarioRols = ({ usuarioRols, creators }) => {
+// --- HELPERS ---
+const formatDateTime = (dateString) => {
+  if (!dateString) return '-'
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return '-'
+    return date.toLocaleString('es-BO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return '-' }
+}
+
+const formatUser = (userObj) => {
+  if (!userObj) return '-'
+  const fullName = [userObj.nombres, userObj.primer_apellido, userObj.segundo_apellido]
+    .filter(Boolean)
+    .join(' ')
+  return fullName || '-'
+}
+
+const UsuarioRols = ({ usuarioRols }) => {
   const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
@@ -77,17 +101,24 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
+  // Helpers para el exportador
+  const exportHelpers = {
+    getUsuarioNombre: (val) => formatUser(val),
+    // Helper para exportar el recurso calculado
+    getRecurso: (val, row) => row.maquinas?.nombre ? `VM: ${row.maquinas.nombre}` : (row.sistemas?.nombre ? `SIS: ${row.sistemas.nombre}` : '-')
+  }
+
   const closeAllDialogs = () => {
     setExportMenuAnchorEl(null)
     setBulkMenuAnchorEl(null)
   }
 
-  // --- HANDLERS DE ELIMINACIÓN ---
+  // --- HANDLERS ---
   const handleSoftDelete = (rows) => {
     rows.forEach((row) => {
       const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
       updateUsuarioRol({
-        variables: { id: row.id, input: { estado: newState, usuario_modificacion: 1 } },
+        variables: { id: row.id, input: { estado: newState } },
       })
     })
     
@@ -97,7 +128,7 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
   }
 
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} asignación(es)?\n\nEsta acción no se puede deshacer.`)) {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} asignación(es)?`)) {
         closeAllDialogs()
         return
     }
@@ -110,27 +141,7 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
     closeAllDialogs()
   }
 
-  // --- MAPEOS Y HELPERS ---
-  // Mapa optimizado para "Creado Por" y "Modificado Por"
-  const creatorsMap = useMemo(() => {
-    return (creators || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
-  }, [creators])
-
-  const helpers = {
-    getUsuarioNombre: (id) => creatorsMap[id] || `ID: ${id}`,
-  }
-
-  const formatDate = (d) => {
-    if (!d) return '-'
-    try {
-      return new Date(d).toLocaleString('es-BO', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      })
-    } catch { return '-' }
-  }
-
-  // --- DATOS ---
+  // --- FILTRADO ---
   const filteredData = useMemo(() => {
     if (!usuarioRols) return []
     return usuarioRols.filter((item) =>
@@ -141,42 +152,71 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
   // --- COLUMNAS ---
   const columns = useMemo(() => [
     { accessorKey: 'id', header: 'ID', size: 60 },
+    
+    // USUARIO
     {
-      accessorKey: 'usuarios.nombre_completo', // Asumiendo que podemos componer esto o usar el objeto anidado
-      header: 'Usuario Asignado',
+      id: 'usuario',
+      header: 'Usuario',
       size: 200,
-      Cell: ({ row }) => {
-        const u = row.original.usuarios
-        const nombre = u ? `${u.nombres} ${u.primer_apellido}` : `ID: ${row.original.id_usuario}`
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <UserRolIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
-            <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
-              {nombre}
-            </Typography>
-          </Box>
-        )
-      },
+      accessorFn: (row) => row.usuarios ? `${row.usuarios.nombres} ${row.usuarios.primer_apellido}` : `ID: ${row.id_usuario}`,
+      Cell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <UserRolIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+          <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+            {row.original.usuarios ? `${row.original.usuarios.nombres} ${row.original.usuarios.primer_apellido}` : '-'}
+          </Typography>
+        </Box>
+      ),
     },
+
+    // ROL
     {
-      accessorKey: 'roles.nombre',
-      header: 'Rol',
+      id: 'rol',
+      header: 'Rol Asignado',
       size: 150,
-      Cell: ({ row }) => <Chip label={row.original.roles?.nombre || row.original.id_rol} size="small" variant="outlined" />
+      accessorFn: (row) => row.roles?.nombre || row.id_rol,
+      Cell: ({ row }) => (
+        <Chip 
+            label={row.original.roles?.nombre || row.original.id_rol} 
+            size="small" 
+            variant="outlined"
+            sx={{ fontWeight: 'bold' }} 
+        />
+      )
     },
+
+    // RECURSO (MÁQUINA O SISTEMA)
     {
-        // Columna combinada para mostrar Maquina O Sistema
         id: 'recurso',
-        header: 'Recurso (Máquina/Sistema)',
+        header: 'Recurso (VM / Sis)',
         size: 200,
+        // AccessorFn para que el buscador global y sorting funcionen con el texto
+        accessorFn: (row) => row.maquinas?.nombre || row.sistemas?.nombre || '-',
         Cell: ({ row }) => {
-            const maq = row.original.maquinas?.nombre
-            const sis = row.original.sistemas?.nombre
-            if (maq) return <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'primary.main' }}>VM: {maq}</Typography>
-            if (sis) return <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>SIS: {sis}</Typography>
-            return '-'
+            const maq = row.original.maquinas
+            const sis = row.original.sistemas
+            
+            if (maq) {
+                return (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'info.main' }}>
+                        <VmIcon fontSize="small" />
+                        <Typography variant="body2" fontWeight={600}>{maq.nombre}</Typography>
+                    </Box>
+                )
+            }
+            if (sis) {
+                 return (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'secondary.main' }}>
+                        <SystemIcon fontSize="small" />
+                        <Typography variant="body2" fontWeight={600}>{sis.nombre}</Typography>
+                    </Box>
+                )
+            }
+            return <Typography variant="caption" color="text.secondary">-</Typography>
         }
     },
+
+    // ESTADO
     {
       accessorKey: 'estado',
       header: 'Estado',
@@ -191,11 +231,21 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
         />
       ),
     },
-    { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-    { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-  ], [creatorsMap])
+
+    // AUDITORÍA (Opcional, visible por defecto si se desea)
+    { 
+        id: 'creadoPor',
+        header: 'Creado por', 
+        size: 160, 
+        accessorFn: (row) => formatUser(row.creadoPor)
+    },
+    { 
+        id: 'modificadoPor',
+        header: 'Modif. por', 
+        size: 160, 
+        accessorFn: (row) => formatUser(row.modificadoPor)
+    },
+  ], [theme])
 
   // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
@@ -211,10 +261,8 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
-        fecha_creacion: false, 
-        usuario_creacion: false, 
-        fecha_modificacion: false, 
-        usuario_modificacion: false 
+        creadoPor: true, // Visible
+        modificadoPor: true // Visible
       },
     },
     muiTablePaperProps: {
@@ -241,19 +289,10 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
        }
     },
     muiTopToolbarProps: {
-      sx: {
-        pl: 1, 
-        pr: 1,
-        backgroundColor: 'background.paper',
-        mb: 1, 
-      }
+      sx: { pl: 1, pr: 1, mb: 1, backgroundColor: 'background.paper' }
     },
     muiBottomToolbarProps: {
-        sx: {
-            backgroundColor: 'background.paper',
-            border: 'none', 
-            boxShadow: 'none',
-        }
+        sx: { backgroundColor: 'background.paper', border: 'none', boxShadow: 'none' }
     },
     renderTopToolbarCustomActions: () => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -274,16 +313,10 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
       }
     },
     muiTableBodyCellProps: {
-        sx: {
-            borderBottom: `1px solid ${theme.palette.divider}`,
-        }
+        sx: { borderBottom: `1px solid ${theme.palette.divider}` }
     },
     muiTableBodyRowProps: ({ row }) => ({
-      sx: {
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
-        },
-      }
+      sx: { '&:hover': { backgroundColor: theme.palette.action.hover } }
     }),
     renderRowActions: ({ row }) => (
       <Stack direction="row" spacing={0.5}>
@@ -304,20 +337,12 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
   // --- LOGICA DE EXPORTACIÓN ---
   const handleExport = (scope, suffix, format) => {
     let rowsToExport = []
-
     if (scope === 'page') {
-      const allRows = table.getPrePaginationRowModel().rows
       const { pageIndex, pageSize } = table.getState().pagination
-      const startRow = pageIndex * pageSize
-      const endRow = startRow + pageSize
-      rowsToExport = allRows.slice(startRow, endRow)
-    }
-
-    if (scope === 'all') {
+      rowsToExport = table.getPrePaginationRowModel().rows.slice(pageIndex * pageSize, (pageIndex * pageSize) + pageSize)
+    } else if (scope === 'all') {
        rowsToExport = table.getPrePaginationRowModel().rows
-    }
-
-    if (scope === 'selected') {
+    } else if (scope === 'selected') {
       rowsToExport = table.getSelectedRowModel().rows
     }
 
@@ -326,11 +351,11 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
         return
     }
 
-    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id', 'recurso'].includes(col.id))
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'id'].includes(col.id))
     
-    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, exportHelpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, exportHelpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, exportHelpers, suffix)
     
     closeAllDialogs()
   }
@@ -341,58 +366,28 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
     
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
-        {/* EXCEL */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-        
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>EXCEL</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        {/* PDF */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>PDF</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        {/* CSV */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>CSV</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
       </Menu>
     )
 
     const BulkActionMenu = (
-      <Menu
-        anchorEl={bulkMenuAnchorEl}
-        open={Boolean(bulkMenuAnchorEl)}
-        onClose={closeAllDialogs}
-      >
+      <Menu anchorEl={bulkMenuAnchorEl} open={Boolean(bulkMenuAnchorEl)} onClose={closeAllDialogs}>
         <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
-          Desactivar (Soft Delete)
+          <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
+          {showDeleted ? 'Restaurar' : 'Desactivar'}
         </MenuItem>
         <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
-          Eliminar de Base de Datos
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon> Eliminar BD
         </MenuItem>
       </Menu>
     )
@@ -401,31 +396,16 @@ const UsuarioRols = ({ usuarioRols, creators }) => {
       showDeleted,
       selectedRowCount,
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
-      
-      handleBulkAction: (e) => {
-        if (showDeleted) {
-            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
-        } else {
-            setBulkMenuAnchorEl(e.currentTarget)
-        }
-      },
-      
+      handleBulkAction: (e) => showDeleted ? handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original)) : setBulkMenuAnchorEl(e.currentTarget),
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
       exportMenu: ExportMenu,
       bulkActionMenu: BulkActionMenu,
     }
-  }, [
-    table, 
-    showDeleted, 
-    exportMenuAnchorEl, 
-    bulkMenuAnchorEl, 
-    table.getState().rowSelection,
-    table.getState().pagination
-  ])
+  }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
 
   return (
     <ScaffoldLayout
-      title="Usuario Roles"
+      title="Asignación Roles"
       titleTo="usuarioRols"
       groupTitle="Gestión de Usuarios"
       buttonLabel="Nueva Asignación"

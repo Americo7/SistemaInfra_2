@@ -60,7 +60,6 @@ const fmtDate = (d) => {
 const parseAlmacenamiento = (value) => {
   if (!value) return []
   try {
-    // CORRECCIÓN: Validamos si ya viene como objeto (JSON) o string
     return typeof value === 'object' ? value : JSON.parse(value)
   } catch {
     return []
@@ -75,18 +74,15 @@ const uniqueById = (arr = []) => {
   return [...map.values()]
 }
 
-// Formateador de nombres de usuario
 const formatUserName = (usuarioObj) => {
   if (!usuarioObj) return '-'
   if (typeof usuarioObj === 'string') return usuarioObj
-  // Maneja objeto del resolver
   if (usuarioObj.nombres || usuarioObj.primer_apellido || usuarioObj.segundo_apellido) {
     return `${usuarioObj.nombres || ''} ${usuarioObj.primer_apellido || ''} ${usuarioObj.segundo_apellido}`.trim()
   }
   return '-'
 }
 
-// Mapa de colores UI (Mantenemos esto en el frontend porque es estilo visual)
 const getStatusColor = (codigo) => {
   const map = {
     OPERATIVO: 'success',
@@ -159,42 +155,52 @@ const Maquina = ({ maquina }) => {
   const theme = useTheme()
   const [tab, setTab] = useState(0)
 
-  // CORRECCIÓN: Manejo seguro por si servidores es objeto o array
+  // Datos básicos
   const servidorRaw = maquina?.servidores
   const servidor = Array.isArray(servidorRaw) ? servidorRaw[0] : servidorRaw
-
   const usuarioRoles = maquina?.usuario_roles || []
   const despliegues = maquina?.despliegue || []
   const infraAfectada = maquina?.infra_afectada || []
   const maquinaClusterNodos = maquina?.cluster_nodos || []
 
-  /* --- CLUSTER INFO --- */
+  /* --- LOGICA CLUSTERS --- */
   const clusterInfo = useMemo(() => {
     const arr = []
     
-    // Validamos que 'servidor' y sus 'cluster_nodos' existan y sean Arrays u Objetos
-    const clusterNodosServidor = Array.isArray(servidor?.cluster_nodos) 
-      ? servidor.cluster_nodos 
-      : (servidor?.cluster_nodos ? [servidor.cluster_nodos] : [])
+    // 1. HOST DE VIRTUALIZACIÓN (Proxmox)
+    if (servidor) {
+      const srvNodes = Array.isArray(servidor.cluster_nodos) 
+        ? servidor.cluster_nodos 
+        : (servidor.cluster_nodos ? [servidor.cluster_nodos] : [])
+      
+      const srvNode = srvNodes[0] 
+      
+      if (srvNode && srvNode.cluster) {
+        const dc = Array.isArray(servidor.data_centers) ? servidor.data_centers[0] : servidor.data_centers
 
-    // Caso 1: Maquina en Host de Virtualización
-    if (clusterNodosServidor.length > 0 && clusterNodosServidor[0]?.cluster) {
-      const cl = clusterNodosServidor[0].cluster
-      arr.push({
-        titulo: 'Host de Virtualización',
-        clusterName: cl.nombre,
-        nodoName: servidor.nombre,
-        link: routes.cluster({ id: cl.id }),
-      })
+        arr.push({
+          tipoContexto: 'VIRTUALIZACION',
+          headerTitle: 'Host de Virtualización',
+          clusterType: srvNode.cluster.tipoClusterInfo?.nombre || 'Virtualización',
+          hostServidor: servidor.nombre,
+          dataCenter: dc?.nombre || '-',
+          nodoNombre: srvNode.nombre,
+          clusterNombre: srvNode.cluster.nombre,
+          link: routes.cluster({ id: srvNode.cluster.id }),
+        })
+      }
     }
-    // Caso 2: Maquina es un Nodo de un Cluster
+
+    // 2. ORQUESTACIÓN (K8s, etc)
     for (const n of maquinaClusterNodos) {
       if (n.cluster) {
         arr.push({
-          titulo: 'Nodo de Cluster',
-          clusterName: n.cluster.nombre,
-          nodoName: n.nombre,
-          rol: n.rol,
+          tipoContexto: 'ORQUESTACION',
+          headerTitle: 'Orquestación',
+          clusterType: n.cluster.tipoClusterInfo?.nombre || 'Orquestación',
+          clusterNombre: n.cluster.nombre,
+          nodoNombre: n.nombre,
+          rol: n.rolInfo?.nombre || '-',
           link: routes.cluster({ id: n.cluster.id }),
         })
       }
@@ -250,26 +256,24 @@ const Maquina = ({ maquina }) => {
 
         <CardContent sx={{ px: 5 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            {/* IZQUIERDA */}
+            
+            {/* --- COLUMNA IZQUIERDA --- */}
             <Stack spacing={2}>
+              {/* 1. INFORMACIÓN GENERAL */}
               <SectionCard icon={<GeneralIcon />} title="Información General">
                 <RowItem label="VMID" value={maquina.proxmox_vmid} icon={<ProxmoxIcon />} />
                 <RowItem label="Identificador" value={maquina.identity_key} icon={<MacIcon />} />
                 <RowItem label="Dirección IP" value={maquina.ip} />
                 <RowItem label="Sistema Operativo" value={maquina.so} icon={<OSIcon />} />
-                
-                {/* --- LÓGICA CORREGIDA: Usar los Resolvers --- */}
                 <RowItem 
                     label="Plataforma" 
                     value={maquina.plataformaInfo?.nombre || maquina.cod_plataforma || '-'} 
                 />
-
                 <RowItem
                   label="Estado Operativo"
                   isLast
                   value={
                     <Chip
-                      // Usamos Resolver o fallback al código
                       label={maquina.estadoOperativoInfo?.nombre || maquina.estado_operativo || 'Desconocido'}
                       size="small"
                       color={getStatusColor(maquina.estado_operativo)} 
@@ -284,6 +288,83 @@ const Maquina = ({ maquina }) => {
                 />
               </SectionCard>
 
+              {/* 2. AUDITORÍA DEL REGISTRO */}
+              <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
+                <RowItem
+                  label="Estado Registro"
+                  value={
+                    <Chip
+                      label={maquina.estado}
+                      size="small"
+                      color={maquina.estado === 'ACTIVO' ? 'success' : 'error'}
+                    />
+                  }
+                />
+                <RowItem label="Fecha Creación" value={fmtDate(maquina.fecha_creacion)} />
+                <RowItem label="Creado por" value={formatUserName(maquina.creadoPor)} />
+                <RowItem label="Última Modificación" value={fmtDate(maquina.fecha_modificacion)} />
+                <RowItem label="Modificado por" value={formatUserName(maquina.modificadoPor)} isLast />
+              </SectionCard>
+            </Stack>
+
+            {/* --- COLUMNA DERECHA --- */}
+            <Stack spacing={2}>
+              {/* 1. INFRAESTRUCTURA Y ORQUESTACIÓN */}
+              <SectionCard icon={<ClusterIcon />} title="Infraestructura y Orquestación" bgcolor={theme.palette.info.main}>
+                {clusterInfo.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">No vinculada a ningún host ni cluster.</Typography>
+                ) : (
+                  clusterInfo.map((info, idx) => (
+                    // MODIFICACIÓN: Se elimina el borderBottom y se quita el margen inferior al último elemento
+                    <Box key={idx} sx={{ mb: idx < clusterInfo.length - 1 ? 2 : 0 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, mr: 1 }}>
+                          {info.headerTitle}
+                        </Typography>
+                        <Chip 
+                            label={info.clusterType} 
+                            size="small" 
+                            variant="outlined" 
+                            sx={{ height: 18, fontSize: '0.65rem' }} 
+                        />
+                      </Box>
+
+                      {info.tipoContexto === 'VIRTUALIZACION' && (
+                        <>
+                            <RowItem label="Host Servidor" value={info.hostServidor} />
+                            <RowItem label="Data Center" value={info.dataCenter} />
+                            <RowItem label="Nodo" value={info.nodoNombre} />
+                            <RowItem
+                                label="Cluster"
+                                value={
+                                <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
+                                    {info.clusterNombre}
+                                </Link>
+                                }
+                            />
+                        </>
+                      )}
+
+                      {info.tipoContexto === 'ORQUESTACION' && (
+                        <>
+                            <RowItem
+                                label="Cluster"
+                                value={
+                                <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
+                                    {info.clusterNombre}
+                                </Link>
+                                }
+                            />
+                            <RowItem label="Nodo / Host" value={info.nodoNombre} />
+                            <RowItem label="Rol" value={<Chip label={info.rol} size="small" />} />
+                        </>
+                      )}
+                    </Box>
+                  ))
+                )}
+              </SectionCard>
+
+              {/* 2. RECURSOS ASIGNADOS */}
               <SectionCard icon={<MemoryIcon />} title="Recursos Asignados" bgcolor={theme.palette.success.main}>
                 <RowItem label="vCPUs" value={`${maquina.cpu} Core(s)`} />
                 <RowItem label="RAM" value={`${maquina.ram} GB`} />
@@ -309,51 +390,6 @@ const Maquina = ({ maquina }) => {
               </SectionCard>
             </Stack>
 
-            {/* DERECHA */}
-            <Stack spacing={2}>
-              <SectionCard icon={<ClusterIcon />} title="Infraestructura y Orquestación" bgcolor={theme.palette.info.main}>
-                {clusterInfo.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">No vinculada a ningún host.</Typography>
-                ) : (
-                  clusterInfo.map((info, idx) => (
-                    <Box key={idx} sx={{ mb: 2, pb: 1, borderBottom: idx < clusterInfo.length - 1 ? '1px dashed #ddd' : 'none' }}>
-                      <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                        {info.titulo}
-                      </Typography>
-                      <RowItem
-                        label="Cluster"
-                        value={
-                          <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                            {info.clusterName}
-                          </Link>
-                        }
-                      />
-                      <RowItem label="Nodo / Host" value={info.nodoName} />
-                      {info.rol && <RowItem label="Rol" value={<Chip label={info.rol} size="small" />} />}
-                    </Box>
-                  ))
-                )}
-              </SectionCard>
-
-              <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
-                <RowItem
-                  label="Estado Registro"
-                  value={
-                    <Chip
-                      label={maquina.estado}
-                      size="small"
-                      color={maquina.estado === 'ACTIVO' ? 'success' : 'error'}
-                    />
-                  }
-                />
-                <RowItem label="Fecha Creación" value={fmtDate(maquina.fecha_creacion)} />
-                
-                {/* --- LÓGICA CORREGIDA: Usar los Resolvers de Usuario --- */}
-                <RowItem label="Creado por" value={formatUserName(maquina.creadoPor)} />
-                <RowItem label="Última Modificación" value={fmtDate(maquina.fecha_modificacion)} />
-                <RowItem label="Modificado por" value={formatUserName(maquina.modificadoPor)} isLast />
-              </SectionCard>
-            </Stack>
           </Box>
         </CardContent>
       </Card>
@@ -388,7 +424,6 @@ const Maquina = ({ maquina }) => {
                   <TableBody>
                     {usuarioRoles.map((r) => (
                       <TableRow key={r.id}>
-                        {/* CORRECCIÓN: Quitamos el [0] porque ahora es objeto directo */}
                         <TableCell>{formatUserName(r.usuarios)}</TableCell>
                         <TableCell>{r.roles?.nombre}</TableCell>
                       </TableRow>
@@ -458,7 +493,6 @@ const Maquina = ({ maquina }) => {
                   </TableHead>
                   <TableBody>
                     {infraAfectada.map((ia) => {
-                      // CORRECCIÓN: Manejo seguro para 'eventos' (puede ser array u objeto)
                       const eList = ia.eventos
                       const e = Array.isArray(eList) ? eList[0] : eList
                       return (

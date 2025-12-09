@@ -16,15 +16,19 @@ export const QUERY = gql`
       celular
       email
       estado
+      fecha_creacion
+      fecha_modificacion
       creadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       modificadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
     }
   }

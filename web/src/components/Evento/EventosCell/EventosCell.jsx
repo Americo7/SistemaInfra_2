@@ -23,11 +23,13 @@ export const QUERY = gql`
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       modificadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       tipoEventoInfo {
         id
@@ -45,14 +47,10 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando eventos...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen eventos registrados.{' '}
-    <Link to={routes.newEvento()} className="rw-link">
-      Crear uno nuevo
-    </Link>
-  </div>
-)
+// --- FIX: FORZAR RENDERIZADO ---
+// Esto evita que Redwood muestre el componente 'Empty' (texto simple)
+// y obliga a cargar 'Success' para ver la tabla vacía con su diseño y botones.
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

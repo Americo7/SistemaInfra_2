@@ -9,12 +9,16 @@ import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Dns as InfraIcon, // Icono genérico de infraestructura
+  Dns as InfraIcon,
   GridOn as ExcelIcon,
   PictureAsPdf as PdfIcon,
   TextSnippet as CsvIcon,
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
+  RestoreFromTrash as RestoreIcon,
+  Storage as ServerIcon,
+  Computer as VmIcon,
+  Domain as DcIcon,
 } from '@mui/icons-material'
 
 import {
@@ -60,7 +64,28 @@ const QUERY_REFETCH = gql`
   }
 `
 
-const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servidores, maquinas, tiposServidor }) => {
+// --- HELPERS ---
+const formatDateTime = (dateString) => {
+  if (!dateString) return '-'
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return '-'
+    return date.toLocaleString('es-BO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return '-' }
+}
+
+const formatUser = (userObj) => {
+  if (!userObj) return '-'
+  const fullName = [userObj.nombres, userObj.primer_apellido, userObj.segundo_apellido]
+    .filter(Boolean)
+    .join(' ')
+  return fullName || '-'
+}
+
+const InfraAfectadas = ({ infraAfectadas }) => {
   const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
@@ -77,15 +102,25 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
+  // Helpers para exportación (extraen datos de los objetos anidados)
+  const exportHelpers = {
+    getUsuarioNombre: (val) => formatUser(val),
+    getEvento: (val, row) => row.eventos?.cod_evento || row.id_evento,
+    getDataCenter: (val, row) => row.dataCenter?.nombre || '-',
+    getServidor: (val, row) => row.servidor?.nombre || '-',
+    getMaquina: (val, row) => row.maquina?.nombre || '-',
+  }
+
   const closeAllDialogs = () => {
     setExportMenuAnchorEl(null)
     setBulkMenuAnchorEl(null)
   }
 
-  // --- HANDLERS DE ELIMINACIÓN ---
+  // --- HANDLERS ---
   const handleSoftDelete = (rows) => {
     rows.forEach((row) => {
       const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      // Se inyecta usuario_modificacion: 1 por defecto si no hay contexto
       updateInfraAfectada({
         variables: { id: row.id, input: { estado: newState, usuario_modificacion: 1 } },
       })
@@ -97,7 +132,7 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
   }
 
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?`)) {
         closeAllDialogs()
         return
     }
@@ -110,45 +145,7 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
     closeAllDialogs()
   }
 
-  // --- MAPEOS (Lookups) ---
-  const lookups = useMemo(() => {
-    const users = (usuarios || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
-    const evts = (eventos || []).reduce((a, e) => { a[e.id] = e.descripcion; return a }, {})
-    const dcs = (dataCenters || []).reduce((a, d) => { a[d.id] = d.nombre; return a }, {})
-    const vms = (maquinas || []).reduce((a, m) => { a[m.id] = m.nombre; return a }, {})
-    
-    // Mapeo especial para tipos de servidor
-    const tipos = (tiposServidor || []).reduce((a, t) => { a[t.codigo] = t.nombre; return a }, {})
-    
-    // Mapeo de servidores enriquecido con tipo
-    const srvs = (servidores || []).reduce((a, s) => { 
-        const tipo = tipos[s.cod_tipo_servidor] || s.cod_tipo_servidor
-        a[s.id] = `${s.serie} - ${s.modelo} (${tipo})`
-        return a 
-    }, {})
-
-    return { users, evts, dcs, vms, srvs }
-  }, [usuarios, eventos, dataCenters, servidores, maquinas, tiposServidor])
-
-  const helpers = {
-    getUsuarioNombre: (id) => lookups.users[id] || `ID: ${id}`,
-    getEventoDescripcion: (id) => lookups.evts[id] || `ID: ${id}`,
-    getDataCenterNombre: (id) => lookups.dcs[id] || `ID: ${id}`,
-    getServidorNombre: (id) => lookups.srvs[id] || `ID: ${id}`,
-    getMaquinaNombre: (id) => lookups.vms[id] || `ID: ${id}`,
-    
-    formatDate: (d) => {
-        if (!d) return '-'
-        try {
-          return new Date(d).toLocaleString('es-BO', {
-            day: '2-digit', month: '2-digit', year: 'numeric',
-            hour: '2-digit', minute: '2-digit',
-          })
-        } catch { return '-' }
-    }
-  }
-
-  // --- DATOS ---
+  // --- FILTRADO ---
   const filteredData = useMemo(() => {
     if (!infraAfectadas) return []
     return infraAfectadas.filter((item) =>
@@ -159,40 +156,68 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
   // --- COLUMNAS ---
   const columns = useMemo(() => [
     { accessorKey: 'id', header: 'ID', size: 60 },
+    
+    // EVENTO
     {
-      accessorKey: 'id_evento',
-      header: 'Evento',
+      id: 'evento',
+      header: 'Evento Relacionado',
       size: 200,
+      accessorFn: (row) => row.eventos?.cod_evento || row.id_evento,
       Cell: ({ row }) => {
-        const desc = lookups.evts[row.original.id_evento]
+        const evt = row.original.eventos
         return (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <InfraIcon color="action" fontSize="small" />
-            <Typography variant="body2" noWrap title={desc}>
-              {desc ? (desc.length > 50 ? `${desc.substring(0, 50)}...` : desc) : row.original.id_evento}
-            </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <InfraIcon color="primary" fontSize="small" />
+                <Link to={routes.evento({ id: row.original.id_evento })} style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.text.primary }}>
+                    {evt?.cod_evento || `ID: ${row.original.id_evento}`}
+                </Link>
+            </Box>
+            {evt?.tipoEventoInfo && (
+                <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
+                    {evt.tipoEventoInfo.nombre}
+                </Typography>
+            )}
           </Box>
         )
       }
     },
+
+    // INFRAESTRUCTURA (Columnas separadas pero limpias)
     { 
-        accessorKey: 'id_data_center', 
+        id: 'dataCenter',
         header: 'Data Center', 
         size: 150,
-        Cell: ({ cell }) => cell.getValue() ? lookups.dcs[cell.getValue()] || cell.getValue() : '-'
+        accessorFn: (row) => row.dataCenter?.nombre,
+        Cell: ({ cell }) => cell.getValue() ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                <DcIcon fontSize="small" /> {cell.getValue()}
+            </Box>
+        ) : '-'
     },
     { 
-        accessorKey: 'id_servidor', 
+        id: 'servidor',
         header: 'Servidor', 
-        size: 200,
-        Cell: ({ cell }) => cell.getValue() ? <Typography variant="caption">{lookups.srvs[cell.getValue()] || cell.getValue()}</Typography> : '-'
+        size: 180,
+        accessorFn: (row) => row.servidor?.nombre,
+        Cell: ({ cell }) => cell.getValue() ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+                <ServerIcon fontSize="small" /> {cell.getValue()}
+            </Box>
+        ) : '-'
     },
     { 
-        accessorKey: 'id_maquina', 
+        id: 'maquina',
         header: 'Máquina (VM)', 
-        size: 150,
-        Cell: ({ cell }) => cell.getValue() ? lookups.vms[cell.getValue()] || cell.getValue() : '-'
+        size: 180,
+        accessorFn: (row) => row.maquina?.nombre,
+        Cell: ({ cell }) => cell.getValue() ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main', fontWeight: 500 }}>
+                <VmIcon fontSize="small" /> {cell.getValue()}
+            </Box>
+        ) : '-'
     },
+
     {
       accessorKey: 'estado',
       header: 'Estado',
@@ -207,11 +232,35 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
         />
       ),
     },
-    { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => helpers.formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-    { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => helpers.formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-  ], [lookups])
+
+    // AUDITORÍA
+    { 
+        id: 'fecha_creacion',
+        header: 'F. Creación', 
+        size: 150, 
+        accessorFn: (row) => row.fecha_creacion,
+        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    },
+    { 
+        id: 'creadoPor',
+        header: 'Creado por', 
+        size: 160, 
+        accessorFn: (row) => formatUser(row.creadoPor)
+    },
+    { 
+        id: 'fecha_modificacion',
+        header: 'F. Modif.', 
+        size: 150, 
+        accessorFn: (row) => row.fecha_modificacion,
+        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    },
+    { 
+        id: 'modificadoPor',
+        header: 'Modif. por', 
+        size: 160, 
+        accessorFn: (row) => formatUser(row.modificadoPor)
+    },
+  ], [theme])
 
   // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
@@ -227,10 +276,11 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
-        fecha_creacion: false, 
-        usuario_creacion: false, 
-        fecha_modificacion: false, 
-        usuario_modificacion: false 
+        // Auditoría visible
+        fecha_creacion: true, 
+        creadoPor: true, 
+        fecha_modificacion: true, 
+        modificadoPor: true 
       },
     },
     muiTablePaperProps: {
@@ -257,19 +307,10 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
        }
     },
     muiTopToolbarProps: {
-      sx: {
-        pl: 1, 
-        pr: 1,
-        backgroundColor: 'background.paper',
-        mb: 1, 
-      }
+      sx: { pl: 1, pr: 1, mb: 1, backgroundColor: 'background.paper' }
     },
     muiBottomToolbarProps: {
-        sx: {
-            backgroundColor: 'background.paper',
-            border: 'none', 
-            boxShadow: 'none',
-        }
+        sx: { backgroundColor: 'background.paper', border: 'none', boxShadow: 'none' }
     },
     renderTopToolbarCustomActions: () => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -290,16 +331,10 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
       }
     },
     muiTableBodyCellProps: {
-        sx: {
-            borderBottom: `1px solid ${theme.palette.divider}`,
-        }
+        sx: { borderBottom: `1px solid ${theme.palette.divider}` }
     },
     muiTableBodyRowProps: ({ row }) => ({
-      sx: {
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
-        },
-      }
+      sx: { '&:hover': { backgroundColor: theme.palette.action.hover } }
     }),
     renderRowActions: ({ row }) => (
       <Stack direction="row" spacing={0.5}>
@@ -317,23 +352,15 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
     ),
   })
 
-  // --- LOGICA DE EXPORTACIÓN ---
+  // --- EXPORTACIÓN ---
   const handleExport = (scope, suffix, format) => {
     let rowsToExport = []
-
     if (scope === 'page') {
-      const allRows = table.getPrePaginationRowModel().rows
       const { pageIndex, pageSize } = table.getState().pagination
-      const startRow = pageIndex * pageSize
-      const endRow = startRow + pageSize
-      rowsToExport = allRows.slice(startRow, endRow)
-    }
-
-    if (scope === 'all') {
+      rowsToExport = table.getPrePaginationRowModel().rows.slice(pageIndex * pageSize, (pageIndex * pageSize) + pageSize)
+    } else if (scope === 'all') {
        rowsToExport = table.getPrePaginationRowModel().rows
-    }
-
-    if (scope === 'selected') {
+    } else if (scope === 'selected') {
       rowsToExport = table.getSelectedRowModel().rows
     }
 
@@ -342,73 +369,43 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
         return
     }
 
-    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'id'].includes(col.id))
     
-    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, exportHelpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, exportHelpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, exportHelpers, suffix)
     
     closeAllDialogs()
   }
 
-  // --- CONFIG PARA SCAFFOLD ---
+  // --- SCAFFOLD CONFIG ---
   const listActionsConfig = useMemo(() => {
     const selectedRowCount = table.getSelectedRowModel().rows.length
     
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
-        {/* EXCEL */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-        
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>EXCEL</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        {/* PDF */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>PDF</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        {/* CSV */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>CSV</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
       </Menu>
     )
 
     const BulkActionMenu = (
-      <Menu
-        anchorEl={bulkMenuAnchorEl}
-        open={Boolean(bulkMenuAnchorEl)}
-        onClose={closeAllDialogs}
-      >
+      <Menu anchorEl={bulkMenuAnchorEl} open={Boolean(bulkMenuAnchorEl)} onClose={closeAllDialogs}>
         <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
-          Desactivar (Soft Delete)
+          <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
+          {showDeleted ? 'Restaurar' : 'Desactivar'}
         </MenuItem>
         <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
-          Eliminar de Base de Datos
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon> Eliminar BD
         </MenuItem>
       </Menu>
     )
@@ -417,27 +414,12 @@ const InfraAfectadas = ({ infraAfectadas, usuarios, eventos, dataCenters, servid
       showDeleted,
       selectedRowCount,
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
-      
-      handleBulkAction: (e) => {
-        if (showDeleted) {
-            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
-        } else {
-            setBulkMenuAnchorEl(e.currentTarget)
-        }
-      },
-      
+      handleBulkAction: (e) => showDeleted ? handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original)) : setBulkMenuAnchorEl(e.currentTarget),
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
       exportMenu: ExportMenu,
       bulkActionMenu: BulkActionMenu,
     }
-  }, [
-    table, 
-    showDeleted, 
-    exportMenuAnchorEl, 
-    bulkMenuAnchorEl, 
-    table.getState().rowSelection,
-    table.getState().pagination
-  ])
+  }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
 
   return (
     <ScaffoldLayout

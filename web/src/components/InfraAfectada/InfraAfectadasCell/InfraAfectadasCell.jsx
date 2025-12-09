@@ -12,15 +12,40 @@ export const QUERY = gql`
       id_servidor
       id_maquina
       estado
+      fecha_creacion
+      fecha_modificacion
       creadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       modificadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
+      }
+      eventos {
+        id
+        cod_evento
+        tipoEventoInfo {
+          id
+          codigo
+          nombre
+        }
+      }
+      data_centers {
+        id
+        nombre
+      }
+      servidores {
+        id
+        nombre
+      }
+      maquinas {
+        id
+        nombre
       }
     }
   }
@@ -28,14 +53,10 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando registros de infraestructura afectada...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen registros.{' '}
-    <Link to={routes.newInfraAfectada()} className="rw-link">
-      Crear uno nuevo
-    </Link>
-  </div>
-)
+// --- FIX: FORZAR RENDERIZADO ---
+// Se anula el componente Empty para forzar la carga de Success,
+// manteniendo la estructura visual de la tabla.
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

@@ -26,6 +26,10 @@ export const QUERY = gql`
         id
         nombre
       }
+      maquina {
+        id
+        nombre
+      }
       # Información de usuario para mostrar nombres en lugar de IDs
       creadoPor {
         id

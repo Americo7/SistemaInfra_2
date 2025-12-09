@@ -1,6 +1,6 @@
 import { navigate, routes } from '@redwoodjs/router'
 
-import { useMutation } from '@redwoodjs/web'
+import { useMutation, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 import UsuarioRolForm from 'src/components/UsuarioRol/UsuarioRolForm'
@@ -14,6 +14,7 @@ export const QUERY = gql`
       id_maquina
       id_sistema
       estado
+      
     }
   }
 `

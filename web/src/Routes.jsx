@@ -1,4 +1,4 @@
-import { Set, Router, Route, Private } from '@redwoodjs/router'
+import { Set, Router, Route, PrivateSet } from '@redwoodjs/router'
 
 import HomeLayout from 'src/layouts/HomeLayout'
 import HomePage from 'src/pages/HomePage/HomePage'
@@ -8,17 +8,18 @@ import { useAuth } from './auth'
 
 const Routes = () => {
   return (
-    <Router useAuth={useAuth}>
-
+    <Router 
+      useAuth={useAuth}
+      whileLoadingAuth={() => <div>Cargando sesión…</div>}
+    >
       {/* ---------------- RUTA PÚBLICA ---------------- */}
       <Route path="/login" page={LoginPage} name="login" />
 
       {/* ------------------------------------------------
            RUTAS PRIVADAS — requieren sesión Keycloak
          ------------------------------------------------ */}
-      <Set wrap={HomeLayout}>
-        <Private unauthenticated="login">
-
+      <PrivateSet unauthenticated="login">
+        <Set wrap={HomeLayout}>
           <Route path="/" page={HomePage} name="home" />
 
           <Route path="/componentes/new" page={ComponenteNewComponentePage} name="newComponente" />
@@ -110,9 +111,8 @@ const Routes = () => {
           <Route path="/k8s-endpoints/sync" page={K8sSyncPage} name="k8sSync" />
 
           <Route notfound page={NotFoundPage} />
-
-        </Private>
-      </Set>
+        </Set>
+      </PrivateSet>
     </Router>
   )
 }

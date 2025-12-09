@@ -25,11 +25,13 @@ export const QUERY = gql`
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       modificadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       entornoInfo {
         id
@@ -41,12 +43,16 @@ export const QUERY = gql`
         codigo
         nombre
       }
-    }
-    parametrosFormularioComponente {
-      id
-      codigo
-      nombre
-      grupo
+      tecnologiaInfo {
+        id
+        codigo
+        nombre
+      } 
+      sistemas {
+        id
+        nombre
+        sigla
+      }   
     }
   }
 `

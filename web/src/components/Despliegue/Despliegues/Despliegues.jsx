@@ -1,80 +1,76 @@
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Link, routes } from '@redwoodjs/router'
 import { useMutation, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
+import { useTheme } from '@mui/material/styles'
+
+import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
 
 import {
-  MoreVert as MoreVertIcon,
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon,
-  FileDownload as FileDownloadIcon,
-  Print as PrintIcon,
+  GridOn as ExcelIcon,
+  PictureAsPdf as PdfIcon,
+  TextSnippet as CsvIcon,
+  DeleteForever as HardDeleteIcon,
+  PowerOff as SoftDeleteIcon,
+  RestoreFromTrash as RestoreIcon,
+  Computer as VmIcon,
+  Storage as ServerIcon,
+  Hub as ClusterIcon,
 } from '@mui/icons-material'
 
 import {
   Box,
-  Button,
   Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   IconButton,
   Tooltip,
-  Switch,
-  FormControlLabel,
   Menu,
   MenuItem,
+  Stack,
   ListItemIcon,
-  ListItemText,
-  Tabs,
-  Tab,
-  Table,
-  TableBody,
-  TableContainer,
-  TableCell,
-  TableHead,
-  TableRow,
-  Paper,
   Typography,
+  Divider,
 } from '@mui/material'
 
-import {
-  MaterialReactTable,
-  useMaterialReactTable,
-} from 'material-react-table'
-
-import {
-  exportToPDF,
-  exportToExcel,
-  exportToCSV,
-  exportSystemReportToPDF,
-  exportSystemReportToExcel,
-} from 'src/lib/exporter/desplieguesExporter'
+import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
+import { exportToPDF, exportToExcel, exportToCSV } from 'src/lib/exporter/desplieguesExporter'
 
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-import { QUERY } from 'src/components/Despliegue/DesplieguesCell'
-
-/* ===========================================================================
-   MUTATION
-=========================================================================== */
+// --- GRAPHQL LOCAL ---
+// Solo pedimos lo necesario para refrescar la cache tras editar
+const QUERY_REFETCH = gql`
+  query FindDesplieguesRefetch {
+    despliegues {
+      id
+      estado
+      fecha_modificacion
+      usuario_modificacion
+    }
+  }
+`
 
 const UPDATE_DESPLIEGUE_MUTATION = gql`
   mutation UpdateDespliegue($id: Int!, $input: UpdateDespliegueInput!) {
     updateDespliegue(id: $id, input: $input) {
       id
       estado
+      fecha_modificacion
     }
   }
 `
 
-/* ===========================================================================
-   UTIL
-=========================================================================== */
+const DELETE_DESPLIEGUE_MUTATION = gql`
+  mutation DeleteDespliegue($id: Int!) {
+    deleteDespliegue(id: $id) {
+      id
+    }
+  }
+`
 
+// --- HELPERS GENERALES ---
 const formatDateTime = (value) => {
   if (!value) return '-'
   try {
@@ -84,95 +80,132 @@ const formatDateTime = (value) => {
   }
 }
 
-/* ===========================================================================
-   COMPONENT
-=========================================================================== */
+const formatUser = (userObj) => {
+    if (!userObj) return '-'
+    return `${userObj.nombres || ''} ${userObj.primer_apellido || ''} ${userObj.segundo_apellido || ''}`.trim()
+}
 
-const DesplieguesList = ({ despliegues, usuarios, parametros }) => {
-  const [showInactive, setShowInactive] = useState(false)
-  const [exportMenu, setExportMenu] = useState({ all: null, page: null, sel: null })
-  const [actionMenu, setActionMenu] = useState({ anchorEl: null, row: null })
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null })
-  const [currentTab, setCurrentTab] = useState(0)
-  const reportRef = useRef()
+// --- COMPONENTE PRINCIPAL ---
 
-  /* ---------------------------------------------------------
-     Helpers basados en relaciones reales
-  --------------------------------------------------------- */
+const Despliegues = ({ despliegues }) => {
+  const theme = useTheme()
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
+  const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
-  const helpers = {
-    componente: (d) => d.componentes?.nombre || 'N/A',
+  const [updateDespliegue] = useMutation(UPDATE_DESPLIEGUE_MUTATION, {
+    onError: (error) => toast.error(error.message),
+    // Al completarse, refetch hace que la tabla obtenga la nueva fecha de modificación del server
+    refetchQueries: [{ query: QUERY_REFETCH }],
+  })
 
-    sistema: (d) =>
-      d.componentes?.sistemas?.nombre ||
-      d.componentes?.sistemas?.[0]?.nombre ||
-      'N/A',
+  const [deleteDespliegue] = useMutation(DELETE_DESPLIEGUE_MUTATION, {
+    onError: (error) => toast.error(error.message),
+    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
+    refetchQueries: [{ query: QUERY_REFETCH }],
+  })
 
-    maquina: (d) => d.maquinas?.nombre || 'N/A',
-
-    servidor: (d) => {
-      const s =
-        d.servidores ||
-        d.maquinas?.servidores
-
-      if (!s) return 'N/A'
-
-      let txt = s.nombre
-      if (s.cod_tipo_servidor) txt += ` (${s.cod_tipo_servidor})`
-      return txt
-    },
-
-    respaldoNombre: (codigo) => {
-      const p = parametros?.find((x) => x.codigo === codigo)
-      return p?.nombre || codigo
-    },
+  const closeAllDialogs = () => {
+    setExportMenuAnchorEl(null)
+    setBulkMenuAnchorEl(null)
   }
 
   /* ---------------------------------------------------------
-     Filtrado
+     HELPERS DE RELACIONES
   --------------------------------------------------------- */
+  const deploymentHelpers = useMemo(() => {
+    return {
+        componenteNombre: (d) => d.componentes?.nombre || '-',
+        sistemaSigla: (d) => d.componentes?.sistemas?.sigla || '-', 
 
-  const filteredData = useMemo(() => {
-    if (!despliegues) return []
-    return despliegues.filter((d) =>
-      showInactive ? d.estado === 'INACTIVO' : d.estado === 'ACTIVO'
-    )
-  }, [despliegues, showInactive])
+        recursoDestino: (d) => {
+            const esVm = !!d.maquinas?.nombre;
+            const esServer = !!d.servidores?.nombre;
 
-  /* ---------------------------------------------------------
-     Agrupación por sistema
-  --------------------------------------------------------- */
+            if (esVm) {
+                return {
+                    nombre: d.maquinas.nombre,
+                    tipo: 'VM',
+                    icon: VmIcon,
+                    id: d.maquinas.id,
+                    route: routes.maquina,
+                }
+            } else if (esServer) {
+                return {
+                    nombre: d.servidores.nombre,
+                    tipo: 'Servidor',
+                    icon: ServerIcon,
+                    id: d.servidores.id,
+                    route: routes.servidor,
+                }
+            }
+            return { nombre: '-', tipo: 'N/A' }
+        },
 
-  const systemReport = useMemo(() => {
-    const map = new Map()
+        clusterInfo: (d) => {
+            const vmCluster = d.maquinas?.cluster_nodos?.[0]?.cluster;
+            const vmHostCluster = d.maquinas?.servidores?.cluster_nodos?.[0]?.cluster;
+            const serverCluster = d.servidores?.cluster_nodos?.[0]?.cluster;
+            const target = vmCluster || vmHostCluster || serverCluster;
+            return target ? { id: target.id, nombre: target.nombre } : null;
+        },
+        
+        respaldoNombre: (d) => d.tipoRespaldoInfo?.nombre || d.cod_tipo_respaldo || '-',
+    }
+  }, []) 
+  
+  const helpers = {
+      ...deploymentHelpers,
+      formatDateTime: formatDateTime,
+      getRecurso: (row) => deploymentHelpers.recursoDestino(row).nombre,
+      getCluster: (row) => deploymentHelpers.clusterInfo(row)?.nombre || '-'
+  }
 
-    filteredData.forEach((d) => {
-      const sistema = helpers.sistema(d)
-
-      if (!map.has(sistema)) {
-        map.set(sistema, { sistema, despliegues: [] })
-      }
-
-      map.get(sistema).despliegues.push({
-        fecha_despliegue: formatDateTime(d.fecha_despliegue),
-        fecha_solicitud: formatDateTime(d.fecha_solicitud),
-        componente: helpers.componente(d),
-        maquina: helpers.maquina(d),
-        sistema,
-        servidor: helpers.servidor(d),
-        solicitante: d.solicitante,
-        unidad_solicitante: d.unidad_solicitante,
-        referencia_respaldo: d.referencia_respaldo,
+  // --- HANDLERS ---
+  const handleSoftDelete = (rows) => {
+    rows.forEach((despliegue) => {
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      
+      // CORRECCIÓN: No enviamos fecha_modificacion. El backend lo hace solo.
+      updateDespliegue({
+        variables: {
+            id: despliegue.id,
+            input: {
+                estado: newState,
+                // fecha_modificacion se elimina de aquí para evitar el error GraphQL
+            },
+        },
       })
     })
 
-    return Array.from(map.values())
-  }, [filteredData, parametros])
+    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
 
-  /* ---------------------------------------------------------
-     Columnas MRT
-  --------------------------------------------------------- */
+  const handleHardDelete = (rows) => {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
+      closeAllDialogs()
+      return
+    }
+    
+    rows.forEach((d) => {
+      deleteDespliegue({ variables: { id: d.id } })
+    })
 
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  // --- FILTRADO ---
+  const filteredData = useMemo(() => {
+    if (!despliegues) return []
+    return despliegues.filter((d) =>
+      showDeleted ? d.estado === 'INACTIVO' : d.estado === 'ACTIVO'
+    )
+  }, [despliegues, showDeleted])
+
+  // --- COLUMNAS ---
   const columns = useMemo(
     () => [
       { accessorKey: 'id', header: 'ID', size: 60 },
@@ -180,436 +213,396 @@ const DesplieguesList = ({ despliegues, usuarios, parametros }) => {
       {
         id: 'componente',
         header: 'Componente',
-        size: 120,
-        Cell: ({ row }) => helpers.componente(row.original),
+        size: 180,
+        accessorFn: (row) => deploymentHelpers.componenteNombre(row),
+        Cell: ({ row }) => (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" fontWeight={600} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+                {deploymentHelpers.componenteNombre(row.original)}
+                </Typography>
+            </Box>
+        ),
       },
-
-      {
-        id: 'maquina',
-        header: 'Máquina',
-        size: 120,
-        Cell: ({ row }) => helpers.maquina(row.original),
-      },
-
+      
       {
         id: 'sistema',
         header: 'Sistema',
-        size: 120,
-        Cell: ({ row }) => helpers.sistema(row.original),
+        size: 100,
+        accessorFn: (row) => deploymentHelpers.sistemaSigla(row),
+        Cell: ({ row }) => (
+            <Chip 
+                label={deploymentHelpers.sistemaSigla(row.original)} 
+                size="small" 
+                variant="outlined"
+                sx={{ fontWeight: 'bold', color: theme.palette.primary.main, borderColor: theme.palette.primary.light }}
+            />
+        ),
       },
 
       {
-        id: 'servidor',
-        header: 'Servidor',
+        id: 'recursoDestino',
+        header: 'Recurso Destino',
+        size: 200,
+        accessorFn: (row) => deploymentHelpers.recursoDestino(row).nombre,
+        Cell: ({ row }) => {
+            const recurso = deploymentHelpers.recursoDestino(row.original)
+            if (recurso.nombre === '-') return '-'
+
+            const Content = (
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <recurso.icon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'info'} fontSize="small" />
+                    <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+                        {recurso.nombre}
+                    </Typography>
+                    <Chip 
+                        label={recurso.tipo} 
+                        size="small" 
+                        variant="filled" 
+                        color="default"
+                        sx={{ fontSize: '0.65rem', height: 20, opacity: 0.7 }}
+                    />
+                </Stack>
+            )
+            
+            if (recurso.route) {
+                return (
+                    <Link to={recurso.route({ id: recurso.id })} style={{ textDecoration: 'none', color: 'inherit' }}>
+                        {Content}
+                    </Link>
+                )
+            }
+            return Content
+        },
+      },
+
+      {
+        id: 'cluster',
+        header: 'Cluster',
         size: 150,
-        Cell: ({ row }) => helpers.servidor(row.original),
+        accessorFn: (row) => deploymentHelpers.clusterInfo(row)?.nombre || '-',
+        Cell: ({ row }) => {
+            const cluster = deploymentHelpers.clusterInfo(row.original)
+            if (!cluster) return '-'
+            return (
+                <Link to={routes.cluster({ id: cluster.id })} style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.info.main }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <ClusterIcon fontSize="small" />
+                        {cluster.nombre}
+                    </Box>
+                </Link>
+            )
+        }
       },
 
       {
         accessorKey: 'fecha_despliegue',
-        header: 'Fecha Despliegue',
+        header: 'F. Despliegue',
         size: 140,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
       },
 
       {
         accessorKey: 'fecha_solicitud',
-        header: 'Fecha Solicitud',
+        header: 'F. Solicitud',
         size: 140,
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
       },
 
       {
-        accessorKey: 'cod_tipo_respaldo',
+        id: 'tipoRespaldo',
         header: 'Tipo Respaldo',
-        size: 140,
-        Cell: ({ cell }) => helpers.respaldoNombre(cell.getValue()),
+        size: 130,
+        accessorFn: (row) => deploymentHelpers.respaldoNombre(row),
+        Cell: ({ row }) => (
+            <Chip 
+                label={deploymentHelpers.respaldoNombre(row.original)}
+                size="small"
+                variant="outlined"
+            />
+        ),
       },
 
-      { accessorKey: 'unidad_solicitante', header: 'Unidad', size: 150 },
+      { accessorKey: 'unidad_solicitante', header: 'Unidad', size: 120 },
       { accessorKey: 'solicitante', header: 'Solicitante', size: 150 },
-      { accessorKey: 'descripcion', header: 'Descripción', size: 200 },
-
+      
       {
         accessorKey: 'estado',
         header: 'Estado',
-        size: 90,
+        size: 100,
         Cell: ({ cell }) => (
           <Chip
-            size="small"
-            label={cell.getValue() === 'ACTIVO' ? 'Activo' : 'Inactivo'}
+            label={cell.getValue()}
             color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
+            size="small"
+            variant="outlined"
+            sx={{ fontSize: '0.7rem' }}
           />
         ),
       },
+
+      // --- NUEVAS COLUMNAS DE AUDITORÍA ---
+      { 
+        accessorKey: 'fecha_creacion', 
+        header: 'F. Creación', 
+        size: 150, 
+        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+      },
+      { 
+        id: 'creadoPor',
+        header: 'Creado por', 
+        size: 150, 
+        accessorFn: (row) => formatUser(row.creadoPor)
+      },
+      { 
+        accessorKey: 'fecha_modificacion', 
+        header: 'F. Modificación', 
+        size: 150, 
+        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+      },
+      { 
+        id: 'modificadoPor',
+        header: 'Modif. por', 
+        size: 150, 
+        accessorFn: (row) => formatUser(row.modificadoPor)
+      },
+      
     ],
-    [parametros]
+    [deploymentHelpers, theme]
   )
 
-  /* ---------------------------------------------------------
-     MUTATION
-  --------------------------------------------------------- */
-
-  const [updateDespliegue] = useMutation(UPDATE_DESPLIEGUE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Estado actualizado')
-      setDeleteDialog({ open: false, id: null })
-    },
-    onError: (e) => toast.error(e.message),
-    refetchQueries: [{ query: QUERY }],
-  })
-
-  const confirmarDesactivar = () => {
-    updateDespliegue({
-      variables: {
-        id: deleteDialog.id,
-        input: {
-          estado: 'INACTIVO',
-          fecha_modificacion: new Date().toISOString(),
-        },
-      },
-    })
-  }
-
-  /* ---------------------------------------------------------
-     Tabla
-  --------------------------------------------------------- */
-
+  // --- MRT CONFIG ---
   const table = useMaterialReactTable({
     columns,
     data: filteredData,
     enableRowActions: true,
     enableRowSelection: true,
-
+    enableGlobalFilter: true,
+    enableRowVirtualization: true,
+    rowVirtualizerOptions: { overscan: 5 },
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: { id: false },
+      columnVisibility: { 
+        id: false,
+        descripcion: false,
+        solicitante: false,
+        estado: false,
+        fecha_solicitud: false,
+        // Ocultamos auditoría por defecto para no saturar
+        fecha_creacion: false,
+        creadoPor: false, 
+        fecha_modificacion: false,
+        modificadoPor: false 
+      },
     },
-
-    renderRowActions: ({ row }) => (
-      <Tooltip title="Acciones">
-        <IconButton
-          onClick={(e) =>
-            setActionMenu({ anchorEl: e.currentTarget, row: row.original })
-          }
-        >
-          <MoreVertIcon />
-        </IconButton>
-      </Tooltip>
+    muiTablePaperProps: {
+      elevation: 0,
+      sx: {
+        maxWidth: 1500,
+        mx: 'auto',
+        px: 2, 
+        py: 1,
+        border: `1px solid ${theme.palette.divider}`,
+        borderTop: 'none', 
+        borderRadius: 2, 
+        borderTopLeftRadius: '0 !important',
+        borderTopRightRadius: '0 !important',
+        backgroundColor: 'background.paper',
+        overflow: 'hidden',
+      },
+    },
+    muiTableContainerProps: {
+       sx: {
+         border: `1px solid ${theme.palette.divider}`,
+         borderRadius: 2, 
+         overflow: 'auto', 
+       }
+    },
+    muiTopToolbarProps: {
+      sx: {
+        pl: 1, 
+        pr: 1,
+        backgroundColor: 'background.paper',
+        mb: 1, 
+      }
+    },
+    muiBottomToolbarProps: {
+        sx: {
+            backgroundColor: 'background.paper',
+            border: 'none', 
+            boxShadow: 'none',
+        }
+    },
+    renderTopToolbarCustomActions: () => (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          Despliegues
+        </Typography>
+      </Box>
     ),
-
-    renderTopToolbarCustomActions: ({ table }) => {
-      const selected = table.getSelectedRowModel().rows
-
-      return (
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', p: 1 }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={showInactive}
-                onChange={(e) => setShowInactive(e.target.checked)}
-              />
-            }
-            label="Mostrar inactivos"
-          />
-
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            onClick={(e) =>
-              setExportMenu({ ...exportMenu, all: e.currentTarget })
-            }
-            sx={{ backgroundColor: '#0F284D' }}
-          >
-            Exportar Todos
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.all}
-            open={!!exportMenu.all}
-            onClose={() => setExportMenu({ ...exportMenu, all: null })}
-          >
-            <MenuItem
-              onClick={() => {
-                const visibleColumns = table.getVisibleLeafColumns().filter((c) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(c.id))
-                exportToPDF(table.getPrePaginationRowModel().rows, visibleColumns, helpers, '-todos')
-                setExportMenu({ ...exportMenu, all: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToExcel(table.getPrePaginationRowModel().rows, table, helpers)
-                setExportMenu({ ...exportMenu, all: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToCSV(table.getPrePaginationRowModel().rows, table, helpers)
-                setExportMenu({ ...exportMenu, all: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          {/* Exportar Página */}
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            sx={{ backgroundColor: '#0F284D' }}
-            onClick={(e) =>
-              setExportMenu({ ...exportMenu, page: e.currentTarget })
-            }
-          >
-            Exportar Página
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.page}
-            open={!!exportMenu.page}
-            onClose={() => setExportMenu({ ...exportMenu, page: null })}
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(table.getRowModel().rows, table, helpers)
-                setExportMenu({ ...exportMenu, page: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToExcel(table.getRowModel().rows, table, helpers)
-                setExportMenu({ ...exportMenu, page: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-
-            <MenuItem
-              onClick={() => {
-                exportToCSV(table.getRowModel().rows, table, helpers)
-                setExportMenu({ ...exportMenu, page: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-
-          {/* Exportar selección */}
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<FileDownloadIcon />}
-            disabled={selected.length === 0}
-            sx={{ backgroundColor: '#0F281D' }}
-            onClick={(e) =>
-              setExportMenu({ ...exportMenu, sel: e.currentTarget })
-            }
-          >
-            Exportar Selección ({selected.length})
-          </Button>
-
-          <Menu
-            anchorEl={exportMenu.sel}
-            open={!!exportMenu.sel}
-            onClose={() => setExportMenu({ ...exportMenu, sel: null })}
-          >
-            <MenuItem
-              onClick={() => {
-                exportToPDF(selected, table, helpers)
-                setExportMenu({ ...exportMenu, sel: null })
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToExcel(selected, table, helpers)
-                setExportMenu({ ...exportMenu, sel: null })
-              }}
-            >
-              Excel
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                exportToCSV(selected, table, helpers)
-                setExportMenu({ ...exportMenu, sel: null })
-              }}
-            >
-              CSV
-            </MenuItem>
-          </Menu>
-        </Box>
-      )
+    muiTableHeadCellProps: {
+      sx: {
+        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
+        color: 'text.primary',
+        fontWeight: 'bold',
+        fontSize: '0.85rem',
+        borderBottom: `1px solid ${theme.palette.divider}`, 
+        borderRight: `1px solid ${theme.palette.divider}`,  
+        '&:last-child': { borderRight: 'none' },
+      }
     },
+    muiTableBodyCellProps: {
+      sx: {
+        borderBottom: `1px solid ${theme.palette.divider}`,
+      }
+    },
+    muiTableBodyRowProps: ({ row }) => ({
+      sx: {
+        '&:hover': {
+          backgroundColor: theme.palette.action.hover,
+        },
+      }
+    }),
+    renderRowActions: ({ row }) => (
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title="Ver Detalles">
+          <IconButton component={Link} to={routes.despliegue({ id: row.original.id })} size="small">
+            <VisibilityIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Editar">
+          <IconButton component={Link} to={routes.editDespliegue({ id: row.original.id })} size="small">
+            <EditIcon fontSize="small" color="info" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    ),
   })
 
-  /* ---------------------------------------------------------
-     Render
-  --------------------------------------------------------- */
+  // --- EXPORTAR ---
+  const handleExport = (scope, suffix, format) => {
+    let rowsToExport = []
 
-  return (
-    <Box sx={{ px: 0, py: 0 }}>
-      <Tabs value={currentTab} onChange={(e, v) => setCurrentTab(v)} sx={{ mb: 2 }}>
-        <Tab label="Tabla Completa" />
-        <Tab label="Despliegues por Sistema" />
-      </Tabs>
+    if (scope === 'page') {
+      const allRows = table.getPrePaginationRowModel().rows
+      const { pageIndex, pageSize } = table.getState().pagination
+      const startRow = pageIndex * pageSize
+      const endRow = startRow + pageSize
+      rowsToExport = allRows.slice(startRow, endRow)
+    }
 
-      {currentTab === 0 && <MaterialReactTable table={table} />}
+    if (scope === 'all') rowsToExport = table.getPrePaginationRowModel().rows
+    if (scope === 'selected') rowsToExport = table.getSelectedRowModel().rows
 
-      {currentTab === 1 && (
-        <Box>
-          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<FileDownloadIcon />}
-              sx={{ backgroundColor: '#0F284D' }}
-              onClick={() => exportSystemReportToPDF(systemReport)}
-            >
-              Exportar PDF
-            </Button>
+    if (!rowsToExport || rowsToExport.length === 0) {
+        toast.error('No hay datos para exportar')
+        return
+    }
 
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<FileDownloadIcon />}
-              sx={{ backgroundColor: '#0F284D' }}
-              onClick={() => exportSystemReportToExcel(systemReport)}
-            >
-              Exportar Excel
-            </Button>
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
+    
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
+    
+    closeAllDialogs()
+  }
 
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<PrintIcon />}
-              sx={{ backgroundColor: '#0F284D' }}
-              onClick={() => window.print()}
-            >
-              Imprimir
-            </Button>
-          </Box>
-
-          <Box ref={reportRef}>
-            {systemReport.map((sys) => (
-              <Box key={sys.sistema} sx={{ mb: 4 }}>
-                <Typography sx={{ fontSize: 18, fontWeight: 'bold', mb: 1 }}>
-                  {sys.sistema}
-                </Typography>
-
-                <TableContainer component={Paper}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: '#eee' }}>
-                        <TableCell>Fecha Despliegue</TableCell>
-                        <TableCell>Fecha Solicitud</TableCell>
-                        <TableCell>Componente</TableCell>
-                        <TableCell>Máquina</TableCell>
-                        <TableCell>Servidor</TableCell>
-                        <TableCell>Solicitante</TableCell>
-                        <TableCell>Unidad</TableCell>
-                        <TableCell>Referencia</TableCell>
-                      </TableRow>
-                    </TableHead>
-
-                    <TableBody>
-                      {sys.despliegues.map((d, i) => (
-                        <TableRow key={i}>
-                          <TableCell>{d.fecha_despliegue}</TableCell>
-                          <TableCell>{d.fecha_solicitud}</TableCell>
-                          <TableCell>{d.componente}</TableCell>
-                          <TableCell>{d.maquina}</TableCell>
-                          <TableCell>{d.servidor}</TableCell>
-                          <TableCell>{d.solicitante}</TableCell>
-                          <TableCell>{d.unidad_solicitante}</TableCell>
-                          <TableCell>{d.referencia_respaldo}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            ))}
-          </Box>
+  // --- ACTIONS LAYOUT ---
+  const listActionsConfig = useMemo(() => {
+    const selectedRowCount = table.getSelectedRowModel().rows.length
+    
+    const ExportMenu = (
+      <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
         </Box>
-      )}
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+        
+        <Divider />
 
-      <Dialog
-        open={deleteDialog.open}
-        onClose={() => setDeleteDialog({ open: false, id: null })}
-      >
-        <DialogTitle>Desactivar Despliegue</DialogTitle>
-
-        <DialogContent>
-          ¿Seguro que deseas desactivar el despliegue #{deleteDialog.id}?
-        </DialogContent>
-
-        <DialogActions>
-          <Button onClick={() => setDeleteDialog({ open: false, id: null })}>
-            Cancelar
-          </Button>
-
-          <Button variant="contained" color="error" onClick={confirmarDesactivar}>
-            Desactivar
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Menu
-        anchorEl={actionMenu.anchorEl}
-        open={Boolean(actionMenu.anchorEl)}
-        onClose={() => setActionMenu({ anchorEl: null, row: null })}
-      >
-        <MenuItem
-          component={Link}
-          to={actionMenu.row ? routes.despliegue({ id: actionMenu.row.id }) : '#'}
-          onClick={() => setActionMenu({ anchorEl: null, row: null })}
-        >
-          <ListItemIcon>
-            <VisibilityIcon fontSize="small" color="primary" />
-          </ListItemIcon>
-          <ListItemText>Ver detalles</ListItemText>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
 
-        <MenuItem
-          component={Link}
-          to={actionMenu.row ? routes.editDespliegue({ id: actionMenu.row.id }) : '#'}
-          onClick={() => setActionMenu({ anchorEl: null, row: null })}
-        >
-          <ListItemIcon>
-            <EditIcon fontSize="small" color="info" />
-          </ListItemIcon>
-          <ListItemText>Editar</ListItemText>
-        </MenuItem>
+        <Divider />
 
-        <MenuItem
-          onClick={() => {
-            if (actionMenu.row) {
-              setDeleteDialog({ open: true, id: actionMenu.row.id })
-            }
-            setActionMenu({ anchorEl: null, row: null })
-          }}
-        >
-          <ListItemIcon>
-            <DeleteIcon fontSize="small" color="error" />
-          </ListItemIcon>
-          <ListItemText>Desactivar</ListItemText>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
+        </Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
+        </MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
+          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
       </Menu>
-    </Box>
+    )
+
+    const BulkActionMenu = (
+      <Menu anchorEl={bulkMenuAnchorEl} open={Boolean(bulkMenuAnchorEl)} onClose={closeAllDialogs}>
+        <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
+          {showDeleted ? 'Restaurar (Activar)' : 'Desactivar (Soft Delete)'}
+        </MenuItem>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
+          Eliminar de Base de Datos
+        </MenuItem>
+      </Menu>
+    )
+
+    return {
+      showDeleted,
+      selectedRowCount,
+      handleSwitchChange: (e) => setShowDeleted(e.target.checked),
+      handleBulkAction: (e) => {
+        if (selectedRowCount === 0) {
+            toast.error('Debe seleccionar al menos un registro.')
+            return;
+        }
+        if (showDeleted) {
+             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+        } else {
+             setBulkMenuAnchorEl(e.currentTarget)
+        }
+      },
+      handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
+      exportMenu: ExportMenu,
+      bulkActionMenu: BulkActionMenu,
+    }
+  }, [
+    table, 
+    showDeleted, 
+    exportMenuAnchorEl, 
+    bulkMenuAnchorEl, 
+    table.getState().rowSelection,
+    table.getState().pagination,
+  ])
+
+  return (
+    <ScaffoldLayout
+      title="Despliegues"
+      titleTo="despliegues"
+      groupTitle="Despliegues"
+      buttonLabel="Nuevo Despliegue"
+      buttonTo="newDespliegue"
+      listActionsConfig={listActionsConfig}
+    >
+      <MaterialReactTable table={table} />
+    </ScaffoldLayout>
   )
 }
 
-export default DesplieguesList
+export default Despliegues

@@ -6,8 +6,6 @@ import DespliegueForm from 'src/components/Despliegue/DespliegueForm'
 
 /* ============================================================
    QUERY
-   - Trae: despliegue + componentes, máquinas, servidores, parámetros
-   - Todo en una sola consulta para optimización
 =============================================================== */
 export const QUERY = gql`
   query EditDespliegueById($id: Int!) {
@@ -25,23 +23,46 @@ export const QUERY = gql`
       cod_tipo_respaldo
       referencia_respaldo
       estado_despliegue
+      unidadInfo {
+        id
+        codigo
+        nombre
+      }
+      tipoRespaldoInfo {
+        id
+        codigo
+        nombre
+      }
+      estadoDespliegueInfo {
+        id
+        codigo
+        nombre
+      } # <--- Faltaba cerrar esta llave
     }
+    # Listas para los selectores del formulario
     componentes {
       id
       nombre
       estado
+      sistemas {
+        id
+        nombre
+        sigla
+      }
     }
     maquinas {
       id
       nombre
       estado
+      ip # <--- Agregado: necesario para el buscador del form
     }
     servidores {
       id
       nombre
       estado
+      ip_primaria # <--- Agregado: necesario para el buscador del form
     }
-    parametros {
+    parametros: parametrosFormularioDespliegue {
       id
       codigo
       nombre
@@ -67,7 +88,7 @@ const UPDATE_DESPLIEGUE_MUTATION = gql`
    COMPONENTES REDWOODJS CELL
 =============================================================== */
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando...</div>
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
@@ -78,7 +99,7 @@ export const Success = ({ despliegue, componentes, maquinas, servidores, paramet
     UPDATE_DESPLIEGUE_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Despliegue actualizado')
+        toast.success('Despliegue actualizado correctamente')
         navigate(routes.despliegues())
       },
       onError: (error) => {
@@ -88,10 +109,11 @@ export const Success = ({ despliegue, componentes, maquinas, servidores, paramet
   )
 
   const onSave = (input, id) => {
+    // Limpieza de datos según el tipo de infraestructura seleccionado
     const cleanInput = {
       id_componente: input.id_componente,
-      id_maquina: input.id_maquina || null,
-      id_servidor: input.id_servidor || null,
+      id_maquina: input.id_maquina || null,   // Si es físico, esto debe ir null
+      id_servidor: input.id_servidor || null, // Si es virtual, esto debe ir null
       descripcion: input.descripcion,
       fecha_despliegue: input.fecha_despliegue,
       estado: input.estado,

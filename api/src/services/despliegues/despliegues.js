@@ -17,7 +17,7 @@ export const parametrosFormularioDespliegue = () => {
   return db.parametro.findMany({
     where: {
       grupo: {
-        in: ['TIPO_RESPALDO', 'ESTADO_DESPLIEGUE']
+        in: ['TIPO_RESPALDO', 'E_EVENTO_DESPLIEGUE', 'UNIDAD_AGETIC']
       },
       estado: 'ACTIVO'
     },
@@ -107,6 +107,15 @@ export const Despliegue = {
       where: {
         codigo: root.cod_tipo_respaldo,
         grupo: 'TIPO_RESPALDO'
+      }
+    })
+  },
+  unidadInfo: (_obj, { root }) => {
+    if (!root.unidad_solicitante) return null
+    return db.parametro.findFirst({
+      where: {
+        codigo: root.unidad_solicitante,
+        grupo: 'UNIDAD_AGETIC'
       }
     })
   },

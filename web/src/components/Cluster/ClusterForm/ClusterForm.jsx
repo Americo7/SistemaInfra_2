@@ -13,6 +13,8 @@ import {
   useTheme,
   InputAdornment,
   FormControl,
+  FormLabel,
+  FormHelperText,
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 import Select from 'react-select'
@@ -48,24 +50,37 @@ const GET_FORM_DATA = gql`
 /* --------------------------------------------------------
  * COMPONENTE CARD SECCIÓN
  * -------------------------------------------------------- */
-const SectionCard = ({ icon, title, children, bgcolor }) => {
+const SectionCard = ({ icon, title, children, color }) => {
   const theme = useTheme()
-  const color = bgcolor || theme.palette.primary.main
+  const activeColor = color || theme.palette.primary.main
 
   return (
     <Card
       variant="outlined"
       sx={{
         borderRadius: 2,
-        borderTop: `3px solid ${color}`,
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: `3px solid ${activeColor}`,
+        bgcolor: 'background.paper',
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
       }}
     >
       <CardHeader
-        avatar={<Avatar sx={{ bgcolor: color }}>{icon}</Avatar>}
-        title={<Typography fontWeight={700}>{title}</Typography>}
-        sx={{ py: 1.5, px: 2 }}
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
+            {title}
+          </Typography>
+        }
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
       />
-      <CardContent sx={{ p: 3 }}>{children}</CardContent>
+      <CardContent sx={{ p: 2.5 }}>{children}</CardContent>
     </Card>
   )
 }
@@ -179,219 +194,186 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
    * RENDER DEL FORMULARIO
    * -------------------------------------------------------- */
   return (
-    <Box sx={{ maxWidth: 900, mx: 'auto', p: 2 }}>
-      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'hidden' }}>
+    <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
+      <Card
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+          borderRadius: 2,
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
         {/* HEADER */}
-        <Box
-          sx={{
-            px: 4,
-            py: 4,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            bgcolor: '#fff',
-          }}
-        >
+        <Box sx={{
+          px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+          borderTopLeftRadius: 16, borderTopRightRadius: 16,
+        }}>
           <Avatar
             sx={{
-              width: 48,
-              height: 48,
+              width: 38, height: 38,
               background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
-              color: '#fff',
+              color: 'white', boxShadow: 3
             }}
           >
             {isEdit ? <EditIcon /> : <AddIcon />}
           </Avatar>
-
           <Box>
-            <Typography
-              variant="h5"
-              fontWeight={800}
-              sx={{
-                background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              {isEdit ? 'Editar Cluster' : 'Registro de Cluster'}
+            <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2, color: '#000', mb: 0.5 }}>
+              {isEdit ? 'Editar Cluster' : 'Crear Cluster'}
             </Typography>
-
             <Typography variant="body2" color="text.secondary">
-              Gestión de clústeres de infraestructura
+              {isEdit ? 'Modificar información del cluster' : 'Registro de nuevo cluster'}
             </Typography>
           </Box>
         </Box>
 
-        <CardContent sx={{ px: 5, pb: 5 }}>
+        {/* CONTENIDO PRINCIPAL */}
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+
           {error && (
-            <Paper
-              sx={{
-                p: 2,
-                mb: 3,
-                bgcolor: '#fff4f4',
-                color: '#c62828',
-                borderRadius: 2,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-              }}
-            >
+            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
               <ErrorIcon color="error" />
-              <Typography>{error.message}</Typography>
+              <Typography variant="body2" fontWeight={600}>{String(error)}</Typography>
             </Paper>
           )}
 
-          <Box component="form" onSubmit={handleSubmit}>
-            <SectionCard title="Información" icon={<InfoIcon />}>
+          {/* GRID DE SECCIONES */}
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: 3,
+            alignItems: 'start'
+          }}>
 
-              <Stack spacing={3}>
+            {/* CARD: INFORMACIÓN GENERAL */}
+            <SectionCard title="Información General" icon={<InfoIcon />} color={theme.palette.primary.main}>
+              <Stack spacing={2.5}>
 
-                {/* ------------------ NOMBRE ------------------ */}
-                <Box>
-                  <Typography fontWeight={700} sx={{ mb: 1 }}>
-                    Nombre del Cluster *
-                  </Typography>
+                <FormControl fullWidth error={!!errors.nombre}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre del Cluster *</FormLabel>
                   <TextField
-                    fullWidth
+                    size="small"
                     placeholder="Ej. cluster-production"
                     value={form.nombre}
-                    onChange={(e) =>
-                      setForm({ ...form, nombre: e.target.value })
-                    }
-                    error={!!errors.nombre}
-                    helperText={errors.nombre}
+                    onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                     InputProps={{
                       startAdornment: (
-                        <ClusterIcon sx={{ mr: 1, opacity: 0.7 }} />
+                        <InputAdornment position="start">
+                          <ClusterIcon fontSize="small" />
+                        </InputAdornment>
                       ),
                     }}
                   />
-                </Box>
+                  {errors.nombre && <FormHelperText>{errors.nombre}</FormHelperText>}
+                </FormControl>
 
-                {/* ------------------ TIPO + KEY EN LA MISMA FILA ------------------ */}
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-                    gap: 3,
-                    alignItems: 'start',
-                  }}
-                >
-                  {/* Tipo */}
+                <FormControl fullWidth error={!!errors.cod_tipo_cluster}>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Tipo de Cluster *</FormLabel>
                   <Box sx={{ width: '100%' }}>
-                    <Typography fontWeight={700} sx={{ mb: 1 }}>
-                      Tipo de Cluster *
-                    </Typography>
-
-                    <Box sx={{ width: '100%' }}>
-                      <Select
-                        value={selectedTipoCluster}
-                        onChange={setSelectedTipoCluster}
-                        options={tipoClusterOptions}
-                        styles={customSelectStyles}
-                        placeholder="Seleccionar tipo…"
-                        isLoading={loadingData}
-                        menuPortalTarget={document.body}
-                        menuPosition="fixed"
-                      />
-                    </Box>
-
-                    {errors.cod_tipo_cluster && (
-                      <Typography color="error" variant="caption">
-                        {errors.cod_tipo_cluster}
-                      </Typography>
-                    )}
-                  </Box>
-
-                  {/* Identity Key */}
-                  <FormControl fullWidth>
-                    <Typography fontWeight={700} sx={{ mb: 1 }}>
-                      Identificador (Key)
-                    </Typography>
-
-                    <TextField
-                      size="small"
-                      disabled
-                      value={
-                        form.identity_key ||
-                        (isEdit
-                          ? 'No disponible'
-                          : 'Se generará automáticamente…')
-                      }
-                      InputProps={{
-                        readOnly: true,
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            {isIdentityLocked ? (
-                              <LockIcon color="disabled" />
-                            ) : (
-                              <LinkIcon color="disabled" />
-                            )}
-                          </InputAdornment>
-                        ),
-                        style: {
-                          backgroundColor: '#f5f5f5',
-                          color: '#777',
-                        },
-                      }}
-                      helperText={
-                        isEdit
-                          ? 'Clave gestionada por el sistema.'
-                          : 'La clave se asignará al guardar.'
-                      }
+                    <Select
+                      value={selectedTipoCluster}
+                      onChange={setSelectedTipoCluster}
+                      options={tipoClusterOptions}
+                      styles={customSelectStyles}
+                      placeholder="Seleccionar tipo…"
+                      isLoading={loadingData}
+                      menuPortalTarget={document.body}
+                      menuPosition="fixed"
                     />
-                  </FormControl>
-                </Box>
+                  </Box>
+                  {errors.cod_tipo_cluster && <FormHelperText>{errors.cod_tipo_cluster}</FormHelperText>}
+                </FormControl>
 
-                {/* ------------------ DESCRIPCIÓN ------------------ */}
-                <Box>
-                  <Typography fontWeight={700} sx={{ mb: 1 }}>
-                    Descripción
-                  </Typography>
+                <FormControl fullWidth>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
                   <TextField
-                    fullWidth
+                    size="small"
                     placeholder="Descripción breve del cluster"
                     value={form.descripcion}
-                    onChange={(e) =>
-                      setForm({ ...form, descripcion: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                     InputProps={{
                       startAdornment: (
-                        <DescIcon sx={{ mr: 1, opacity: 0.7 }} />
+                        <InputAdornment position="start">
+                          <DescIcon fontSize="small" />
+                        </InputAdornment>
                       ),
                     }}
                   />
-                </Box>
+                </FormControl>
 
               </Stack>
             </SectionCard>
 
-            {/* BOTONES */}
-            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
-              <Button
-                variant="outlined"
-                color="inherit"
-                startIcon={<CancelIcon />}
-                onClick={() => navigate(routes.clusters())}
-              >
-                Cancelar
-              </Button>
+            {/* CARD: IDENTIFICADOR */}
+            <SectionCard title="Identificador" icon={<LinkIcon />} color={theme.palette.secondary.main}>
+              <Stack spacing={2.5}>
 
-              <LoadingButton
-                type="submit"
-                variant="contained"
-                loading={loading || submitting}
-                startIcon={<SaveIcon />}
-                sx={{
-                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
-                  fontWeight: 700,
-                }}
-              >
-                {isEdit ? 'Guardar Cambios' : 'Guardar Cluster'}
-              </LoadingButton>
-            </Box>
+                <FormControl fullWidth>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Identity Key</FormLabel>
+                  <TextField
+                    size="small"
+                    value={
+                      form.identity_key ||
+                      (isEdit ? 'No disponible' : 'Se generará al guardar...')
+                    }
+                    disabled={true}
+                    InputProps={{
+                      readOnly: true,
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          {isIdentityLocked ? (
+                            <LockIcon fontSize="small" color="disabled" />
+                          ) : (
+                            <LinkIcon fontSize="small" color="disabled" />
+                          )}
+                        </InputAdornment>
+                      ),
+                      style: { backgroundColor: '#f5f5f5', color: '#777' }
+                    }}
+                    helperText={
+                      isEdit
+                        ? (isIdentityLocked ? 'Clave de sincronización externa (No editable).' : 'Clave gestionada por el sistema.')
+                        : 'La clave se asignará automáticamente al guardar.'
+                    }
+                  />
+                </FormControl>
+
+              </Stack>
+            </SectionCard>
+
           </Box>
-        </CardContent>
+
+          {/* BOTONES ACCIÓN */}
+          <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <Button
+              variant="outlined"
+              color="inherit"
+              startIcon={<CancelIcon />}
+              onClick={() => navigate(routes.clusters())}
+              sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+            >
+              Cancelar
+            </Button>
+
+            <LoadingButton
+              type="submit"
+              variant="contained"
+              loading={loading || submitting}
+              startIcon={<SaveIcon />}
+              sx={{
+                background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
+                boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
+              }}
+            >
+              {isEdit ? 'Guardar Cambios' : 'Registrar Cluster'}
+            </LoadingButton>
+          </Box>
+
+        </Box>
       </Card>
     </Box>
   )

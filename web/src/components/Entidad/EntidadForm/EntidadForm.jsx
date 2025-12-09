@@ -1,7 +1,6 @@
 import React from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { navigate, routes } from '@redwoodjs/router'
-import { Form } from '@redwoodjs/forms'
 
 import {
   Box,
@@ -26,7 +25,7 @@ import {
   Cancel as CancelIcon,
   AddCircle as AddIcon,
   Edit as EditIcon,
-  ErrorOutline as ErrorIcon,
+  ErrorOutline as ErrorIcon, // Importado como ErrorIcon
   Business as EntityIcon,
 } from '@mui/icons-material'
 
@@ -85,17 +84,26 @@ const EntidadForm = (props) => {
     const formData = {
       ...data,
       estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: isEdit ? undefined : 3,
     }
     props.onSave(formData, props?.entidad?.id)
   }
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 800, mx: 'auto', p: 2 }}>
+    <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
       
       {/* CONTENEDOR PRINCIPAL */}
-      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+      <Card 
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+          borderRadius: 2,
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
         
         {/* HEADER */}
         <Box sx={{ 
@@ -103,18 +111,14 @@ const EntidadForm = (props) => {
             borderTopLeftRadius: 16, borderTopRightRadius: 16,
           }}>
             <Avatar sx={{
-                  width: 48, height: 48,
+                  width: 38, height: 38,
                   background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
                 }}>
               {isEdit ? <EditIcon /> : <AddIcon />}
             </Avatar>
             
             <Box>
-              <Typography variant="h5" fontWeight={800} sx={{
-                  lineHeight: 1.2,
-                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
-                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                }}>
+              <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2, color: '#000', mb: 0.5 }}>
                 {isEdit ? 'Editar Entidad' : 'Nueva Entidad'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -124,17 +128,15 @@ const EntidadForm = (props) => {
         </Box>
 
         {/* CONTENIDO */}
-        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
           
-          <Form onSubmit={handleSubmit(onSubmit)} error={props.error}>
-            
-            {/* Mensaje de Error */}
-            {props.error && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
-                <ErrorOutlineIcon color="error" />
-                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
-              </Paper>
-            )}
+          {/* Mensaje de Error (CORREGIDO AQUI) */}
+          {props.error && (
+            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+              <ErrorIcon color="error" />
+              <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+            </Paper>
+          )}
 
             {/* UN SOLO CARD SECUNDARIO (Campos Verticales) */}
             <SectionCard 
@@ -236,7 +238,6 @@ const EntidadForm = (props) => {
               </LoadingButton>
             </Box>
 
-          </Form>
         </Box>
       </Card>
     </Box>

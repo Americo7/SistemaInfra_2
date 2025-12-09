@@ -106,10 +106,21 @@ const ProxmoxEndpointForm = (props) => {
   }
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 1200, mx: 'auto', p: 2 }}>
+    <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
       
       {/* CONTENEDOR PRINCIPAL */}
-      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+      <Card 
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+          borderRadius: 2,
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
         
         {/* HEADER */}
         <Box sx={{ 
@@ -117,7 +128,7 @@ const ProxmoxEndpointForm = (props) => {
             borderTopLeftRadius: 16, borderTopRightRadius: 16,
           }}>
             <Avatar sx={{
-                  width: 48, height: 48,
+                  width: 38, height: 38,
                   background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
                 }}>
               {isEdit ? <EditIcon /> : <AddIcon />}

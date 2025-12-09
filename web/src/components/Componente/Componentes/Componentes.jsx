@@ -9,12 +9,14 @@ import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
+  Code as ComponentIcon,
   GridOn as ExcelIcon,
   PictureAsPdf as PdfIcon,
   TextSnippet as CsvIcon,
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
-  Code as CodeIcon,
+  RestoreFromTrash as RestoreIcon,
+  Dns as SistemaIcon,
 } from '@mui/icons-material'
 
 import {
@@ -32,7 +34,6 @@ import {
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/componentesExporter'
-
 
 // --- GRAPHQL ---
 const UPDATE_COMPONENTE_MUTATION = gql`
@@ -53,154 +54,66 @@ const DELETE_COMPONENTE_MUTATION = gql`
 `
 
 const QUERY_REFETCH = gql`
-  query FindComponentes1 {
+  query FindComponentesRefetch {
     componentes {
       id
-      id_sistema
-      nombre
-      dominio
-      descripcion
-      cod_entorno
-      cod_categoria
-      gitlab_repo
-      gitlab_rama
-      tecnologia
       estado
-      fecha_creacion
-      usuario_creacion
-      fecha_modificacion
-      usuario_modificacion
-    }
-    usuarios {
-      id
-      nombres
-      primer_apellido
     }
   }
 `
 
 // --- HELPERS ---
 const formatDateTime = (dateString) => {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleString('es-ES', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-const truncate = (text, length = 100) => {
-  if (!text) return 'N/A'
-  return text.length > length ? text.substring(0, length) + '...' : text
-}
-
-const parseTecnologia = (value) => {
+  if (!dateString) return '-'
   try {
-    if (!value) return []
-    if (typeof value === 'string') {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : [parsed]
-    }
-    return Array.isArray(value) ? value : [value]
-  } catch {
-    return []
-  }
+    return new Date(dateString).toLocaleString('es-BO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return '-' }
 }
 
-const getTechColor = (codigo) => {
-  if (!codigo) return 'default'
-  if (codigo.includes('FRONTEND')) return 'primary'
-  if (codigo.includes('BACKEND')) return 'secondary'
-  if (codigo.includes('DATABASE')) return 'success'
-  if (codigo.includes('CLOUD')) return 'info'
-  return 'warning'
-}
-
-// --- COMPONENT ---
-const Componentes = ({ componentes = [], usuarios = [] }) => {
+const Componentes = ({ componentes, usuarios }) => {
   const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
-  const [actionMenuAnchor, setActionMenuAnchor] = useState(null)
-  const [selectedRow, setSelectedRow] = useState(null)
 
   const [updateComponente] = useMutation(UPDATE_COMPONENTE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Estado actualizado')
-    },
-    onError: (err) => toast.error(err?.message),
+    onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
-    awaitRefetchQueries: true,
   })
 
   const [deleteComponente] = useMutation(DELETE_COMPONENTE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Componente eliminado')
-    },
-    onError: (err) => toast.error(err?.message),
+    onError: (error) => toast.error(error.message),
+    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
     refetchQueries: [{ query: QUERY_REFETCH }],
-    awaitRefetchQueries: true,
   })
 
-  // --- HANDLERS ---
-  const handleSoftDelete = async (rows) => {
-    if (!window.confirm(`¿Desactivar ${rows.length} componente(s)?`)) return
-    for (const row of rows) {
-      await updateComponente({
-        variables: {
-          id: row.original.id,
-          input: { estado: 'INACTIVO' },
-        },
-      })
-    }
-  }
+  // --- MAPA DE USUARIOS ---
+  const usuariosMap = useMemo(() => {
+    if (!usuarios) return new Map()
+    return new Map(usuarios.map((u) => {
+      const nombreCompleto = [u.nombres, u.primer_apellido, u.segundo_apellido]
+        .filter(Boolean)
+        .join(' ')
+      return [u.id, nombreCompleto]
+    }))
+  }, [usuarios])
 
-  const handleHardDelete = async (rows) => {
-    if (!window.confirm(`¿Eliminar permanentemente ${rows.length} componente(s)?`)) return
-    for (const row of rows) {
-      await deleteComponente({
-        variables: { id: row.original.id },
-      })
-    }
-  }
-
-  const handleExport = (scope, suffix, format) => {
-    let rowsToExport = []
-
-    if (scope === 'page') {
-      const allRows = table.getPrePaginationRowModel().rows
-      
-      const { pageIndex, pageSize } = table.getState().pagination
-      const startRow = pageIndex * pageSize
-      const endRow = startRow + pageSize
-      
-      rowsToExport = allRows.slice(startRow, endRow)
-    }
-
-    if (scope === 'all') {
-       rowsToExport = table.getPrePaginationRowModel().rows
-    }
-
-    if (scope === 'selected') {
-      rowsToExport = table.getSelectedRowModel().rows
-    }
-
-    if (!rowsToExport || rowsToExport.length === 0) {
-        toast.error('No hay datos para exportar')
-        return
-    }
-
-    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
-    
-    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
-    
-    closeAllDialogs()
+  // --- HELPER AJUSTADO ---
+  const getUserName = (id, relationObj) => {
+     // 1. Intentar usar la relación directa
+     if (relationObj && (relationObj.nombres || relationObj.primer_apellido)) {
+         return [relationObj.nombres, relationObj.primer_apellido, relationObj.segundo_apellido].filter(Boolean).join(' ')
+     }
+     // 2. Si falla, buscar en el mapa global usando el ID
+     if (id && usuariosMap.has(id)) {
+         return usuariosMap.get(id)
+     }
+     // 3. Si el ID existe (ej: 3) pero no está en la base de datos de usuarios:
+     // Devolvemos '-' en lugar de mostrar el ID crudo.
+     return '-' 
   }
 
   const closeAllDialogs = () => {
@@ -208,211 +121,197 @@ const Componentes = ({ componentes = [], usuarios = [] }) => {
     setBulkMenuAnchorEl(null)
   }
 
-  // --- MAPEO DE DATOS ---
-  const usuariosMap = new Map(usuarios.map((u) => [u.id, `${u.nombres} ${u.primer_apellido}`]))
-
-  const helpers = {
-    getUsuarioNombre: (id) => usuariosMap.get(id) || 'Desconocido',
+  // --- HANDLERS ---
+  const handleSoftDelete = (rows) => {
+    rows.forEach((componente) => {
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      updateComponente({
+        variables: { id: componente.id, input: { estado: newState } },
+      })
+    })
+    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
   }
 
+  const handleHardDelete = (rows) => {
+    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?`)) {
+      closeAllDialogs()
+      return
+    }
+    rows.forEach((componente) => {
+      deleteComponente({ variables: { id: componente.id } })
+    })
+    table.toggleAllRowsSelected(false)
+    closeAllDialogs()
+  }
+
+  // --- FILTRADO ---
   const filteredData = useMemo(() => {
-    if (!Array.isArray(componentes)) return []
-    return showDeleted
-      ? componentes.filter((c) => c.estado === 'INACTIVO')
-      : componentes.filter((c) => c.estado === 'ACTIVO')
+    if (!componentes) return []
+    return componentes.filter((c) =>
+      showDeleted ? c.estado === 'INACTIVO' : c.estado !== 'INACTIVO'
+    )
   }, [componentes, showDeleted])
 
-  // --- COLUMNS ---
-  const columns = useMemo(
-    () => [
-      {
-        accessorKey: 'id',
-        header: 'ID',
-        size: 50,
-      },
-      {
-        accessorKey: 'nombre',
-        header: 'Nombre',
+  // --- COLUMNAS ---
+  const columns = useMemo(() => [
+    { accessorKey: 'id', header: 'ID', size: 60 },
+    {
+        id: 'sistema',
+        header: 'Sistema',
         size: 150,
-      },
-      {
-        accessorKey: 'dominio',
-        header: 'Dominio',
+        accessorFn: (row) => row.sistemas?.sigla || row.sistemas?.nombre || '-',
+        Cell: ({ row }) => {
+            const sistema = row.original.sistemas
+            if (!sistema?.id) return '-'
+            return (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <SistemaIcon fontSize="small" color="action" sx={{ opacity: 0.7 }} />
+                    <Link 
+                        to={routes.sistema({ id: sistema.id })}
+                        style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.info.main }}
+                    >
+                        {sistema.sigla || sistema.nombre}
+                    </Link>
+                </Box>
+            )
+        }
+    },
+    {
+      accessorKey: 'nombre',
+      header: 'Componente',
+      size: 180,
+      Cell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <ComponentIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+          <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+            {row.original.nombre}
+          </Typography>
+        </Box>
+      ),
+    },
+    { 
+      accessorKey: 'dominio', 
+      header: 'Dominio', 
+      size: 140,
+      Cell: ({ cell }) => <Typography variant="body2" noWrap>{cell.getValue()}</Typography>
+    },
+    { 
+        id: 'entorno', 
+        header: 'Entorno', 
         size: 120,
-        Cell: ({ cell }) => truncate(cell.getValue(), 50),
-      },
-      {
-        accessorKey: 'descripcion',
-        header: 'Descripción',
-        size: 150,
-        Cell: ({ cell }) => truncate(cell.getValue(), 60),
-      },
-      {
-        accessorKey: 'cod_entorno',
-        header: 'Entorno',
-        size: 100,
-      },
-      {
-        accessorKey: 'cod_categoria',
-        header: 'Categoría',
-        size: 100,
-      },
-      {
-        accessorKey: 'tecnologia',
-        header: 'Tecnología',
-        size: 150,
-        Cell: ({ cell }) => {
-          const tecnologias = parseTecnologia(cell.getValue())
-          if (!tecnologias.length) {
-            return <Chip label="Sin tecnologías" size="small" variant="outlined" />
+        accessorFn: (row) => row.entornoInfo?.nombre || row.cod_entorno || '-'
+    },
+    { 
+        id: 'categoria', 
+        header: 'Categoría', 
+        size: 120,
+        accessorFn: (row) => row.categoriaInfo?.nombre || row.cod_categoria || '-'
+    },
+    {
+      id: 'tecnologia',
+      accessorFn: (row) => {
+          if (row.tecnologiaInfo && row.tecnologiaInfo.length > 0) {
+              return row.tecnologiaInfo.map(t => t.nombre).join(', ')
           }
-          return (
-            <Stack direction="row" flexWrap="wrap" spacing={0.5}>
-              {tecnologias.slice(0, 2).map((t, i) => (
-                <Chip
-                  key={i}
-                  label={`${t.nombre}${t.version ? ` v${t.version}` : ''}`}
-                  size="small"
-                  color={getTechColor(t.codigo)}
-                />
-              ))}
-              {tecnologias.length > 2 && (
-                <Chip label={`+${tecnologias.length - 2}`} size="small" variant="outlined" />
-              )}
-            </Stack>
-          )
-        },
+          return row.tecnologia || '-'
       },
-      {
-        accessorKey: 'estado',
-        header: 'Estado',
-        size: 100,
-        Cell: ({ cell }) => (
-          <Chip
-            label={cell.getValue() === 'ACTIVO' ? 'Activo' : 'Inactivo'}
-            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
-            size="small"
-          />
-        ),
-      },
-      {
-        accessorKey: 'fecha_creacion',
-        header: 'Creación',
-        size: 140,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_creacion',
-        header: 'Creado por',
-        size: 120,
-        Cell: ({ cell }) => truncate(helpers.getUsuarioNombre(cell.getValue()), 30),
-      },
-      {
-        accessorKey: 'fecha_modificacion',
-        header: 'Modificación',
-        size: 140,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()),
-      },
-      {
-        accessorKey: 'usuario_modificacion',
-        header: 'Modificado por',
-        size: 120,
-        Cell: ({ cell }) => truncate(helpers.getUsuarioNombre(cell.getValue()), 30),
-      },
-    ],
-    []
-  )
+      header: 'Tecnología',
+      size: 150,
+    },
+    {
+      accessorKey: 'estado',
+      header: 'Estado',
+      size: 100,
+      Cell: ({ cell }) => (
+        <Chip 
+            label={cell.getValue()} 
+            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
+            size="small" 
+            variant="outlined" 
+            sx={{ fontSize: '0.7rem' }}
+        />
+      ),
+    },
+    { 
+        accessorKey: 'fecha_creacion', 
+        header: 'F. Creación', 
+        size: 140, 
+        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    },
+    { 
+        id: 'creadoPor',
+        header: 'Creado por', 
+        size: 160, 
+        accessorFn: (row) => getUserName(row.usuario_creacion, row.creadoPor)
+    },
+    { 
+        accessorKey: 'fecha_modificacion', 
+        header: 'F. Modificación', 
+        size: 140, 
+        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    },
+    { 
+        id: 'modificadoPor',
+        header: 'Modif. por', 
+        size: 160, 
+        accessorFn: (row) => getUserName(row.usuario_modificacion, row.modificadoPor)
+    },
+  ], [theme, usuariosMap])
 
-  // --- TABLE CONFIG ---
+  // --- CONFIGURACIÓN TABLE ---
   const table = useMaterialReactTable({
     columns,
     data: filteredData,
+    enableRowActions: true,
+    enableRowSelection: true,
+    enableGlobalFilter: true,
     enableRowVirtualization: true,
-    enableColumnResizing: true,
-    columnResizeMode: 'onChange',
-    layoutMode: 'semantic',
-
-    displayColumnDefOptions: {
-      'mrt-row-select': {
-        size: 40,
-        muiTableHeadCellProps: { sx: { width: 40, minWidth: 40, maxWidth: 40 } },
-        muiTableBodyCellProps: { sx: { width: 40, minWidth: 40, maxWidth: 40 } },
-      },
-      'mrt-row-actions': {
-        size: 48,
-        muiTableHeadCellProps: { sx: { width: 48, minWidth: 48, maxWidth: 48 } },
-        muiTableBodyCellProps: { sx: { width: 48, minWidth: 48, maxWidth: 48 } },
-      },
-    },
-
+    rowVirtualizerOptions: { overscan: 5 },
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnSizing: {
-        'mrt-row-select': 40,
-        'mrt-row-actions': 48,
-      },
-      columnVisibility: {
+      columnVisibility: { 
         id: false,
+        tecnologia: false, 
         gitlab_repo: false,
         gitlab_rama: false,
-        fecha_creacion: false,
-        usuario_creacion: false,
-        fecha_modificacion: false,
-        usuario_modificacion: false,
+        fecha_creacion: false, 
+        creadoPor: false, 
+        fecha_modificacion: true, 
+        modificadoPor: true 
       },
     },
-
     muiTablePaperProps: {
       elevation: 0,
       sx: {
         maxWidth: 1500,
         mx: 'auto',
-        px: 2,
+        px: 2, 
         py: 1,
         border: `1px solid ${theme.palette.divider}`,
-        borderTop: 'none',
-        borderRadius: 2,
+        borderTop: 'none', 
+        borderRadius: 2, 
         borderTopLeftRadius: '0 !important',
         borderTopRightRadius: '0 !important',
         backgroundColor: 'background.paper',
         overflow: 'hidden',
       },
     },
-
     muiTableContainerProps: {
-      sx: { maxHeight: 'calc(100vh - 300px)' },
+       sx: {
+         border: `1px solid ${theme.palette.divider}`,
+         borderRadius: 2, 
+         overflow: 'auto', 
+       }
     },
-
-    enableRowActions: true,
-    enableRowSelection: true,
-    enableSelectAll: true,
-
-    renderRowActions: ({ row }) => (
-      <Box sx={{ display: 'flex', gap: 1 }}>
-        <Tooltip title="Ver">
-          <IconButton
-            component={Link}
-            to={routes.componente({ id: row.original.id })}
-            size="small"
-            color="primary"
-          >
-            <VisibilityIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Editar">
-          <IconButton
-            component={Link}
-            to={routes.editComponente({ id: row.original.id })}
-            size="small"
-            color="info"
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    ),
-
+    muiTopToolbarProps: {
+      sx: { pl: 1, pr: 1, mb: 1, backgroundColor: 'background.paper' }
+    },
+    muiBottomToolbarProps: {
+        sx: { backgroundColor: 'background.paper', border: 'none', boxShadow: 'none' }
+    },
     renderTopToolbarCustomActions: () => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -427,82 +326,85 @@ const Componentes = ({ componentes = [], usuarios = [] }) => {
         fontWeight: 'bold',
         fontSize: '0.85rem',
         borderBottom: `1px solid ${theme.palette.divider}`, 
-        borderRight: `1px solid ${theme.palette.divider}`,  
+        borderRight: `1px solid ${theme.palette.divider}`,
         '&:last-child': { borderRight: 'none' },
       }
     },
     muiTableBodyCellProps: {
-        sx: {
-            borderBottom: `1px solid ${theme.palette.divider}`,
-        }
+      sx: { borderBottom: `1px solid ${theme.palette.divider}` }
     },
     muiTableBodyRowProps: ({ row }) => ({
-      sx: {
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
-        },
-      }
+      sx: { '&:hover': { backgroundColor: theme.palette.action.hover } }
     }),
+    renderRowActions: ({ row }) => (
+      <Stack direction="row" spacing={0.5}>
+        <Tooltip title="Ver Detalles">
+          <IconButton component={Link} to={routes.componente({ id: row.original.id })} size="small">
+            <VisibilityIcon fontSize="small" color="primary" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Editar">
+          <IconButton component={Link} to={routes.editComponente({ id: row.original.id })} size="small">
+            <EditIcon fontSize="small" color="info" />
+          </IconButton>
+        </Tooltip>
+      </Stack>
+    ),
   })
 
-  // --- CONFIG PARA SCAFFOLD ---
+  // --- LOGICA EXPORTACIÓN ---
+  const handleExport = (scope, suffix, format) => {
+    let rowsToExport = []
+    if (scope === 'page') {
+      const { pageIndex, pageSize } = table.getState().pagination
+      rowsToExport = table.getPrePaginationRowModel().rows.slice(pageIndex * pageSize, (pageIndex * pageSize) + pageSize)
+    } else if (scope === 'all') {
+       rowsToExport = table.getPrePaginationRowModel().rows
+    } else if (scope === 'selected') {
+      rowsToExport = table.getSelectedRowModel().rows
+    }
+
+    if (!rowsToExport.length) {
+        toast.error('No hay datos para exportar')
+        return
+    }
+
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'id'].includes(col.id))
+    
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, { getUsuarioNombre: (val) => val }, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, { getUsuarioNombre: (val) => val }, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, { getUsuarioNombre: (val) => val }, suffix)
+    closeAllDialogs()
+  }
+
+  // --- CONFIG SCAFFOLD ---
   const listActionsConfig = useMemo(() => {
     const selectedRowCount = table.getSelectedRowModel().rows.length
     
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
-        {/* EXCEL */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-        
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>EXCEL</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        {/* PDF */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>PDF</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        {/* CSV */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>CSV</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
       </Menu>
     )
 
     const BulkActionMenu = (
-      <Menu
-        anchorEl={bulkMenuAnchorEl}
-        open={Boolean(bulkMenuAnchorEl)}
-        onClose={closeAllDialogs}
-      >
+      <Menu anchorEl={bulkMenuAnchorEl} open={Boolean(bulkMenuAnchorEl)} onClose={closeAllDialogs}>
         <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
-          Desactivar (Soft Delete)
+          <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
+          {showDeleted ? 'Restaurar' : 'Desactivar'}
         </MenuItem>
         <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
-          Eliminar de Base de Datos
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon> Eliminar BD
         </MenuItem>
       </Menu>
     )
@@ -511,34 +413,19 @@ const Componentes = ({ componentes = [], usuarios = [] }) => {
       showDeleted,
       selectedRowCount,
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
-      
-      handleBulkAction: (e) => {
-        if (showDeleted) {
-            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
-        } else {
-            setBulkMenuAnchorEl(e.currentTarget)
-        }
-      },
-      
+      handleBulkAction: (e) => showDeleted ? handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original)) : setBulkMenuAnchorEl(e.currentTarget),
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
       exportMenu: ExportMenu,
       bulkActionMenu: BulkActionMenu,
     }
-  }, [
-    table, 
-    showDeleted, 
-    exportMenuAnchorEl, 
-    bulkMenuAnchorEl, 
-    table.getState().rowSelection,
-    table.getState().pagination
-  ])
+  }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
 
   return (
     <ScaffoldLayout
       title="Componentes"
       titleTo="componentes"
       groupTitle="Despliegues"
-      buttonLabel="Nuevo"
+      buttonLabel="Nuevo Componente"
       buttonTo="newComponente"
       listActionsConfig={listActionsConfig}
     >
@@ -548,4 +435,3 @@ const Componentes = ({ componentes = [], usuarios = [] }) => {
 }
 
 export default Componentes
-

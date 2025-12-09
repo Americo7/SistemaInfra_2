@@ -35,21 +35,12 @@ const NewParametroPage = () => {
 
   // 2. USA EL SCAFFOLD LAYOUT AQUÍ
   return (
-    <ScaffoldLayout
-      title="Nuevo Parámetro"
-      titleTo="parametros"
-      // Configuramos los breadcrumbs para que se vea bonito en tu header
-      breadcrumbItems={[
-        { label: 'Parámetros', link: routes.parametros() },
-        { label: 'Nuevo Registro' } // El último sin link es la página actual
-      ]}
-    >
       <ParametroForm 
         onSave={onSave} 
         loading={loading} 
         error={error} 
       />
-    </ScaffoldLayout>
+ 
   )
 }
 

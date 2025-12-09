@@ -114,8 +114,6 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
     const payload = {
       ...form,
       estado: 'ACTIVO',
-      usuario_modificacion: isEdit ? 1 : undefined,
-      usuario_creacion: isEdit ? undefined : 1,
     }
 
     try {
@@ -224,7 +222,7 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
               {/* CAMPO 1: NOMBRE */}
               <Box>
                 <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
-                  Nombre del Data Center
+                  Nombre del Data Center *
                 </Typography>
                 <TextField
                   fullWidth
@@ -242,7 +240,7 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
               {/* CAMPO 2: UBICACIÓN */}
               <Box>
                 <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
-                  Ubicación Física
+                  Ubicación Física *
                 </Typography>
                 <TextField
                   fullWidth

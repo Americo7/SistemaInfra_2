@@ -15,6 +15,7 @@ import {
   TextSnippet as CsvIcon,
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
+  RestoreFromTrash as RestoreIcon,
 } from '@mui/icons-material'
 
 import {
@@ -32,7 +33,6 @@ import {
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/dataCentersExporter'
-
 
 // --- GRAPHQL ---
 const UPDATE_DATA_CENTER_MUTATION = gql`
@@ -98,8 +98,10 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
   // --- HANDLERS DE ELIMINACIÓN ---
   const handleSoftDelete = (rows) => {
     rows.forEach((dc) => {
+      // Si showDeleted es true, queremos RESTAURAR (ACTIVO). Si es false, queremos DESACTIVAR (INACTIVO).
       const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
       updateDataCenter({
+        // Preservamos la lógica de negocio original de asignar usuario_modificacion: 1
         variables: { id: dc.id, input: { estado: newState, usuario_modificacion: 1 } },
       })
     })
@@ -132,7 +134,7 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
     getUsuarioNombre: (id) => usuariosMap[id] || `ID: ${id}`,
   }
 
-  // --- DATOS ---
+  // --- DATOS (LÓGICA DE FILTRADO) ---
   const filteredData = useMemo(() => {
     if (!dataCenters) return []
     return dataCenters.filter((dc) =>
@@ -140,43 +142,62 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
     )
   }, [dataCenters, showDeleted])
 
-  const columns = useMemo(
-    () => [
-      { accessorKey: 'id', header: 'ID', size: 60 },
-      {
-        accessorKey: 'nombre',
-        header: 'Nombre Data Center',
-        size: 200,
-        Cell: ({ row }) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <DataCenterIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
-            <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
-              {row.original.nombre}
-            </Typography>
-          </Box>
-        ),
-      },
-      { accessorKey: 'ubicacion', header: 'Ubicación', size: 200 },
-      {
-        accessorKey: 'estado',
-        header: 'Estado',
-        size: 100,
-        Cell: ({ cell }) => (
-          <Chip 
-              label={cell.getValue()} 
-              color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
-              size="small" 
-              variant="outlined" 
-              sx={{ fontSize: '0.7rem' }}
-          />
-        ),
-      },
-      { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-      { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-      { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-      { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-    ], [usuariosMap]
-  )
+  // --- COLUMNAS ---
+  const columns = useMemo(() => [
+    { accessorKey: 'id', header: 'ID', size: 60 },
+    {
+      accessorKey: 'nombre',
+      header: 'Nombre Data Center',
+      size: 200,
+      Cell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DataCenterIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+          <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+            {row.original.nombre}
+          </Typography>
+        </Box>
+      ),
+    },
+    { accessorKey: 'ubicacion', header: 'Ubicación', size: 200 },
+    {
+      accessorKey: 'estado',
+      header: 'Estado',
+      size: 100,
+      Cell: ({ cell }) => (
+        <Chip 
+            label={cell.getValue()} 
+            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
+            size="small" 
+            variant="outlined" 
+            sx={{ fontSize: '0.7rem' }}
+        />
+      ),
+    },
+    { 
+        accessorKey: 'fecha_creacion', 
+        header: 'F. Creación', 
+        size: 150, 
+        Cell: ({ cell }) => formatDate(cell.getValue()) 
+    },
+    { 
+        accessorKey: 'usuario_creacion', 
+        header: 'Creado por', 
+        size: 150, 
+        Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) 
+    },
+    { 
+        accessorKey: 'fecha_modificacion', 
+        header: 'F. Modificación', 
+        size: 150, 
+        Cell: ({ cell }) => formatDate(cell.getValue()) 
+    },
+    { 
+        accessorKey: 'usuario_modificacion', 
+        header: 'Modif. por', 
+        size: 150, 
+        Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) 
+    },
+  ], [theme, usuariosMap]) // Agregado theme a dependencias por consistencia
 
   // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
@@ -283,17 +304,15 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
     ),
   })
 
-  // --- LOGICA DE EXPORTACIÓN OPTIMIZADA ---
+  // --- LOGICA DE EXPORTACIÓN ---
   const handleExport = (scope, suffix, format) => {
     let rowsToExport = []
 
     if (scope === 'page') {
       const allRows = table.getPrePaginationRowModel().rows
-      
       const { pageIndex, pageSize } = table.getState().pagination
       const startRow = pageIndex * pageSize
       const endRow = startRow + pageSize
-      
       rowsToExport = allRows.slice(startRow, endRow)
     }
 
@@ -371,8 +390,8 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
         onClose={closeAllDialogs}
       >
         <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
-          Desactivar (Soft Delete)
+          <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
+          {showDeleted ? 'Restaurar (Activar)' : 'Desactivar (Soft Delete)'}
         </MenuItem>
         <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
@@ -387,10 +406,17 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
       
       handleBulkAction: (e) => {
+        if (selectedRowCount === 0) {
+            toast.error('Debe seleccionar al menos un registro.')
+            return;
+        }
+
         if (showDeleted) {
-            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+             // Si estamos viendo eliminados, ejecutamos restauración directa
+             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
         } else {
-            setBulkMenuAnchorEl(e.currentTarget)
+             // Si estamos viendo activos, abrimos menú para desactivar o eliminar
+             setBulkMenuAnchorEl(e.currentTarget)
         }
       },
       
@@ -404,7 +430,8 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
     exportMenuAnchorEl, 
     bulkMenuAnchorEl, 
     table.getState().rowSelection,
-    table.getState().pagination
+    table.getState().pagination,
+    table.getSelectedRowModel().rows.length, 
   ])
 
   return (

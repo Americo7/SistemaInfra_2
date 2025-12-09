@@ -12,20 +12,28 @@ export const QUERY = gql`
       fecha_despliegue
       estado
       fecha_solicitud
+      unidadInfo {
+        id
+        codigo
+        nombre
+      }
       unidad_solicitante
       solicitante
       cod_tipo_respaldo
       referencia_respaldo
       estado_despliegue
+      estado
       creadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       modificadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       tipoRespaldoInfo {
         id
@@ -41,30 +49,75 @@ export const QUERY = gql`
         id
         nombre
         dominio
-        descripcion
+        entornoInfo {
+          id
+          codigo
+          nombre
+        }
         sistemas {
           id
           nombre
         }
       }
+            # 2. Máquina Virtual (con sus relaciones de Cluster y Host)
       maquinas {
         id
         nombre
-        ip
-        so
-        ram
-        cpu
+        # Proxmox
+        servidores {
+          id
+          nombre
+          data_centers {
+            id
+            nombre
+          }
+          cluster_nodos {
+            id
+            nombre
+            nodoTipo
+            cluster {
+              id
+              nombre
+              tipoClusterInfo {
+                id
+                codigo
+                nombre
+              }
+            }
+          }
+        }
+        # k8s
+        cluster_nodos {
+          id
+          nombre
+          nodoTipo
+          rolInfo {
+            id
+            nombre
+          }
+          cluster {
+            id
+            nombre
+            tipoClusterInfo {
+              id
+              codigo
+              nombre
+            }
+          }
+        }
       }
+      
+      # 3. Servidor Físico (Despliegue directo en Bare Metal)
       servidores {
         id
         nombre
+        cluster_nodos {
+          cluster {
+            id
+            nombre
+          }
+        }
       }
-    }
-    parametrosFormularioDespliegue {
-      id
-      codigo
-      nombre
-      grupo
     }
   }
 `

@@ -33,7 +33,7 @@ import {
   Cancel as CancelIcon,
   Edit as EditIcon,
   AddCircle as AddIcon,
-  ErrorOutline as ErrorIcon,
+  ErrorOutline as ErrorOutlineIcon,
   Event as EventIcon,
   Info as InfoIcon,
   Description as DescIcon,
@@ -174,10 +174,21 @@ const EventoForm = (props) => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
+      <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
         
         {/* CONTENEDOR PRINCIPAL */}
-        <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+        <Card 
+          elevation={0}
+          sx={{
+            border: `1px solid ${theme.palette.divider}`,
+            borderTop: 'none',
+            borderRadius: 2,
+            borderTopLeftRadius: '0 !important',
+            borderTopRightRadius: '0 !important',
+            mb: 3,
+            bgcolor: theme.palette.background.paper,
+          }}
+        >
           
           {/* HEADER */}
           <Box sx={{ 
@@ -185,7 +196,7 @@ const EventoForm = (props) => {
               borderTopLeftRadius: 16, borderTopRightRadius: 16,
             }}>
               <Avatar sx={{
-                    width: 48, height: 48,
+                    width: 38, height: 38,
                     background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
                   }}>
                 {isEdit ? <EditIcon /> : <AddIcon />}
@@ -206,33 +217,31 @@ const EventoForm = (props) => {
           </Box>
 
           {/* CONTENIDO */}
-          <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
             
-            <form onSubmit={handleSubmit(onSubmit)}>
-              
-              {props.error && (
-                <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
-                  <ErrorOutlineIcon color="error" />
-                  <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
-                </Paper>
-              )}
+            {props.error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorOutlineIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+              </Paper>
+            )}
 
-              {/* ALERTA CÓDIGO GENERADO */}
-              {codigoGenerado && (
-                <Alert severity="success" sx={{ mb: 4 }}>
-                  <Typography variant="subtitle2">
-                    Código del Evento: <strong>{codigoGenerado}</strong>
-                  </Typography>
-                </Alert>
-              )}
+            {/* ALERTA CÓDIGO GENERADO */}
+            {codigoGenerado && (
+              <Alert severity="success" sx={{ mb: 4 }}>
+                <Typography variant="subtitle2">
+                  Código del Evento: <strong>{codigoGenerado}</strong>
+                </Typography>
+              </Alert>
+            )}
 
-              {/* GRID DE 3 COLUMNAS */}
-              <Box sx={{ 
-                display: 'grid', 
-                gap: 3, 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
-                alignItems: 'start'
-              }}>
+            {/* GRID DE 3 COLUMNAS */}
+            <Box sx={{ 
+              display: 'grid', 
+              gap: 3, 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              alignItems: 'start'
+            }}>
                 
                 {/* --- CARD 1: IDENTIFICACIÓN --- */}
                 <SectionCard 
@@ -422,7 +431,7 @@ const EventoForm = (props) => {
               <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
                 <Button
                   variant="outlined" color="inherit" startIcon={<CancelIcon />}
-                  onClick={props.onCancel} // Usando prop original
+                  onClick={() => navigate(routes.eventos())}
                   sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
                 >
                   Cancelar
@@ -438,9 +447,8 @@ const EventoForm = (props) => {
                 </LoadingButton>
               </Box>
 
-            </form>
-          </Box>
-        </Card>
+            </Box>
+          </Card>
       </Box>
     </LocalizationProvider>
   )

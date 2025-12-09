@@ -5,8 +5,10 @@ import NewInfraAfectada from 'src/components/InfraAfectada/NewInfraAfectada'
 const NewInfraAfectadaPage = () => {
   return (
     <ScaffoldLayout
+      title="Infraestructuras Afectadas"
+      titleTo="infraAfectadas"
+      groupTitle="Eventos"
       breadcrumbItems={[
-        { label: 'Infraestructura Afectada', link: routes.infraAfectadas() },
         { label: 'Nuevo Registro' }
       ]}
     >

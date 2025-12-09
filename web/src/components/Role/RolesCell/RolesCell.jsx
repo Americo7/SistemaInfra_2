@@ -18,23 +18,19 @@ export const QUERY = gql`
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       modificadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       tipoRolInfo {
         id
         codigo
         nombre
       }
-    }
-    parametrosFormularioRole {
-      id
-      codigo
-      nombre
-      grupo
     }
   }
 `

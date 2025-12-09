@@ -1,6 +1,4 @@
-import { Link, routes } from '@redwoodjs/router'
 import { gql } from '@redwoodjs/web'
-
 import DataCenters from 'src/components/DataCenter/DataCenters'
 
 export const QUERY = gql`
@@ -14,6 +12,7 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      # Relaciones si las necesitas directamente, aunque tu tabla usa mapeo manual
       creadoPor {
         id
         nombres
@@ -25,26 +24,26 @@ export const QUERY = gql`
         primer_apellido
       }
     }
+    # Agregamos usuarios para que el filtro de nombres funcione
+    usuarios {
+      id
+      nombres
+      primer_apellido
+    }
   }
 `
 
-export const Loading = () => <div>Loading...</div>
+export const Loading = () => <div>Cargando Data centers...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No dataCenters yet. '}
-      <Link to={routes.newDataCenter()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+// TRUCO: Al devolver 'false', forzamos a Redwood a usar el componente Success
+// incluso si el array está vacío. Así veremos la tabla vacía con el botón "Nuevo".
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ dataCenters }) => {
-  return <DataCenters dataCenters={dataCenters} />
+export const Success = ({ dataCenters, usuarios }) => {
+  // Pasamos tanto los dataCenters como los usuarios al componente
+  return <DataCenters dataCenters={dataCenters} usuarios={usuarios} />
 }

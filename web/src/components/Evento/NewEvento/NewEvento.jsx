@@ -18,7 +18,7 @@ const NewEvento = () => {
     CREATE_EVENTO_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Evento created')
+        toast.success('Evento Creado')
         navigate(routes.eventos())
       },
       onError: (error) => {
@@ -33,9 +33,6 @@ const NewEvento = () => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">New Evento</h2>
-      </header>
       <div className="rw-segment-main">
         <EventoForm onSave={onSave} loading={loading} error={error} />
       </div>

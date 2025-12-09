@@ -5,9 +5,11 @@ import NewParametro from 'src/components/Parametro/NewParametro'
 const NewParametroPage = () => {
   return (
     <ScaffoldLayout
+      title="Parámetros"
+      titleTo="parametros"
+      groupTitle="Configuración"
       breadcrumbItems={[
-        { label: 'Parámetros', link: routes.parametros() },
-        { label: 'Nuevo Parámetro' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewParametro />

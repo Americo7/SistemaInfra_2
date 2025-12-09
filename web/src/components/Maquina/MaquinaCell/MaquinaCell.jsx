@@ -40,47 +40,44 @@ export const QUERY = gql`
         codigo
       }
 
-      # --- RELACIONES ---
+      # Proxmox
       servidores {
         id
         nombre
-        ip_primaria
         data_centers {
           id
           nombre
         }
         cluster_nodos {
           id
+          nombre
           nodoTipo
-          rol
           cluster {
             id
             nombre
-            cod_tipo_cluster
-            descripcion
-            estado
+            tipoClusterInfo {
+              id
+              codigo
+              nombre
+            }
           }
         }
       }
-
+      # k8s
       cluster_nodos {
         id
         nombre
         nodoTipo
-        rol
+        rolInfo {
+          id
+          nombre
+        }
         cluster {
           id
           nombre
-          cod_tipo_cluster
-          descripcion
-          estado
-        }
-        servidor {
-          id
-          nombre
-          ip_primaria
-          data_centers {
+          tipoClusterInfo {
             id
+            codigo
             nombre
           }
         }

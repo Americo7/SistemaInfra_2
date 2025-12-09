@@ -17,7 +17,7 @@ export const parametrosFormularioComponente = () => {
   return db.parametro.findMany({
     where: {
       grupo: {
-        in: ['ENTORNO', 'CATEGORIA']
+        in: ['ENTORNO', 'CATEGORIA', 'COMP_TECH']
       },
       estado: 'ACTIVO'
     },
@@ -101,7 +101,15 @@ export const Componente = {
       }
     })
   },
-
+  tecnologiaInfo: (_obj, { root }) => {
+    if (!root.tecnologia) return null
+    return db.parametro.findFirst({
+      where: {
+        codigo: root.tecnologia,
+        grupo: 'COMP_TECH'
+      }
+    })
+  },
   categoriaInfo: (_obj, { root }) => {
     if (!root.cod_categoria) return null
     return db.parametro.findFirst({

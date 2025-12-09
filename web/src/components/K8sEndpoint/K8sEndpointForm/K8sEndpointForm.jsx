@@ -121,9 +121,20 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
   }
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
+    <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
       
-      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+      <Card 
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+          borderRadius: 2,
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
         
         {/* HEADER */}
         <Box sx={{ 
@@ -131,7 +142,7 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
             borderTopLeftRadius: 16, borderTopRightRadius: 16,
           }}>
             <Avatar sx={{
-                  width: 48, height: 48,
+                  width: 38, height: 38,
                   background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
                 }}>
               {isEdit ? <EditIcon /> : <AddIcon />}
@@ -152,32 +163,30 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
         </Box>
 
         {/* CONTENIDO */}
-        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
           
-          <form onSubmit={handleSubmit(onSubmit)}>
-            
-            {/* Mensaje de Error */}
-            {error && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
-                <ErrorOutlineIcon color="error" />
-                <Typography variant="body2" fontWeight={600}>{error.message}</Typography>
-              </Paper>
-            )}
+          {/* Mensaje de Error */}
+          {error && (
+            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+              <ErrorOutlineIcon color="error" />
+              <Typography variant="body2" fontWeight={600}>{error.message}</Typography>
+            </Paper>
+          )}
 
-            <Stack spacing={3}>
-              
-              {/* --- CARD 1: INFORMACIÓN DEL CLUSTER --- */}
-              <SectionCard 
-                icon={<CloudIcon sx={{ fontSize: 20 }} />} 
-                title="Información del Cluster"
-                bgcolor={theme.palette.primary.main}
-              >
-                 {/* GRID: 3 COLUMNAS EN UNA FILA */}
-                 <Box sx={{ 
-                   display: 'grid', 
-                   gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-                   gap: 2 
-                 }}>
+          <Stack spacing={3}>
+            
+            {/* --- CARD 1: INFORMACIÓN DEL CLUSTER --- */}
+            <SectionCard 
+              icon={<CloudIcon sx={{ fontSize: 20 }} />} 
+              title="Información del Cluster"
+              bgcolor={theme.palette.primary.main}
+            >
+               {/* GRID: 3 COLUMNAS EN UNA FILA */}
+               <Box sx={{ 
+                 display: 'grid', 
+                 gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', 
+                 gap: 2 
+               }}>
                     
                     {/* 1. Nombre */}
                     <FormControl fullWidth error={!!errors.nombre}>
@@ -316,7 +325,7 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
               </LoadingButton>
             </Box>
 
-          </form>
+          </Stack>
         </Box>
       </Card>
     </Box>

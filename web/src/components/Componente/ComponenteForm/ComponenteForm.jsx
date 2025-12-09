@@ -21,11 +21,10 @@ import {
   Stack,
   Avatar,
   Button,
-  IconButton,
-  Tooltip,
   useTheme,
   CircularProgress,
-  Paper
+  Paper,
+  FormHelperText
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 
@@ -33,13 +32,12 @@ import { LoadingButton } from '@mui/lab'
 import {
   Save as SaveIcon,
   Cancel as CancelIcon,
-  Apps as SystemIcon,       // Para Identificación
-  Category as CategoryIcon, // Para Clasificación
-  Code as CodeIcon,         // Para Tecnologías
-  Description as DescIcon,  // Para Detalles
+  Apps as SystemIcon,
+  Category as CategoryIcon,
+  Code as CodeIcon,
+  Description as DescIcon,
   AddCircle as AddIcon,
   Edit as EditIcon,
-  ArrowBack as BackIcon,
   ErrorOutline as ErrorIcon,
   Storage as EntornoIcon
 } from '@mui/icons-material'
@@ -271,57 +269,60 @@ const ComponenteForm = (props) => {
   }
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
-      
-      {/* CONTENEDOR PRINCIPAL */}
-      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
-        
+    <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
+      <Card
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+          borderRadius: 2,
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
         {/* HEADER */}
-        <Box sx={{ 
-            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
-            borderTopLeftRadius: 16, borderTopRightRadius: 16,
-          }}>
-            <Avatar sx={{
-                  width: 48, height: 48,
-                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
-                }}>
-              {isEdit ? <EditIcon /> : <AddIcon />}
-            </Avatar>
-            
-            <Box>
-              <Typography variant="h5" fontWeight={800} sx={{
-                  lineHeight: 1.2,
-                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
-                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                }}>
-                {isEdit ? 'Editar Componente' : 'Nuevo Componente'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {isEdit ? 'Actualizar datos del componente' : 'Registrar nuevo componente de software'}
-              </Typography>
-            </Box>
+        <Box sx={{
+          px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+          borderTopLeftRadius: 16, borderTopRightRadius: 16,
+        }}>
+          <Avatar
+            sx={{
+              width: 38, height: 38,
+              background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
+              color: 'white', boxShadow: 3
+            }}
+          >
+            {isEdit ? <EditIcon /> : <AddIcon />}
+          </Avatar>
+          <Box>
+            <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2, color: '#000', mb: 0.5 }}>
+              {isEdit ? 'Editar Componente' : 'Crear Componente'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {isEdit ? 'Actualizar datos del componente' : 'Registrar nuevo componente de software'}
+            </Typography>
+          </Box>
         </Box>
 
-        {/* CONTENIDO */}
-        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
-          
-          <form onSubmit={handleSubmit(onSubmit)}>
-            
-            {/* Mensaje de error general si viene de props */}
-            {props.error && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
-                <ErrorIcon color="error" />
-                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
-              </Paper>
-            )}
+        {/* CONTENIDO PRINCIPAL */}
+        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
 
-            {/* GRID DE 3 COLUMNAS */}
-            <Box sx={{ 
-              display: 'grid', 
-              gap: 3, 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
-              alignItems: 'start'
-            }}>
+          {props.error && (
+            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+              <ErrorIcon color="error" />
+              <Typography variant="body2" fontWeight={600}>{String(props.error)}</Typography>
+            </Paper>
+          )}
+
+          {/* GRID DE 3 COLUMNAS */}
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: 3,
+            alignItems: 'start'
+          }}>
               
               {/* --- CARD 1: IDENTIFICACIÓN --- */}
               <SectionCard 
@@ -502,24 +503,29 @@ const ComponenteForm = (props) => {
             {/* BOTONES */}
             <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <Button
-                variant="outlined" color="inherit" startIcon={<CancelIcon />}
-                onClick={props.onCancel} // Usando prop onCancel original
+                variant="outlined"
+                color="inherit"
+                startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.componentes())}
                 sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
               >
                 Cancelar
               </Button>
 
               <LoadingButton
-                type="submit" variant="contained" loading={props.loading} startIcon={<SaveIcon />}
-                sx={{ 
-                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
+                type="submit"
+                variant="contained"
+                loading={props.loading}
+                startIcon={<SaveIcon />}
+                sx={{
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
+                  boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
                 }}
               >
-                {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar')}
+                {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Registrar Componente')}
               </LoadingButton>
             </Box>
 
-          </form>
         </Box>
       </Card>
     </Box>

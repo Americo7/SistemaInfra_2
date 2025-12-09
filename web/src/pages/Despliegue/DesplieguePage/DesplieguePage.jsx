@@ -235,7 +235,7 @@ const DesplieguePage = ({ id }) => {
         title="Despliegues"
         titleTo="despliegues"
         groupTitle="Despliegues"
-        breadcrumbItems={[{ label: tituloDespliegue }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <DespliegueCell id={id} />

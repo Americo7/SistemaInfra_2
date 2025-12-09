@@ -5,9 +5,11 @@ import NewEvento from 'src/components/Evento/NewEvento'
 const NewEventoPage = () => {
   return (
     <ScaffoldLayout
+      title="Eventos"
+      titleTo="eventos"
+      groupTitle="Eventos"
       breadcrumbItems={[
-        { label: 'Eventos', link: routes.eventos() },
-        { label: 'Nuevo Evento' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewEvento />

@@ -26,6 +26,7 @@ export const schema = gql`
     modificadoPor: Usuario
     tipoRespaldoInfo: Parametro
     estadoDespliegueInfo: Parametro
+    unidadInfo: Parametro
   }
 
   enum estado {

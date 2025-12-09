@@ -333,7 +333,8 @@ const Maquinas = ({ maquinas }) => {
       density: 'compact',
       showGlobalFilter: true,
       columnVisibility: { 
-        id: false, 
+        id: false,
+        data_center: false, 
         so: false,
         estado: false,
         fecha_creacion: false, 
