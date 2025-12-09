@@ -22,6 +22,8 @@ import {
   DeleteForever as HardDeleteIcon,
   Block as SoftDeleteIcon,
   WarningAmberRounded as WarningIcon,
+  CheckCircle as RestoreIcon, // Icono para restaurar
+  Edit as EditIcon,
 } from '@mui/icons-material'
 
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
@@ -35,6 +37,7 @@ const QUERY = gql`
     infraAfectada(id: $id) {
       id
       id_evento
+      estado # <--- IMPORTANTE: Agregado para lógica de estado
     }
   }
 `
@@ -63,14 +66,17 @@ const InfraAfectadaPage = ({ id }) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const openMenu = Boolean(anchorEl)
   
-  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' }
+  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' | 'restore' }
   const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null })
 
   // --- QUERIES & MUTATIONS ---
-  const { data } = useQuery(QUERY, { variables: { id } })
-  const tituloRegistro = data?.infraAfectada?.id_evento
-    ? `Registro asociado al Evento #${data.infraAfectada.id_evento}`
+  const { data, refetch } = useQuery(QUERY, { variables: { id } })
+  
+  const infraAfectada = data?.infraAfectada || {}
+  const tituloRegistro = infraAfectada.id_evento
+    ? `Registro asociado al Evento #${infraAfectada.id_evento}`
     : `Registro #${id}`
+  const isActivo = infraAfectada.estado === 'ACTIVO' // Lógica de estado
 
   const [deleteInfraAfectada] = useMutation(DELETE_MUTATION, {
     onCompleted: () => {
@@ -81,11 +87,12 @@ const InfraAfectadaPage = ({ id }) => {
   })
 
   const [updateInfraAfectada] = useMutation(UPDATE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Registro desactivado (INACTIVO)')
-      navigate(routes.infraAfectadas())
+    onCompleted: (data) => {
+      const nuevoEstado = data.updateInfraAfectada.estado
+      toast.success(`Registro ${nuevoEstado === 'ACTIVO' ? 'restaurado' : 'desactivado'} correctamente`)
+      refetch()
     },
-    onError: (err) => toast.error(err?.message || 'Error al desactivar'),
+    onError: (err) => toast.error(err?.message || 'Error al actualizar estado'),
   })
 
   /* -----------------------
@@ -94,9 +101,10 @@ const InfraAfectadaPage = ({ id }) => {
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget)
   const handleMenuClose = () => setAnchorEl(null)
 
-  const handleSoftDeleteClick = () => {
+  // Maneja tanto Desactivar como Restaurar
+  const handleToggleStateClick = () => {
     handleMenuClose()
-    setConfirmDialog({ open: true, type: 'soft' })
+    setConfirmDialog({ open: true, type: isActivo ? 'soft' : 'restore' })
   }
 
   const handleHardDeleteClick = () => {
@@ -115,13 +123,15 @@ const InfraAfectadaPage = ({ id }) => {
     handleCloseConfirm()
     if (confirmDialog.type === 'soft') {
       updateInfraAfectada({ variables: { id, input: { estado: 'INACTIVO' } } })
+    } else if (confirmDialog.type === 'restore') {
+      updateInfraAfectada({ variables: { id, input: { estado: 'ACTIVO' } } })
     } else if (confirmDialog.type === 'hard') {
       deleteInfraAfectada({ variables: { id } })
     }
   }
 
   /* -----------------------
-   * COMPONENTE MENÚ
+   * COMPONENTE MENÚ DINÁMICO
    * ----------------------- */
   const deleteMenu = (
     <Menu
@@ -132,16 +142,16 @@ const InfraAfectadaPage = ({ id }) => {
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       PaperProps={{
         elevation: 3,
-        sx: { mt: 1, minWidth: 240, borderRadius: 2 },
+        sx: { mt: 1, minWidth: 260, borderRadius: 2 },
       }}
     >
-      <MenuItem onClick={handleSoftDeleteClick} disableRipple sx={{ py: 1.5 }}>
+      <MenuItem onClick={handleToggleStateClick} disableRipple sx={{ py: 1.5 }}>
         <ListItemIcon>
-          <SoftDeleteIcon color="warning" />
+          {isActivo ? <SoftDeleteIcon color="warning" /> : <RestoreIcon color="success" />}
         </ListItemIcon>
         <ListItemText
-          primary="Desactivar"
-          secondary="Marcar como INACTIVO"
+          primary={isActivo ? "Desactivar" : "Restaurar"}
+          secondary={isActivo ? "Marcar como INACTIVO" : "Habilitar/Reactivar registro"}
           primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
           secondaryTypographyProps={{ variant: 'caption' }}
         />
@@ -167,13 +177,12 @@ const InfraAfectadaPage = ({ id }) => {
   const actionButtons = [
     {
       label: 'Editar',
-      iconName: 'edit',
+      startIcon: <EditIcon />,
       variant: 'contained',
       onClick: () => navigate(routes.editInfraAfectada({ id })),
     },
     {
       label: 'Opciones',
-      iconName: 'delete',
       variant: 'outlined',
       color: 'error',
       endIcon: <ArrowDownIcon />,
@@ -184,12 +193,34 @@ const InfraAfectadaPage = ({ id }) => {
 
   // Lógica visual del Dialog
   const isHardDelete = confirmDialog.type === 'hard'
-  const dialogTitle = isHardDelete ? '¿Eliminar permanentemente?' : '¿Desactivar registro?'
-  const dialogContent = isHardDelete
-    ? `Estás a punto de ELIMINAR PERMANENTEMENTE el "${tituloRegistro}". Esta acción NO se puede deshacer.`
-    : `¿Estás seguro de DESACTIVAR el "${tituloRegistro}"?`
-  const confirmButtonColor = isHardDelete ? 'error' : 'warning'
-  const confirmButtonText = isHardDelete ? 'Eliminar' : 'Desactivar'
+  const isRestore = confirmDialog.type === 'restore'
+  
+  let dialogTitle = ''
+  let dialogContent = ''
+  let confirmButtonColor = 'warning'
+  let confirmButtonText = 'Desactivar'
+  let DialogIcon = SoftDeleteIcon
+
+  if (isHardDelete) {
+    dialogTitle = '¿Eliminar permanentemente?'
+    dialogContent = `Estás a punto de ELIMINAR PERMANENTEMENTE el "${tituloRegistro}". Esta acción NO se puede deshacer.`
+    confirmButtonColor = 'error'
+    confirmButtonText = 'Eliminar'
+    DialogIcon = HardDeleteIcon
+  } else if (isRestore) {
+    dialogTitle = '¿Restaurar registro?'
+    dialogContent = `¿Deseas RESTAURAR el "${tituloRegistro}"? Pasará a estado ACTIVO.`
+    confirmButtonColor = 'success'
+    confirmButtonText = 'Restaurar'
+    DialogIcon = RestoreIcon
+  } else {
+    // Soft Delete (Desactivar)
+    dialogTitle = '¿Desactivar registro?'
+    dialogContent = `¿Estás seguro de DESACTIVAR el "${tituloRegistro}"? Pasará a estado INACTIVO.`
+    confirmButtonColor = 'warning'
+    confirmButtonText = 'Desactivar'
+    DialogIcon = SoftDeleteIcon
+  }
 
   return (
     <>
@@ -214,7 +245,7 @@ const InfraAfectadaPage = ({ id }) => {
         PaperProps={{ sx: { borderRadius: 3, p: 1, maxWidth: 500 } }}
       >
         <DialogTitle id="alert-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningIcon color={confirmButtonColor} />
+          <DialogIcon color={confirmButtonColor} />
           {dialogTitle}
         </DialogTitle>
         <DialogContent>
@@ -231,7 +262,7 @@ const InfraAfectadaPage = ({ id }) => {
             variant="contained"
             color={confirmButtonColor}
             autoFocus
-            startIcon={isHardDelete ? <HardDeleteIcon /> : <SoftDeleteIcon />}
+            startIcon={<DialogIcon />}
             sx={{ fontWeight: 600, px: 3 }}
           >
             {confirmButtonText}

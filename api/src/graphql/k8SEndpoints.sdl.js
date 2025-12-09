@@ -26,8 +26,6 @@ export const schema = gql`
   type Query {
     k8SEndpoints: [K8sEndpoint!]! @requireAuth
     k8SEndpoint(id: Int!): K8sEndpoint @requireAuth
-    # Esta query auxiliar sirve para llenar selectores de usuarios si fuera necesario
-    usuarios: [Usuario!]! @requireAuth
   }
 
   input CreateK8sEndpointInput {

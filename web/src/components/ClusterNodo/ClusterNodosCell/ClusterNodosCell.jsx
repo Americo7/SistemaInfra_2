@@ -22,10 +22,6 @@ export const QUERY = gql`
         id
         nombre
       }
-      maquina {
-        id
-        nombre
-      }
       servidor {
         id
         nombre

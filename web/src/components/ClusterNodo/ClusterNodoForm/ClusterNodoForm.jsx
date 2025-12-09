@@ -75,11 +75,11 @@ const ClusterNodoForm = (props) => {
   const isEdit = Boolean(props.clusterNodo?.id)
 
   /* ============================================================
-     1. LOGICA DE PERMISOS Y SEGURIDAD
+     1. LOGICA DE PERMISOS (MODIFICADO)
   ============================================================ */
-  const identityKey = props.clusterNodo?.identity_key || ''
-  const isManualNode = identityKey.startsWith('manual:')
-  const canEdit = !isEdit || isManualNode
+  // Se ha eliminado la restricción basada en "manual:". 
+  // Ahora siempre se permite editar el formulario general.
+  const canEdit = true
 
   const sanitizeInput = (value) => {
     if (!value) return ''
@@ -127,34 +127,24 @@ const ClusterNodoForm = (props) => {
   const watchedNodoTipo = watch('nodoTipo')
 
   useEffect(() => {
-    if (canEdit) {
-      if (watchedNodoTipo === 'VIRTUAL') {
-        setValue('servidorId', null)
-      } else {
-        setValue('maquinaId', null)
-      }
+    // Solo limpiamos campos si el usuario cambia el tipo manualmente
+    if (watchedNodoTipo === 'VIRTUAL') {
+      setValue('servidorId', null)
+    } else {
+      setValue('maquinaId', null)
     }
-  }, [watchedNodoTipo, setValue, canEdit])
+  }, [watchedNodoTipo, setValue])
 
-  // --- CORRECCIÓN AQUÍ ---
   const onSubmit = (data) => {
-    // 1. Copiamos los datos del formulario
     const inputData = {
       ...data,
       estado: 'ACTIVO', 
     }
     
-    // 2. Limpieza de datos
-    // No enviamos usuario_creacion ni usuario_modificacion.
-    // El backend (service) los obtiene de context.currentUser.
-    
+    // Limpieza de datos
     if (!isEdit) {
-       // Si es nuevo, borramos identity_key para que el backend la genere
-       // (a menos que el usuario haya escrito una manual, pero el campo está disabled en el form)
        delete inputData.identity_key 
     } else {
-       // Si es edición, nos aseguramos de no mandar campos que no existen en UpdateInput
-       // Por ejemplo, usuario_creacion nunca debe ir en un update.
        delete inputData.usuario_creacion
     }
 
@@ -173,40 +163,26 @@ const ClusterNodoForm = (props) => {
           }}>
             <Avatar sx={{
                   width: 48, height: 48,
-                  background: canEdit 
-                    ? 'linear-gradient(135deg, #1565C0, #7B1FA2)' 
-                    : 'linear-gradient(135deg, #757575, #9E9E9E)',
+                  // Siempre mostramos el color activo ya que siempre es editable
+                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
                   color: 'white', boxShadow: 3
                 }}>
-              {!canEdit ? <LockIcon /> : (isEdit ? <EditIcon /> : <AddIcon />)}
+               {isEdit ? <EditIcon /> : <AddIcon />}
             </Avatar>
             
             <Box sx={{ flexGrow: 1 }}>
               <Typography variant="h5" fontWeight={800} sx={{
                   lineHeight: 1.2,
-                  background: canEdit 
-                    ? 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)'
-                    : 'linear-gradient(90deg, #616161 0%, #9e9e9e 100%)',
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                 }}>
                 {isEdit ? 'Editar Nodo' : 'Nuevo Nodo'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                {!canEdit 
-                  ? 'Este nodo es gestionado automáticamente por el sistema y no puede ser modificado.' 
-                  : (isEdit ? 'Modificar configuración del nodo' : 'Registrar nuevo nodo en el cluster')}
+                {isEdit ? 'Modificar configuración del nodo' : 'Registrar nuevo nodo en el cluster'}
               </Typography>
             </Box>
         </Box>
-
-        {/* --- ALERTA DE MODO LECTURA --- */}
-        {!canEdit && (
-          <Box sx={{ px: 5, pb: 2 }}>
-            <Alert severity="info" variant="outlined" icon={<LockIcon fontSize="inherit" />}>
-              <strong>Modo Lectura:</strong> Este registro no posee la llave <em>"manual:"</em>. Su edición está restringida para proteger la integridad del Cluster.
-            </Alert>
-          </Box>
-        )}
 
         {/* --- CONTENIDO DEL FORMULARIO --- */}
         <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
@@ -237,17 +213,15 @@ const ClusterNodoForm = (props) => {
                       rules={{ required: 'El Cluster es obligatorio' }}
                       render={({ field: { onChange, value } }) => (
                         <Autocomplete
-                          disabled={!canEdit}
                           options={props.clusters || []} 
-                          
                           getOptionLabel={(option) => {
                             const codigo = option.cod_tipo_cluster
+                            if (!codigo) return option.nombre
                             const nombreTipo = mapaTiposCluster[codigo]
                             return nombreTipo 
                               ? `${option.nombre} (${nombreTipo})` 
                               : `${option.nombre} (${codigo})`
                           }}
-
                           value={props.clusters?.find((c) => c.id === value) || null}
                           onChange={(_, newValue) => onChange(newValue ? newValue.id : '')}
                           renderInput={(params) => (
@@ -269,13 +243,12 @@ const ClusterNodoForm = (props) => {
                         <TextField 
                             {...field}
                             value={value}
-                            disabled={!canEdit}
                             onChange={(e) => onChange(sanitizeInput(e.target.value))}
                             size="small" 
                             fullWidth 
                             placeholder="Ej. worker-node-01" 
                             error={!!errors.nombre}
-                            helperText={canEdit ? "Solo letras minúsculas, números y guiones" : ""} 
+                            helperText="Solo letras minúsculas, números y guiones" 
                         />
                       )}
                     />
@@ -300,14 +273,12 @@ const ClusterNodoForm = (props) => {
                       render={({ field }) => (
                         <RadioGroup {...field} row>
                           <FormControlLabel 
-                            disabled={!canEdit}
                             value="VIRTUAL" 
                             control={<Radio size="small" />} 
                             label="Virtual (VM)" 
                             sx={{ mr: 2 }} 
                           />
                           <FormControlLabel 
-                            disabled={!canEdit}
                             value="FISICO" 
                             control={<Radio size="small" />} 
                             label="Físico" 
@@ -328,9 +299,11 @@ const ClusterNodoForm = (props) => {
                           rules={{ required: watchedNodoTipo === 'VIRTUAL' ? 'Requerido' : false }}
                           render={({ field: { onChange, value } }) => (
                             <Autocomplete
-                              disabled={!canEdit}
                               options={props.maquinas || []}
-                              getOptionLabel={(option) => `${option.nombre} - IP: ${option.ip || 'N/A'}`}
+                              getOptionLabel={(option) => option.ip 
+                                ? `${option.nombre} - IP: ${option.ip}` 
+                                : option.nombre
+                              }
                               value={props.maquinas?.find((m) => m.id === value) || null}
                               onChange={(_, newValue) => onChange(newValue ? newValue.id : null)}
                               renderInput={(params) => (
@@ -349,9 +322,11 @@ const ClusterNodoForm = (props) => {
                           rules={{ required: watchedNodoTipo === 'FISICO' ? 'Requerido' : false }}
                           render={({ field: { onChange, value } }) => (
                             <Autocomplete
-                              disabled={!canEdit}
                               options={props.servidores || []}
-                              getOptionLabel={(option) => `${option.nombre} - IP: ${option.ip_primaria || 'N/A'}`}
+                              getOptionLabel={(option) => option.ip_primaria 
+                                ? `${option.nombre} - IP: ${option.ip_primaria}` 
+                                : option.nombre
+                              }
                               value={props.servidores?.find((s) => s.id === value) || null}
                               onChange={(_, newValue) => onChange(newValue ? newValue.id : null)}
                               renderInput={(params) => (
@@ -374,7 +349,7 @@ const ClusterNodoForm = (props) => {
               >
                 <Stack spacing={2.5}>
                   
-                  {/* IDENTITY KEY */}
+                  {/* IDENTITY KEY - ESTE SE QUEDA BLOQUEADO SIEMPRE */}
                   <FormControl fullWidth>
                     <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Identificador (Identity Key)</FormLabel>
                     <Controller
@@ -412,7 +387,6 @@ const ClusterNodoForm = (props) => {
                       render={({ field }) => (
                         <Select
                           {...field}
-                          disabled={!canEdit}
                           size="small"
                           fullWidth
                           displayEmpty
@@ -439,19 +413,17 @@ const ClusterNodoForm = (props) => {
                 onClick={() => navigate(routes.clusterNodos())}
                 sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
               >
-                {canEdit ? 'Cancelar' : 'Volver'}
+                Cancelar
               </Button>
               
-              {canEdit && (
-                <LoadingButton
-                  type="submit" variant="contained" loading={props.loading} startIcon={<SaveIcon />}
-                  sx={{ 
-                    background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
-                  }}
-                >
-                  {props.loading ? 'Guardando...' : 'Guardar'}
-                </LoadingButton>
-              )}
+              <LoadingButton
+                type="submit" variant="contained" loading={props.loading} startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
+                }}
+              >
+                {props.loading ? 'Guardando...' : 'Guardar'}
+              </LoadingButton>
             </Box>
 
           </Form>

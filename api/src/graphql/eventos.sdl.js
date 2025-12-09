@@ -21,6 +21,7 @@ export const schema = gql`
     modificadoPor: Usuario
     tipoEventoInfo: Parametro
     estadoEventoInfo: Parametro
+    EventoInfo: Parametro
   }
 
   enum estado {

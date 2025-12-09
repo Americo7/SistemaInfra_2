@@ -8,30 +8,31 @@ export const QUERY = gql`
       id
       nombre
       ip
-      so
       ram
       cpu
-      almacenamiento
+      proxmox_vmid
       estado_operativo
       estado
-      cod_plataforma
-      proxmox_vmid
-      identity_key
-      id_servidor
+      
+      # --- 2. AUDITORÍA ---
       fecha_creacion
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      
+      # --- 3. RELACIONES SIMPLIFICADAS (ID y NOMBRE) ---
+      
+      # 3A. Infos (Cátalogo)
       plataformaInfo {
         id
         nombre
-        codigo
       }
       estadoOperativoInfo {
         id
         nombre
-        codigo
       }
+      
+      # 3B. Auditoría Usuarios
       creadoPor {
         id
         nombres
@@ -42,9 +43,35 @@ export const QUERY = gql`
         nombres
         primer_apellido
       }
+      
+      # 3C. Host (Servidor) y Data Center
       servidores {
         id
         nombre
+        # Data Center del Host
+        data_centers { 
+          id
+          nombre
+        }
+        # Si el Servidor Host es parte de un Cluster
+        cluster_nodos { 
+          id
+          nombre
+          cluster {
+            id
+            nombre
+          }
+        }
+      }
+
+      # 3D. Máquina como Nodo (Si la VM es un nodo K8s/Proxmox)
+      cluster_nodos {
+        id
+        nombre
+        cluster {
+          id
+          nombre
+        }
       }
     }
   }

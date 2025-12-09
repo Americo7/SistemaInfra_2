@@ -4,9 +4,6 @@ import { context } from '@redwoodjs/graphql-server'
 /* LISTAR TODOS */
 export const k8SEndpoints = () => {
   return db.k8sEndpoint.findMany({
-    include: {
-      clusters: true, // Incluimos los clusters asociados
-    },
     orderBy: { id: 'asc' },
   })
 }
@@ -15,15 +12,7 @@ export const k8SEndpoints = () => {
 export const k8SEndpoint = ({ id }) => {
   return db.k8sEndpoint.findUnique({
     where: { id },
-    include: {
-      clusters: true,
-    },
   })
-}
-
-/* CONSULTA USUARIOS (auxiliar) */
-export const usuarios = () => {
-  return db.usuario.findMany()
 }
 
 /* CREAR */
@@ -92,6 +81,5 @@ export const K8sEndpoint = {
 ============================================================ */
 export const Query = {
   k8SEndpoints,
-  k8SEndpoint,
-  usuarios,
+  k8SEndpoint
 }

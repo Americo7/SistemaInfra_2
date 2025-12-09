@@ -22,6 +22,8 @@ import {
   DeleteForever as HardDeleteIcon,
   Block as SoftDeleteIcon,
   WarningAmberRounded as WarningIcon,
+  CheckCircle as RestoreIcon, // Importamos el ícono para restaurar
+  Edit as EditIcon,
 } from '@mui/icons-material'
 
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
@@ -35,6 +37,7 @@ const QUERY = gql`
     entidad(id: $id) {
       id
       nombre
+      estado # <--- IMPORTANTE: Agregado para lógica de estado
     }
   }
 `
@@ -63,12 +66,15 @@ const EntidadPage = ({ id }) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const openMenu = Boolean(anchorEl)
   
-  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' }
+  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' | 'restore' }
   const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null })
 
   // --- QUERIES & MUTATIONS ---
-  const { data } = useQuery(QUERY, { variables: { id } })
-  const nombreEntidad = data?.entidad?.nombre || 'Cargando...'
+  const { data, refetch } = useQuery(QUERY, { variables: { id } })
+  
+  const entidad = data?.entidad || {}
+  const nombreEntidad = entidad.nombre || 'Cargando...'
+  const isActivo = entidad.estado === 'ACTIVO' // Lógica de estado
 
   const [deleteEntidad] = useMutation(DELETE_MUTATION, {
     onCompleted: () => {
@@ -79,9 +85,10 @@ const EntidadPage = ({ id }) => {
   })
 
   const [updateEntidad] = useMutation(UPDATE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Entidad desactivada (INACTIVO)')
-      navigate(routes.entidads())
+    onCompleted: (data) => {
+      const nuevoEstado = data.updateEntidad.estado
+      toast.success(`Entidad ${nuevoEstado === 'ACTIVO' ? 'restaurada' : 'desactivada'} correctamente`)
+      refetch() // Recargamos para actualizar el botón
     },
     onError: (err) => toast.error(err?.message || 'Error al desactivar'),
   })
@@ -92,9 +99,10 @@ const EntidadPage = ({ id }) => {
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget)
   const handleMenuClose = () => setAnchorEl(null)
 
-  const handleSoftDeleteClick = () => {
+  // Maneja tanto Desactivar como Restaurar
+  const handleToggleStateClick = () => {
     handleMenuClose()
-    setConfirmDialog({ open: true, type: 'soft' })
+    setConfirmDialog({ open: true, type: isActivo ? 'soft' : 'restore' })
   }
 
   const handleHardDeleteClick = () => {
@@ -113,13 +121,15 @@ const EntidadPage = ({ id }) => {
     handleCloseConfirm()
     if (confirmDialog.type === 'soft') {
       updateEntidad({ variables: { id, input: { estado: 'INACTIVO' } } })
+    } else if (confirmDialog.type === 'restore') {
+      updateEntidad({ variables: { id, input: { estado: 'ACTIVO' } } })
     } else if (confirmDialog.type === 'hard') {
       deleteEntidad({ variables: { id } })
     }
   }
 
   /* -----------------------
-   * COMPONENTE MENÚ
+   * COMPONENTE MENÚ DINÁMICO
    * ----------------------- */
   const deleteMenu = (
     <Menu
@@ -130,16 +140,16 @@ const EntidadPage = ({ id }) => {
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       PaperProps={{
         elevation: 3,
-        sx: { mt: 1, minWidth: 240, borderRadius: 2 },
+        sx: { mt: 1, minWidth: 260, borderRadius: 2 },
       }}
     >
-      <MenuItem onClick={handleSoftDeleteClick} disableRipple sx={{ py: 1.5 }}>
+      <MenuItem onClick={handleToggleStateClick} disableRipple sx={{ py: 1.5 }}>
         <ListItemIcon>
-          <SoftDeleteIcon color="warning" />
+          {isActivo ? <SoftDeleteIcon color="warning" /> : <RestoreIcon color="success" />}
         </ListItemIcon>
         <ListItemText
-          primary="Desactivar"
-          secondary="Cambiar estado a INACTIVO"
+          primary={isActivo ? "Desactivar" : "Restaurar"}
+          secondary={isActivo ? "Cambiar estado a INACTIVO" : "Habilitar nuevamente la entidad"}
           primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
           secondaryTypographyProps={{ variant: 'caption' }}
         />
@@ -165,13 +175,12 @@ const EntidadPage = ({ id }) => {
   const actionButtons = [
     {
       label: 'Editar',
-      iconName: 'edit',
+      startIcon: <EditIcon />,
       variant: 'contained',
       onClick: () => navigate(routes.editEntidad({ id })),
     },
     {
       label: 'Opciones',
-      iconName: 'delete',
       variant: 'outlined',
       color: 'error',
       endIcon: <ArrowDownIcon />,
@@ -182,12 +191,34 @@ const EntidadPage = ({ id }) => {
 
   // Lógica visual del Dialog
   const isHardDelete = confirmDialog.type === 'hard'
-  const dialogTitle = isHardDelete ? '¿Eliminar permanentemente?' : '¿Desactivar entidad?'
-  const dialogContent = isHardDelete
-    ? `Estás a punto de ELIMINAR PERMANENTEMENTE la entidad "${nombreEntidad}". Esta acción podría afectar a los sistemas asociados y NO se puede deshacer.`
-    : `¿Estás seguro de DESACTIVAR la entidad "${nombreEntidad}"? Pasará a estado INACTIVO.`
-  const confirmButtonColor = isHardDelete ? 'error' : 'warning'
-  const confirmButtonText = isHardDelete ? 'Eliminar' : 'Desactivar'
+  const isRestore = confirmDialog.type === 'restore'
+  
+  let dialogTitle = ''
+  let dialogContent = ''
+  let confirmButtonColor = 'warning'
+  let confirmButtonText = 'Desactivar'
+  let DialogIcon = SoftDeleteIcon
+
+  if (isHardDelete) {
+    dialogTitle = '¿Eliminar permanentemente?'
+    dialogContent = `Estás a punto de ELIMINAR PERMANENTEMENTE la entidad "${nombreEntidad}". Esta acción podría afectar a los sistemas asociados y NO se puede deshacer.`
+    confirmButtonColor = 'error'
+    confirmButtonText = 'Eliminar'
+    DialogIcon = HardDeleteIcon
+  } else if (isRestore) {
+    dialogTitle = '¿Restaurar entidad?'
+    dialogContent = `¿Deseas RESTAURAR la entidad "${nombreEntidad}"? Pasará a estado ACTIVO.`
+    confirmButtonColor = 'success'
+    confirmButtonText = 'Restaurar'
+    DialogIcon = RestoreIcon
+  } else {
+    // Soft Delete (Desactivar)
+    dialogTitle = '¿Desactivar entidad?'
+    dialogContent = `¿Estás seguro de DESACTIVAR la entidad "${nombreEntidad}"? Pasará a estado INACTIVO.`
+    confirmButtonColor = 'warning'
+    confirmButtonText = 'Desactivar'
+    DialogIcon = SoftDeleteIcon
+  }
 
   return (
     <>
@@ -212,7 +243,7 @@ const EntidadPage = ({ id }) => {
         PaperProps={{ sx: { borderRadius: 3, p: 1, maxWidth: 500 } }}
       >
         <DialogTitle id="alert-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningIcon color={confirmButtonColor} />
+          <DialogIcon color={confirmButtonColor} />
           {dialogTitle}
         </DialogTitle>
         <DialogContent>
@@ -229,7 +260,7 @@ const EntidadPage = ({ id }) => {
             variant="contained"
             color={confirmButtonColor}
             autoFocus
-            startIcon={isHardDelete ? <HardDeleteIcon /> : <SoftDeleteIcon />}
+            startIcon={<DialogIcon />}
             sx={{ fontWeight: 600, px: 3 }}
           >
             {confirmButtonText}

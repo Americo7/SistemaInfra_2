@@ -21,7 +21,9 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   DeleteForever as HardDeleteIcon,
   Block as SoftDeleteIcon,
+  CheckCircle as RestoreIcon, // Icono para restaurar
   WarningAmberRounded as WarningIcon,
+  Edit as EditIcon, // Icono editar
 } from '@mui/icons-material'
 
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
@@ -35,6 +37,7 @@ const GET_SERVIDOR_PAGE_QUERY = gql`
     servidor(id: $id) {
       id
       nombre
+      estado  # <--- ¡IMPORTANTE! Agregamos esto para saber el estado real
     }
   }
 `
@@ -63,12 +66,15 @@ const ServidorPage = ({ id }) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const openMenu = Boolean(anchorEl)
   
-  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' }
+  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' | 'restore' }
   const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null })
 
   // --- QUERIES & MUTATIONS ---
-  const { data } = useQuery(GET_SERVIDOR_PAGE_QUERY, { variables: { id } })
-  const nombreServidor = data?.servidor?.nombre || 'Cargando...'
+  const { data, refetch } = useQuery(GET_SERVIDOR_PAGE_QUERY, { variables: { id } })
+  
+  const servidor = data?.servidor || {}
+  const nombreServidor = servidor.nombre || 'Cargando...'
+  const isActivo = servidor.estado === 'ACTIVO' // <--- Lógica corregida
 
   const [deleteServidor] = useMutation(DELETE_SERVIDOR_MUTATION, {
     onCompleted: () => {
@@ -79,9 +85,10 @@ const ServidorPage = ({ id }) => {
   })
 
   const [updateServidor] = useMutation(UPDATE_SERVIDOR_MUTATION, {
-    onCompleted: () => {
-      toast.success('Servidor desactivado (INACTIVO)')
-      navigate(routes.servidors())
+    onCompleted: (data) => {
+      const nuevoEstado = data.updateServidor.estado
+      toast.success(`Servidor ${nuevoEstado === 'ACTIVO' ? 'restaurado' : 'desactivado'} correctamente`)
+      refetch() // Recargamos para actualizar el botón
     },
     onError: (error) => toast.error(error.message),
   })
@@ -92,9 +99,12 @@ const ServidorPage = ({ id }) => {
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget)
   const handleMenuClose = () => setAnchorEl(null)
 
-  const handleSoftDeleteClick = () => {
+  // Maneja tanto Desactivar como Restaurar
+  const handleToggleStateClick = () => {
     handleMenuClose()
-    setConfirmDialog({ open: true, type: 'soft' })
+    // Si es activo -> type 'soft' (para desactivar)
+    // Si no es activo -> type 'restore' (para restaurar)
+    setConfirmDialog({ open: true, type: isActivo ? 'soft' : 'restore' })
   }
 
   const handleHardDeleteClick = () => {
@@ -112,14 +122,19 @@ const ServidorPage = ({ id }) => {
   const handleConfirmAction = () => {
     handleCloseConfirm()
     if (confirmDialog.type === 'soft') {
+      // Desactivar
       updateServidor({ variables: { id, input: { estado: 'INACTIVO' } } })
+    } else if (confirmDialog.type === 'restore') {
+      // Restaurar
+      updateServidor({ variables: { id, input: { estado: 'ACTIVO' } } })
     } else if (confirmDialog.type === 'hard') {
+      // Eliminar
       deleteServidor({ variables: { id } })
     }
   }
 
   /* -----------------------
-   * COMPONENTE MENÚ
+   * COMPONENTE MENÚ DINÁMICO
    * ----------------------- */
   const deleteMenu = (
     <Menu
@@ -130,21 +145,23 @@ const ServidorPage = ({ id }) => {
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       PaperProps={{
         elevation: 3,
-        sx: { mt: 1, minWidth: 240, borderRadius: 2 },
+        sx: { mt: 1, minWidth: 260, borderRadius: 2 },
       }}
     >
-      <MenuItem onClick={handleSoftDeleteClick} disableRipple sx={{ py: 1.5 }}>
+      {/* OPCIÓN 1: DESACTIVAR / RESTAURAR (Dinámico) */}
+      <MenuItem onClick={handleToggleStateClick} disableRipple sx={{ py: 1.5 }}>
         <ListItemIcon>
-          <SoftDeleteIcon color="warning" />
+          {isActivo ? <SoftDeleteIcon color="warning" /> : <RestoreIcon color="success" />}
         </ListItemIcon>
         <ListItemText
-          primary="Desactivar"
-          secondary="Cambiar estado a INACTIVO"
+          primary={isActivo ? "Desactivar" : "Restaurar"}
+          secondary={isActivo ? "Cambiar estado a INACTIVO" : "Habilitar nuevamente el servidor"}
           primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
           secondaryTypographyProps={{ variant: 'caption' }}
         />
       </MenuItem>
 
+      {/* OPCIÓN 2: ELIMINAR PERMANENTE */}
       <MenuItem onClick={handleHardDeleteClick} disableRipple sx={{ color: 'error.main', py: 1.5 }}>
         <ListItemIcon>
           <HardDeleteIcon color="error" />
@@ -165,13 +182,14 @@ const ServidorPage = ({ id }) => {
   const actionButtons = [
     {
       label: 'Editar',
-      iconName: 'edit',
+      startIcon: <EditIcon />, // Pasamos el icono directamente aquí si tu layout lo soporta así
+      // O usa iconName: 'edit' si tu layout usa strings
       variant: 'contained',
       onClick: () => navigate(routes.editServidor({ id })),
     },
     {
       label: 'Opciones',
-      iconName: 'delete',
+      // iconName: 'delete', // Puedes quitar esto si usas startIcon o endIcon
       variant: 'outlined',
       color: 'error',
       endIcon: <ArrowDownIcon />,
@@ -181,13 +199,31 @@ const ServidorPage = ({ id }) => {
   ]
 
   // Lógica visual del Dialog
-  const isHardDelete = confirmDialog.type === 'hard'
-  const dialogTitle = isHardDelete ? '¿Eliminar permanentemente?' : '¿Desactivar servidor?'
-  const dialogContent = isHardDelete
-    ? `Estás a punto de ELIMINAR PERMANENTEMENTE el servidor "${nombreServidor}". Esta acción eliminará también sus relaciones y NO se puede deshacer.`
-    : `¿Estás seguro de DESACTIVAR el servidor "${nombreServidor}"? Pasará a estado INACTIVO.`
-  const confirmButtonColor = isHardDelete ? 'error' : 'warning'
-  const confirmButtonText = isHardDelete ? 'Eliminar' : 'Desactivar'
+  let dialogTitle = ''
+  let dialogContent = ''
+  let confirmButtonColor = 'primary'
+  let confirmButtonText = ''
+  let DialogIcon = WarningIcon
+
+  if (confirmDialog.type === 'hard') {
+    dialogTitle = '¿Eliminar permanentemente?'
+    dialogContent = `Estás a punto de ELIMINAR PERMANENTEMENTE el servidor "${nombreServidor}". Esta acción eliminará también sus relaciones y NO se puede deshacer.`
+    confirmButtonColor = 'error'
+    confirmButtonText = 'Eliminar'
+    DialogIcon = HardDeleteIcon
+  } else if (confirmDialog.type === 'soft') {
+    dialogTitle = '¿Desactivar servidor?'
+    dialogContent = `¿Estás seguro de DESACTIVAR el servidor "${nombreServidor}"? Pasará a estado INACTIVO.`
+    confirmButtonColor = 'warning'
+    confirmButtonText = 'Desactivar'
+    DialogIcon = SoftDeleteIcon
+  } else if (confirmDialog.type === 'restore') {
+    dialogTitle = '¿Restaurar servidor?'
+    dialogContent = `¿Deseas RESTAURAR el servidor "${nombreServidor}"? Pasará a estado ACTIVO.`
+    confirmButtonColor = 'success'
+    confirmButtonText = 'Restaurar'
+    DialogIcon = RestoreIcon
+  }
 
   return (
     <>
@@ -207,16 +243,14 @@ const ServidorPage = ({ id }) => {
       <Dialog
         open={confirmDialog.open}
         onClose={handleCloseConfirm}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
         PaperProps={{ sx: { borderRadius: 3, p: 1, maxWidth: 500 } }}
       >
-        <DialogTitle id="alert-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningIcon color={confirmButtonColor} />
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DialogIcon color={confirmButtonColor} />
           {dialogTitle}
         </DialogTitle>
         <DialogContent>
-          <DialogContentText id="alert-dialog-description" sx={{ color: 'text.primary' }}>
+          <DialogContentText sx={{ color: 'text.primary' }}>
             {dialogContent}
           </DialogContentText>
         </DialogContent>
@@ -229,7 +263,7 @@ const ServidorPage = ({ id }) => {
             variant="contained"
             color={confirmButtonColor}
             autoFocus
-            startIcon={isHardDelete ? <HardDeleteIcon /> : <SoftDeleteIcon />}
+            startIcon={<DialogIcon />}
             sx={{ fontWeight: 600, px: 3 }}
           >
             {confirmButtonText}

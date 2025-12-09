@@ -22,6 +22,8 @@ import {
   DeleteForever as HardDeleteIcon,
   Block as SoftDeleteIcon,
   WarningAmberRounded as WarningIcon,
+  CheckCircle as RestoreIcon, // Icono para restaurar
+  Edit as EditIcon,
 } from '@mui/icons-material'
 
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
@@ -35,6 +37,7 @@ const QUERY = gql`
     dataCenter(id: $id) {
       id
       nombre
+      estado # <--- IMPORTANTE: Agregado para lógica de estado
     }
   }
 `
@@ -63,12 +66,15 @@ const DataCenterPage = ({ id }) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const openMenu = Boolean(anchorEl)
   
-  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' }
+  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' | 'restore' }
   const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null })
 
   // --- QUERIES & MUTATIONS ---
-  const { data } = useQuery(QUERY, { variables: { id } })
-  const nombreDataCenter = data?.dataCenter?.nombre || 'Cargando...'
+  const { data, refetch } = useQuery(QUERY, { variables: { id } })
+  
+  const dataCenter = data?.dataCenter || {}
+  const nombreDataCenter = dataCenter.nombre || 'Cargando...'
+  const isActivo = dataCenter.estado === 'ACTIVO' // Lógica de estado
 
   const [deleteDataCenter] = useMutation(DELETE_MUTATION, {
     onCompleted: () => {
@@ -79,9 +85,10 @@ const DataCenterPage = ({ id }) => {
   })
 
   const [updateDataCenter] = useMutation(UPDATE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Data Center desactivado (INACTIVO)')
-      navigate(routes.dataCenters())
+    onCompleted: (data) => {
+      const nuevoEstado = data.updateDataCenter.estado
+      toast.success(`Data Center ${nuevoEstado === 'ACTIVO' ? 'restaurado' : 'desactivado'} correctamente`)
+      refetch() // Recargamos para actualizar el botón
     },
     onError: (err) => toast.error(err?.message || 'Error al desactivar'),
   })
@@ -92,9 +99,10 @@ const DataCenterPage = ({ id }) => {
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget)
   const handleMenuClose = () => setAnchorEl(null)
 
-  const handleSoftDeleteClick = () => {
+  // Maneja tanto Desactivar como Restaurar
+  const handleToggleStateClick = () => {
     handleMenuClose()
-    setConfirmDialog({ open: true, type: 'soft' })
+    setConfirmDialog({ open: true, type: isActivo ? 'soft' : 'restore' })
   }
 
   const handleHardDeleteClick = () => {
@@ -113,13 +121,15 @@ const DataCenterPage = ({ id }) => {
     handleCloseConfirm()
     if (confirmDialog.type === 'soft') {
       updateDataCenter({ variables: { id, input: { estado: 'INACTIVO' } } })
+    } else if (confirmDialog.type === 'restore') {
+      updateDataCenter({ variables: { id, input: { estado: 'ACTIVO' } } })
     } else if (confirmDialog.type === 'hard') {
       deleteDataCenter({ variables: { id } })
     }
   }
 
   /* -----------------------
-   * COMPONENTE MENÚ
+   * COMPONENTE MENÚ DINÁMICO
    * ----------------------- */
   const deleteMenu = (
     <Menu
@@ -130,21 +140,23 @@ const DataCenterPage = ({ id }) => {
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       PaperProps={{
         elevation: 3,
-        sx: { mt: 1, minWidth: 240, borderRadius: 2 },
+        sx: { mt: 1, minWidth: 260, borderRadius: 2 },
       }}
     >
-      <MenuItem onClick={handleSoftDeleteClick} disableRipple sx={{ py: 1.5 }}>
+      {/* Opción Desactivar/Restaurar (Dinámica) */}
+      <MenuItem onClick={handleToggleStateClick} disableRipple sx={{ py: 1.5 }}>
         <ListItemIcon>
-          <SoftDeleteIcon color="warning" />
+          {isActivo ? <SoftDeleteIcon color="warning" /> : <RestoreIcon color="success" />}
         </ListItemIcon>
         <ListItemText
-          primary="Desactivar"
-          secondary="Cambiar estado a INACTIVO"
+          primary={isActivo ? "Desactivar" : "Restaurar"}
+          secondary={isActivo ? "Cambiar estado a INACTIVO" : "Habilitar nuevamente el Data Center"}
           primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
           secondaryTypographyProps={{ variant: 'caption' }}
         />
       </MenuItem>
 
+      {/* Opción Eliminar Permanentemente */}
       <MenuItem onClick={handleHardDeleteClick} disableRipple sx={{ color: 'error.main', py: 1.5 }}>
         <ListItemIcon>
           <HardDeleteIcon color="error" />
@@ -165,13 +177,12 @@ const DataCenterPage = ({ id }) => {
   const actionButtons = [
     {
       label: 'Editar',
-      iconName: 'edit',
+      startIcon: <EditIcon />,
       variant: 'contained',
       onClick: () => navigate(routes.editDataCenter({ id })),
     },
     {
       label: 'Opciones',
-      iconName: 'delete',
       variant: 'outlined',
       color: 'error',
       endIcon: <ArrowDownIcon />,
@@ -182,12 +193,34 @@ const DataCenterPage = ({ id }) => {
 
   // Lógica visual del Dialog
   const isHardDelete = confirmDialog.type === 'hard'
-  const dialogTitle = isHardDelete ? '¿Eliminar permanentemente?' : '¿Desactivar Data Center?'
-  const dialogContent = isHardDelete
-    ? `Estás a punto de ELIMINAR PERMANENTEMENTE el Data Center "${nombreDataCenter}". Esta acción podría afectar a servidores y equipos alojados en él y NO se puede deshacer.`
-    : `¿Estás seguro de DESACTIVAR el Data Center "${nombreDataCenter}"? Pasará a estado INACTIVO.`
-  const confirmButtonColor = isHardDelete ? 'error' : 'warning'
-  const confirmButtonText = isHardDelete ? 'Eliminar' : 'Desactivar'
+  const isRestore = confirmDialog.type === 'restore'
+  const isSoftDelete = confirmDialog.type === 'soft'
+
+  let dialogTitle = ''
+  let dialogContent = ''
+  let confirmButtonColor = 'warning'
+  let confirmButtonText = 'Desactivar'
+  let DialogIcon = SoftDeleteIcon
+
+  if (isHardDelete) {
+    dialogTitle = '¿Eliminar permanentemente?'
+    dialogContent = `Estás a punto de ELIMINAR PERMANENTEMENTE el Data Center "${nombreDataCenter}". Esta acción podría afectar a servidores y equipos alojados en él y NO se puede deshacer.`
+    confirmButtonColor = 'error'
+    confirmButtonText = 'Eliminar'
+    DialogIcon = HardDeleteIcon
+  } else if (isRestore) {
+    dialogTitle = '¿Restaurar Data Center?'
+    dialogContent = `¿Deseas RESTAURAR el Data Center "${nombreDataCenter}"? Pasará a estado ACTIVO.`
+    confirmButtonColor = 'success'
+    confirmButtonText = 'Restaurar'
+    DialogIcon = RestoreIcon
+  } else if (isSoftDelete) {
+    dialogTitle = '¿Desactivar Data Center?'
+    dialogContent = `¿Estás seguro de DESACTIVAR el Data Center "${nombreDataCenter}"? Pasará a estado INACTIVO.`
+    confirmButtonColor = 'warning'
+    confirmButtonText = 'Desactivar'
+    DialogIcon = SoftDeleteIcon
+  }
 
   return (
     <>
@@ -212,7 +245,7 @@ const DataCenterPage = ({ id }) => {
         PaperProps={{ sx: { borderRadius: 3, p: 1, maxWidth: 500 } }}
       >
         <DialogTitle id="alert-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningIcon color={confirmButtonColor} />
+          <DialogIcon color={confirmButtonColor} />
           {dialogTitle}
         </DialogTitle>
         <DialogContent>
@@ -229,7 +262,7 @@ const DataCenterPage = ({ id }) => {
             variant="contained"
             color={confirmButtonColor}
             autoFocus
-            startIcon={isHardDelete ? <HardDeleteIcon /> : <SoftDeleteIcon />}
+            startIcon={<DialogIcon />}
             sx={{ fontWeight: 600, px: 3 }}
           >
             {confirmButtonText}

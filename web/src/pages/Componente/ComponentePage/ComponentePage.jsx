@@ -22,6 +22,8 @@ import {
   DeleteForever as HardDeleteIcon,
   Block as SoftDeleteIcon,
   WarningAmberRounded as WarningIcon,
+  CheckCircle as RestoreIcon, // Importamos el ícono para restaurar
+  Edit as EditIcon,
 } from '@mui/icons-material'
 
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
@@ -35,6 +37,7 @@ const QUERY = gql`
     componente(id: $id) {
       id
       nombre
+      estado # <--- IMPORTANTE: Agregado para lógica de estado
     }
   }
 `
@@ -63,12 +66,15 @@ const ComponentePage = ({ id }) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const openMenu = Boolean(anchorEl)
   
-  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' }
+  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' | 'restore' }
   const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null })
 
   // --- QUERIES & MUTATIONS ---
-  const { data } = useQuery(QUERY, { variables: { id } })
-  const nombreComponente = data?.componente?.nombre || 'Cargando...'
+  const { data, refetch } = useQuery(QUERY, { variables: { id } })
+  
+  const componente = data?.componente || {}
+  const nombreComponente = componente.nombre || 'Cargando...'
+  const isActivo = componente.estado === 'ACTIVO' // Lógica de estado
 
   const [deleteComponente] = useMutation(DELETE_MUTATION, {
     onCompleted: () => {
@@ -79,9 +85,10 @@ const ComponentePage = ({ id }) => {
   })
 
   const [updateComponente] = useMutation(UPDATE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Componente desactivado (INACTIVO)')
-      navigate(routes.componentes())
+    onCompleted: (data) => {
+      const nuevoEstado = data.updateComponente.estado
+      toast.success(`Componente ${nuevoEstado === 'ACTIVO' ? 'restaurado' : 'desactivado'} correctamente`)
+      refetch() // Recargamos para actualizar el botón
     },
     onError: (err) => toast.error(err?.message || 'Error al desactivar'),
   })
@@ -92,9 +99,10 @@ const ComponentePage = ({ id }) => {
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget)
   const handleMenuClose = () => setAnchorEl(null)
 
-  const handleSoftDeleteClick = () => {
+  // Maneja tanto Desactivar como Restaurar
+  const handleToggleStateClick = () => {
     handleMenuClose()
-    setConfirmDialog({ open: true, type: 'soft' })
+    setConfirmDialog({ open: true, type: isActivo ? 'soft' : 'restore' })
   }
 
   const handleHardDeleteClick = () => {
@@ -113,13 +121,15 @@ const ComponentePage = ({ id }) => {
     handleCloseConfirm()
     if (confirmDialog.type === 'soft') {
       updateComponente({ variables: { id, input: { estado: 'INACTIVO' } } })
+    } else if (confirmDialog.type === 'restore') {
+      updateComponente({ variables: { id, input: { estado: 'ACTIVO' } } })
     } else if (confirmDialog.type === 'hard') {
       deleteComponente({ variables: { id } })
     }
   }
 
   /* -----------------------
-   * COMPONENTE MENÚ
+   * COMPONENTE MENÚ DINÁMICO
    * ----------------------- */
   const deleteMenu = (
     <Menu
@@ -130,16 +140,16 @@ const ComponentePage = ({ id }) => {
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       PaperProps={{
         elevation: 3,
-        sx: { mt: 1, minWidth: 240, borderRadius: 2 },
+        sx: { mt: 1, minWidth: 260, borderRadius: 2 },
       }}
     >
-      <MenuItem onClick={handleSoftDeleteClick} disableRipple sx={{ py: 1.5 }}>
+      <MenuItem onClick={handleToggleStateClick} disableRipple sx={{ py: 1.5 }}>
         <ListItemIcon>
-          <SoftDeleteIcon color="warning" />
+          {isActivo ? <SoftDeleteIcon color="warning" /> : <RestoreIcon color="success" />}
         </ListItemIcon>
         <ListItemText
-          primary="Desactivar"
-          secondary="Cambiar estado a INACTIVO"
+          primary={isActivo ? "Desactivar" : "Restaurar"}
+          secondary={isActivo ? "Cambiar estado a INACTIVO" : "Habilitar nuevamente el componente"}
           primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
           secondaryTypographyProps={{ variant: 'caption' }}
         />
@@ -165,13 +175,12 @@ const ComponentePage = ({ id }) => {
   const actionButtons = [
     {
       label: 'Editar',
-      iconName: 'edit',
+      startIcon: <EditIcon />,
       variant: 'contained',
       onClick: () => navigate(routes.editComponente({ id })),
     },
     {
       label: 'Opciones',
-      iconName: 'delete',
       variant: 'outlined',
       color: 'error',
       endIcon: <ArrowDownIcon />,
@@ -182,13 +191,35 @@ const ComponentePage = ({ id }) => {
 
   // Lógica visual del Dialog
   const isHardDelete = confirmDialog.type === 'hard'
-  const dialogTitle = isHardDelete ? '¿Eliminar permanentemente?' : '¿Desactivar componente?'
-  const dialogContent = isHardDelete
-    ? `Estás a punto de ELIMINAR PERMANENTEMENTE el componente "${nombreComponente}". Esta acción eliminará los despliegues asociados y NO se puede deshacer.`
-    : `¿Estás seguro de DESACTIVAR el componente "${nombreComponente}"? Pasará a estado INACTIVO.`
-  const confirmButtonColor = isHardDelete ? 'error' : 'warning'
-  const confirmButtonText = isHardDelete ? 'Eliminar' : 'Desactivar'
+  const isRestore = confirmDialog.type === 'restore'
 
+  let dialogTitle = ''
+  let dialogContent = ''
+  let confirmButtonColor = 'warning'
+  let confirmButtonText = 'Desactivar'
+  let DialogIcon = SoftDeleteIcon
+
+  if (isHardDelete) {
+    dialogTitle = '¿Eliminar permanentemente?'
+    dialogContent = `Estás a punto de ELIMINAR PERMANENTEMENTE el componente "${nombreComponente}". Esta acción eliminará los despliegues asociados y NO se puede deshacer.`
+    confirmButtonColor = 'error'
+    confirmButtonText = 'Eliminar'
+    DialogIcon = HardDeleteIcon
+  } else if (isRestore) {
+    dialogTitle = '¿Restaurar componente?'
+    dialogContent = `¿Deseas RESTAURAR el componente "${nombreComponente}"? Pasará a estado ACTIVO.`
+    confirmButtonColor = 'success'
+    confirmButtonText = 'Restaurar'
+    DialogIcon = RestoreIcon
+  } else {
+    // Soft Delete (Desactivar)
+    dialogTitle = '¿Desactivar componente?'
+    dialogContent = `¿Estás seguro de DESACTIVAR el componente "${nombreComponente}"? Pasará a estado INACTIVO.`
+    confirmButtonColor = 'warning'
+    confirmButtonText = 'Desactivar'
+    DialogIcon = SoftDeleteIcon
+  }
+  
   return (
     <>
       <ScaffoldLayout
@@ -212,7 +243,7 @@ const ComponentePage = ({ id }) => {
         PaperProps={{ sx: { borderRadius: 3, p: 1, maxWidth: 500 } }}
       >
         <DialogTitle id="alert-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningIcon color={confirmButtonColor} />
+          <DialogIcon color={confirmButtonColor} />
           {dialogTitle}
         </DialogTitle>
         <DialogContent>
@@ -229,7 +260,7 @@ const ComponentePage = ({ id }) => {
             variant="contained"
             color={confirmButtonColor}
             autoFocus
-            startIcon={isHardDelete ? <HardDeleteIcon /> : <SoftDeleteIcon />}
+            startIcon={<DialogIcon />}
             sx={{ fontWeight: 600, px: 3 }}
           >
             {confirmButtonText}

@@ -5,72 +5,59 @@ import { context } from '@redwoodjs/graphql-server'
    1. UTILIDADES INTERNAS (Identity Key)
 ============================================================ */
 const normalizarNombre = (nombre) => {
-  if (!nombre) return '' 
+  if (!nombre) return ''
   return nombre.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')
 }
 
-// Adaptado para recibir nombre del nodo y nombre del cluster
 const generarIdentityKeyFinal = (nombreNodo, nombreCluster, id) => {
   const nodoSlug = normalizarNombre(nombreNodo)
   const clusterSlug = normalizarNombre(nombreCluster)
-  
+
   if (id) {
     return `manual:cluster-nodo:${clusterSlug}:${nodoSlug}:${id}`
   }
   return `manual:cluster-nodo:${clusterSlug}:${nodoSlug}:manual`
 }
 
-
 /* ============================================================
-   2. QUERIES (Lectura de Datos)
+   2. QUERIES
 ============================================================ */
-
-// Para la Tabla (Lista)
 export const clusterNodos = () => {
   return db.clusterNodo.findMany({
     orderBy: { nombre: 'asc' },
   })
 }
 
-// Para la Vista Detalle
 export const clusterNodo = ({ id }) => {
   return db.clusterNodo.findUnique({
     where: { id },
   })
 }
 
-// Para obtener todos los parámetros necesarios del formulario de ClusterNodo
 export const parametrosFormularioClusterNodo = () => {
   return db.parametro.findMany({
     where: {
-      grupo: {
-        // AGREGAMOS 'TIPO_CLUSTER' AQUÍ:
-        in: ['NODO_ROL', 'TIPO_CLUSTER'] 
-      },
-      estado: 'ACTIVO'
+      grupo: { in: ['NODO_ROL'] },
+      estado: 'ACTIVO',
     },
-    orderBy: [{ grupo: 'asc' }, { nombre: 'asc' }]
+    orderBy: [{ grupo: 'asc' }, { nombre: 'asc' }],
   })
 }
 
 /* ============================================================
-   3. MUTATIONS (Crear, Actualizar, Borrar)
+   3. MUTATIONS
 ============================================================ */
-
 export const createClusterNodo = async ({ input }) => {
-  // CORRECCIÓN: Se usa context.currentUser
-  const currentUserId = context.currentUser?.id ?? 1 
+  const currentUserId = context.currentUser?.id ?? 1
 
-  // Paso extra necesario en ClusterNodo: Obtener el nombre del Cluster para la key
   const cluster = await db.cluster.findUnique({
     where: { id: input.clusterId },
   })
-  
+
   if (!cluster) {
     throw new Error(`Cluster con ID ${input.clusterId} no encontrado.`)
   }
 
-  // Lógica 1: Generar key temporal
   let keyToSave = input.identity_key?.trim() || ''
   if (!keyToSave) {
     keyToSave = generarIdentityKeyFinal(input.nombre, cluster.nombre, null)
@@ -84,35 +71,35 @@ export const createClusterNodo = async ({ input }) => {
       rol: input.rol,
       estado: input.estado || 'ACTIVO',
 
-      // Manejo de nulos para relaciones opcionales
       maquinaId: input.maquinaId || null,
       servidorId: input.servidorId || null,
 
       usuario_creacion: currentUserId,
       fecha_creacion: new Date(),
-      
+
       identity_key: keyToSave,
     },
   })
 
-  // Lógica 2: Actualizar key con el ID real si es manual
-  let nodoFinal = nodoCreado
-
+  // Actualizar identity_key con el ID real
   if (keyToSave === generarIdentityKeyFinal(nodoCreado.nombre, cluster.nombre, null)) {
-    const identity_key_final = generarIdentityKeyFinal(nodoCreado.nombre, cluster.nombre, nodoCreado.id)
+    const identity_key_final = generarIdentityKeyFinal(
+      nodoCreado.nombre,
+      cluster.nombre,
+      nodoCreado.id
+    )
 
-    nodoFinal = await db.clusterNodo.update({
+    return db.clusterNodo.update({
       where: { id: nodoCreado.id },
       data: { identity_key: identity_key_final },
     })
   }
 
-  return nodoFinal
+  return nodoCreado
 }
 
 export const updateClusterNodo = async ({ id, input }) => {
-  // CORRECCIÓN: Se usa context.currentUser
-  const currentUserId = context.currentUser?.id ?? 1 
+  const currentUserId = context.currentUser?.id ?? 1
 
   const nodoExistente = await db.clusterNodo.findUnique({ where: { id } })
 
@@ -120,28 +107,28 @@ export const updateClusterNodo = async ({ id, input }) => {
     throw new Error(`Nodo con ID ${id} no encontrado.`)
   }
 
-  // --- BLOQUEO DE SEGURIDAD (Mantenido de tu lógica anterior) ---
-  // Si no es manual, no permitimos editar.
-  if (!nodoExistente.identity_key || !nodoExistente.identity_key.startsWith('manual:')) {
-    throw new Error('ACCIÓN DENEGADA: Este nodo es gestionado por el sistema.')
-  }
+  // ❌ SE ELIMINA LA RESTRICCIÓN DE BLOQUEO
+  // Antes estaba aquí el throw "ACCIÓN DENEGADA"
 
-  // Lógica para recalcular identity_key si cambia el nombre o el cluster
+  // Recalcular identity_key si cambia nombre o cluster
   let nueva_identity_key = nodoExistente.identity_key
-  const isManualKey = nodoExistente.identity_key.startsWith('manual:')
-  
-  // Detectar cambios
-  const cambioNombre = input.nombre && normalizarNombre(input.nombre) !== normalizarNombre(nodoExistente.nombre)
-  const cambioCluster = input.clusterId && input.clusterId !== nodoExistente.clusterId
+
+  const cambioNombre =
+    input.nombre &&
+    normalizarNombre(input.nombre) !== normalizarNombre(nodoExistente.nombre)
+
+  const cambioCluster =
+    input.clusterId && input.clusterId !== nodoExistente.clusterId
+
+  const isManualKey = nodoExistente.identity_key?.startsWith('manual:')
 
   if (isManualKey && (cambioNombre || cambioCluster)) {
-    // Necesitamos el nombre del cluster (nuevo o actual)
     const clusterIdTarget = input.clusterId || nodoExistente.clusterId
     const cluster = await db.cluster.findUnique({ where: { id: clusterIdTarget } })
-    
+
     if (cluster) {
-        const nombreTarget = input.nombre || nodoExistente.nombre
-        nueva_identity_key = generarIdentityKeyFinal(nombreTarget, cluster.nombre, id)
+      const nombreTarget = input.nombre || nodoExistente.nombre
+      nueva_identity_key = generarIdentityKeyFinal(nombreTarget, cluster.nombre, id)
     }
   }
 
@@ -153,7 +140,7 @@ export const updateClusterNodo = async ({ id, input }) => {
       nodoTipo: input.nodoTipo,
       rol: input.rol,
       estado: input.estado,
-      
+
       maquinaId: input.maquinaId || null,
       servidorId: input.servidorId || null,
 
@@ -172,15 +159,18 @@ export const deleteClusterNodo = ({ id }) => {
 }
 
 /* ============================================================
-   4. RESOLVERS (El motor que conecta los datos)
+   4. RESOLVERS
 ============================================================ */
 export const ClusterNodo = {
-  // --- Relaciones de Prisma (Lazy Loading) ---
-  cluster: (_obj, { root }) => db.clusterNodo.findUnique({ where: { id: root.id } }).cluster(),
-  maquina: (_obj, { root }) => db.clusterNodo.findUnique({ where: { id: root.id } }).maquina(),
-  servidor: (_obj, { root }) => db.clusterNodo.findUnique({ where: { id: root.id } }).servidor(),
+  cluster: (_obj, { root }) =>
+    db.clusterNodo.findUnique({ where: { id: root.id } }).cluster(),
 
-  // --- Relaciones Calculadas: USUARIOS ---
+  maquina: (_obj, { root }) =>
+    db.clusterNodo.findUnique({ where: { id: root.id } }).maquina(),
+
+  servidor: (_obj, { root }) =>
+    db.clusterNodo.findUnique({ where: { id: root.id } }).servidor(),
+
   creadoPor: (_obj, { root }) => {
     if (!root.usuario_creacion) return null
     return db.usuario.findUnique({ where: { id: root.usuario_creacion } })
@@ -191,20 +181,19 @@ export const ClusterNodo = {
     return db.usuario.findUnique({ where: { id: root.usuario_modificacion } })
   },
 
-  // --- Relaciones Calculadas: PARAMETROS ---
   rolInfo: (_obj, { root }) => {
     if (!root.rol) return null
     return db.parametro.findFirst({
       where: {
         codigo: root.rol,
-        grupo: 'NODO_ROL'
-      }
+        grupo: 'NODO_ROL',
+      },
     })
   },
 }
 
 /* ============================================================
-   5. QUERY RESOLVERS (Permitir que GraphQL acceda a las queries)
+   5. QUERY RESOLVERS
 ============================================================ */
 export const Query = {
   clusterNodos,

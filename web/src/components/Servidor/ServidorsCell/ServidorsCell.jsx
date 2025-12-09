@@ -8,31 +8,33 @@ export const QUERY = gql`
       id
       nombre
       ip_primaria
-      marca
-      modelo
       ram
       almacenamiento
       estado
-      identity_key
-      
-      # Información de ubicación y jerarquía
+
+      # Ubicación
       data_centers {
-        nombre
-      }
-      servidores_padre {
+        id
         nombre
       }
 
-      # Información decodificada de parámetros
+      # Jerarquía
+      servidores_padre {
+        id
+        nombre
+      }
+
+      # Información decodificada (parámetros)
       tipoServidorInfo {
         nombre
       }
+
       estadoOperativoInfo {
         nombre
-        codigo 
+        codigo
       }
-      
-      # Auditoría básica
+
+      # Auditoría
       fecha_creacion
       creadoPor {
         id
@@ -40,6 +42,7 @@ export const QUERY = gql`
         primer_apellido
         segundo_apellido
       }
+
       fecha_modificacion
       modificadoPor {
         id
@@ -47,8 +50,17 @@ export const QUERY = gql`
         primer_apellido
         segundo_apellido
       }
+
+      cluster_nodos {
+        id
+        nombre
+        cluster {
+          id
+          nombre
+        }
+      }
     }
-  } 
+  }
 `
 
 export const Loading = () => <div>Cargando servidores...</div>

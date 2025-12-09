@@ -12,6 +12,10 @@ export const QUERY = gql`
       nombre
       cod_inventario_agetic
       cod_tipo_servidor
+      tipoServidorInfo {
+        id
+        nombre
+      }
       serie
       marca
       modelo
@@ -20,6 +24,11 @@ export const QUERY = gql`
       ip_primaria
       sistema_operativo
       estado_operativo
+      estadoOperativoInfo {
+        id
+        nombre
+        codigo
+      }
       estado
       id_data_center
       id_padre

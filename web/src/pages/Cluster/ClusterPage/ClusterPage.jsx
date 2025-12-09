@@ -21,7 +21,9 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   DeleteForever as HardDeleteIcon,
   Block as SoftDeleteIcon,
+  CheckCircle as RestoreIcon, // Icono para restaurar
   WarningAmberRounded as WarningIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material'
 
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
@@ -35,6 +37,7 @@ const QUERY = gql`
     cluster(id: $id) {
       id
       nombre
+      estado  # <--- IMPORTANTE: Agregado para lógica de estado
     }
   }
 `
@@ -63,12 +66,15 @@ const ClusterPage = ({ id }) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const openMenu = Boolean(anchorEl)
   
-  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' }
+  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' | 'restore' }
   const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null })
 
   // --- QUERIES & MUTATIONS ---
-  const { data } = useQuery(QUERY, { variables: { id } })
-  const nombreCluster = data?.cluster?.nombre || `Cluster #${id}`
+  const { data, refetch } = useQuery(QUERY, { variables: { id } })
+  
+  const cluster = data?.cluster || {}
+  const nombreCluster = cluster.nombre || `Cluster #${id}`
+  const isActivo = cluster.estado === 'ACTIVO' // Lógica de estado
 
   const [deleteCluster] = useMutation(DELETE_MUTATION, {
     onCompleted: () => {
@@ -79,11 +85,12 @@ const ClusterPage = ({ id }) => {
   })
 
   const [updateCluster] = useMutation(UPDATE_MUTATION, {
-    onCompleted: () => {
-      toast.success('Cluster desactivado (INACTIVO)')
-      navigate(routes.clusters())
+    onCompleted: (data) => {
+      const nuevoEstado = data.updateCluster.estado
+      toast.success(`Cluster ${nuevoEstado === 'ACTIVO' ? 'restaurado' : 'desactivado'} correctamente`)
+      refetch() // Recargamos para actualizar la UI
     },
-    onError: (err) => toast.error(err?.message || 'Error al desactivar'),
+    onError: (err) => toast.error(err?.message || 'Error al actualizar estado'),
   })
 
   /* -----------------------
@@ -92,9 +99,10 @@ const ClusterPage = ({ id }) => {
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget)
   const handleMenuClose = () => setAnchorEl(null)
 
-  const handleSoftDeleteClick = () => {
+  // Maneja tanto Desactivar como Restaurar
+  const handleToggleStateClick = () => {
     handleMenuClose()
-    setConfirmDialog({ open: true, type: 'soft' })
+    setConfirmDialog({ open: true, type: isActivo ? 'soft' : 'restore' })
   }
 
   const handleHardDeleteClick = () => {
@@ -113,6 +121,8 @@ const ClusterPage = ({ id }) => {
     handleCloseConfirm()
     if (confirmDialog.type === 'soft') {
       updateCluster({ variables: { id, input: { estado: 'INACTIVO' } } })
+    } else if (confirmDialog.type === 'restore') {
+      updateCluster({ variables: { id, input: { estado: 'ACTIVO' } } })
     } else if (confirmDialog.type === 'hard') {
       deleteCluster({ variables: { id } })
     }
@@ -130,16 +140,16 @@ const ClusterPage = ({ id }) => {
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       PaperProps={{
         elevation: 3,
-        sx: { mt: 1, minWidth: 240, borderRadius: 2 },
+        sx: { mt: 1, minWidth: 260, borderRadius: 2 },
       }}
     >
-      <MenuItem onClick={handleSoftDeleteClick} disableRipple sx={{ py: 1.5 }}>
+      <MenuItem onClick={handleToggleStateClick} disableRipple sx={{ py: 1.5 }}>
         <ListItemIcon>
-          <SoftDeleteIcon color="warning" />
+          {isActivo ? <SoftDeleteIcon color="warning" /> : <RestoreIcon color="success" />}
         </ListItemIcon>
         <ListItemText
-          primary="Desactivar"
-          secondary="Cambiar estado a INACTIVO"
+          primary={isActivo ? "Desactivar" : "Restaurar"}
+          secondary={isActivo ? "Cambiar estado a INACTIVO" : "Habilitar nuevamente el cluster"}
           primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
           secondaryTypographyProps={{ variant: 'caption' }}
         />
@@ -165,13 +175,12 @@ const ClusterPage = ({ id }) => {
   const actionButtons = [
     {
       label: 'Editar',
-      iconName: 'edit',
+      startIcon: <EditIcon />, 
       variant: 'contained',
       onClick: () => navigate(routes.editCluster({ id })),
     },
     {
       label: 'Opciones',
-      iconName: 'delete',
       variant: 'outlined',
       color: 'error',
       endIcon: <ArrowDownIcon />,
@@ -181,13 +190,31 @@ const ClusterPage = ({ id }) => {
   ]
 
   // Lógica visual del Dialog
-  const isHardDelete = confirmDialog.type === 'hard'
-  const dialogTitle = isHardDelete ? '¿Eliminar permanentemente?' : '¿Desactivar cluster?'
-  const dialogContent = isHardDelete
-    ? `Estás a punto de ELIMINAR PERMANENTEMENTE el cluster "${nombreCluster}". Esta acción eliminará la asociación con sus nodos y NO se puede deshacer.`
-    : `¿Estás seguro de DESACTIVAR el cluster "${nombreCluster}"? Pasará a estado INACTIVO.`
-  const confirmButtonColor = isHardDelete ? 'error' : 'warning'
-  const confirmButtonText = isHardDelete ? 'Eliminar' : 'Desactivar'
+  let dialogTitle = ''
+  let dialogContent = ''
+  let confirmButtonColor = 'primary'
+  let confirmButtonText = ''
+  let DialogIcon = WarningIcon
+
+  if (confirmDialog.type === 'hard') {
+    dialogTitle = '¿Eliminar permanentemente?'
+    dialogContent = `Estás a punto de ELIMINAR PERMANENTEMENTE el cluster "${nombreCluster}". Esta acción eliminará la asociación con sus nodos y NO se puede deshacer.`
+    confirmButtonColor = 'error'
+    confirmButtonText = 'Eliminar'
+    DialogIcon = HardDeleteIcon
+  } else if (confirmDialog.type === 'soft') {
+    dialogTitle = '¿Desactivar cluster?'
+    dialogContent = `¿Estás seguro de DESACTIVAR el cluster "${nombreCluster}"? Pasará a estado INACTIVO.`
+    confirmButtonColor = 'warning'
+    confirmButtonText = 'Desactivar'
+    DialogIcon = SoftDeleteIcon
+  } else if (confirmDialog.type === 'restore') {
+    dialogTitle = '¿Restaurar cluster?'
+    dialogContent = `¿Deseas RESTAURAR el cluster "${nombreCluster}"? Pasará a estado ACTIVO.`
+    confirmButtonColor = 'success'
+    confirmButtonText = 'Restaurar'
+    DialogIcon = RestoreIcon
+  }
 
   return (
     <>
@@ -207,16 +234,14 @@ const ClusterPage = ({ id }) => {
       <Dialog
         open={confirmDialog.open}
         onClose={handleCloseConfirm}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
         PaperProps={{ sx: { borderRadius: 3, p: 1, maxWidth: 500 } }}
       >
-        <DialogTitle id="alert-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningIcon color={confirmButtonColor} />
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DialogIcon color={confirmButtonColor} />
           {dialogTitle}
         </DialogTitle>
         <DialogContent>
-          <DialogContentText id="alert-dialog-description" sx={{ color: 'text.primary' }}>
+          <DialogContentText sx={{ color: 'text.primary' }}>
             {dialogContent}
           </DialogContentText>
         </DialogContent>
@@ -229,7 +254,7 @@ const ClusterPage = ({ id }) => {
             variant="contained"
             color={confirmButtonColor}
             autoFocus
-            startIcon={isHardDelete ? <HardDeleteIcon /> : <SoftDeleteIcon />}
+            startIcon={<DialogIcon />}
             sx={{ fontWeight: 600, px: 3 }}
           >
             {confirmButtonText}

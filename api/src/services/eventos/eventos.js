@@ -17,7 +17,7 @@ export const parametrosFormularioEvento = () => {
   return db.parametro.findMany({
     where: {
       grupo: {
-        in: ['TIPO_EVENTO', 'ESTADO_EVENTO']
+        in: ['TIPO_EVENTO', 'ESTADO_EVENTO', 'EVENTO']
       },
       estado: 'ACTIVO'
     },
@@ -149,6 +149,15 @@ export const Evento = {
       where: {
         codigo: root.estado_evento,
         grupo: 'ESTADO_EVENTO'
+      }
+    })
+  },
+  EventoInfo: (_obj, { root }) => {
+    if (!root.evento) return null
+    return db.parametro.findFirst({
+      where: {
+        codigo: root.evento,
+        grupo: 'EVENTO'
       }
     })
   },

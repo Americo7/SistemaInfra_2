@@ -1,4 +1,4 @@
-import { useQuery, gql } from '@redwoodjs/web'
+import { gql } from '@redwoodjs/web'
 import Servidor from 'src/components/Servidor/Servidor'
 
 export const QUERY = gql`
@@ -19,13 +19,12 @@ export const QUERY = gql`
       almacenamiento
       ip_primaria
       sistema_operativo
-      
-      # --- 3. CLASIFICACIÓN (Códigos + Info Legible) ---
+
+      # --- 3. CLASIFICACIÓN ---
       cod_tipo_servidor
       tipoServidorInfo {
         nombre
       }
-      
       estado_operativo
       estadoOperativoInfo {
         nombre
@@ -38,7 +37,6 @@ export const QUERY = gql`
         id
         nombre
       }
-      
       servidores_padre {
         id
         nombre
@@ -60,8 +58,8 @@ export const QUERY = gql`
         segundo_apellido
       }
 
-      # --- 6. RELACIONES HIJAS (Listas) ---
-      
+      # --- 6. RELACIONES HIJAS ---
+
       # Máquinas Virtuales
       maquinas {
         id
@@ -71,17 +69,23 @@ export const QUERY = gql`
         so
         ram
         cpu
-        almacenamiento
-        estado_operativo
+        estadoOperativoInfo {
+          id
+          nombre
+          codigo
+        }
       }
 
       # Participación en Clusters
       cluster_nodos {
         id
-        nombre    # Agregado: Importante para identificar el nodo
+        nombre
         nodoTipo
-        rol
-        estado
+        rolInfo {
+          id
+          codigo
+          nombre
+        }
         cluster {
           id
           nombre
@@ -92,8 +96,17 @@ export const QUERY = gql`
       # Despliegues de Sistemas
       despliegue {
         id
-        estado_despliegue
         fecha_despliegue
+        tipoRespaldoInfo {
+          id
+          codigo
+          nombre
+        }
+        estadoDespliegueInfo {
+          id
+          codigo
+          nombre
+        }
         componentes {
           id
           nombre
@@ -106,11 +119,18 @@ export const QUERY = gql`
         estado
         eventos {
           id
-          cod_tipo_evento
           descripcion
           fecha_evento
-          estado_evento
           solicitante
+          tipoEventoInfo {
+            id
+            nombre
+          }
+          estadoEventoInfo {
+            id
+            nombre
+            codigo
+          }
         }
       }
     }

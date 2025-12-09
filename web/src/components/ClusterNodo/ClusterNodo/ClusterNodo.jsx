@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-// Eliminamos useQuery y gql ya que no se hacen consultas internas
+
 import {
   Box,
   Typography,
@@ -11,8 +11,6 @@ import {
   Chip,
   Paper,
   Stack,
-  // Tabs, // Eliminado
-  // Tab,  // Eliminado
   Table,
   TableBody,
   TableCell,
@@ -35,12 +33,12 @@ import {
   Category as TypeIcon,
   CheckCircle as StatusIcon,
   Settings as ConfigIcon,
-  Layers as VmIcon, // Agregado icono para la sección de VMs
+  Layers as VmIcon,
 } from '@mui/icons-material'
 
-/* -----------------------
+/* ------------------------------------------
  * HELPERS
- * ----------------------- */
+ * ------------------------------------------ */
 const fmtDate = (d) => {
   if (!d) return '-'
   try {
@@ -56,15 +54,14 @@ const fmtDate = (d) => {
   }
 }
 
-const getUserFullName = (userObj) => {
-  if (!userObj) return '-'
-  const { nombres, primer_apellido, segundo_apellido } = userObj
-  return `${nombres} ${primer_apellido} ${segundo_apellido || ''}`.trim()
+const getUserFullName = (u) => {
+  if (!u) return '-'
+  return `${u.nombres} ${u.primer_apellido} ${u.segundo_apellido || ''}`.trim()
 }
 
-/* -----------------------
- * ROW ITEM
- * ----------------------- */
+/* ------------------------------------------
+ * SUBCOMPONENTE: RowItem
+ * ------------------------------------------ */
 const RowItem = ({ label, value, icon, isLast }) => (
   <Box
     sx={{
@@ -81,15 +78,13 @@ const RowItem = ({ label, value, icon, isLast }) => (
       color="text.secondary"
       sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}
     >
-      {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+      {icon && <Box sx={{ mr: 1 }}>{icon}</Box>}
       {label}
     </Typography>
 
-    <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
+    <Box sx={{ width: '60%' }}>
       {typeof value === 'string' || typeof value === 'number' ? (
-        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-          {value}
-        </Typography>
+        <Typography sx={{ fontWeight: 600 }}>{value}</Typography>
       ) : (
         value
       )}
@@ -97,9 +92,9 @@ const RowItem = ({ label, value, icon, isLast }) => (
   </Box>
 )
 
-/* -----------------------
- * SECTION CARD
- * ----------------------- */
+/* ------------------------------------------
+ * SUBCOMPONENTE: SectionCard
+ * ------------------------------------------ */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
 
@@ -108,36 +103,29 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
       sx={{
         borderRadius: 2,
         borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`,
-        height: '100%' // Asegura que las tarjetas tengan la misma altura
+        height: '100%',
       }}
     >
       <CardHeader
-        avatar={
-          <Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main, width: 32, height: 32 }}>
-            {icon}
-          </Avatar>
-        }
-        title={<Typography sx={{ fontWeight: 700 }}>{title}</Typography>}
-        sx={{ py: 1, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+        avatar={<Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main }}>{icon}</Avatar>}
+        title={<Typography fontWeight={700}>{title}</Typography>}
       />
       <CardContent sx={{ p: 1.5 }}>{children}</CardContent>
     </Card>
   )
 }
 
-/* -----------------------
- * CLUSTER NODO DETALLE
- * ----------------------- */
+/* ------------------------------------------
+ * COMPONENTE PRINCIPAL
+ * ------------------------------------------ */
 const ClusterNodo = ({ clusterNodo }) => {
   const theme = useTheme()
-  // const [tab, setTab] = useState(0) // Estado de tabs eliminado
 
-  // -- Data Processing --
-  const isPhysicalNode = clusterNodo?.nodoTipo === 'FISICO'
-  const isVirtualNode = clusterNodo?.nodoTipo === 'VIRTUAL'
-  const hostedVms = clusterNodo?.servidor?.maquinas || []
+  const isPhysicalNode = clusterNodo.nodoTipo === 'FISICO'
+  const isVirtualNode = clusterNodo.nodoTipo === 'VIRTUAL'
+  const hostedVms = clusterNodo.servidor?.maquinas || []
 
-  // Determinar Recurso Vinculado
+  /* -------- Recurso Vinculado ---------- */
   const recurso = useMemo(() => {
     if (isVirtualNode && clusterNodo.maquina) {
       return {
@@ -147,6 +135,7 @@ const ClusterNodo = ({ clusterNodo }) => {
         route: routes.maquina({ id: clusterNodo.maquina.id }),
       }
     }
+
     if (isPhysicalNode && clusterNodo.servidor) {
       return {
         tipo: 'Servidor Físico',
@@ -155,21 +144,18 @@ const ClusterNodo = ({ clusterNodo }) => {
         route: routes.servidor({ id: clusterNodo.servidor.id }),
       }
     }
+
     return {
       tipo: 'No definido',
       icon: <GeneralIcon fontSize="inherit" />,
       nombre: 'No asignado',
       route: null,
     }
-  }, [isVirtualNode, isPhysicalNode, clusterNodo])
+  }, [clusterNodo])
 
-  // const handleTabChange = (_, v) => setTab(v) // Handler eliminado
-
-  /* -----------------------
-   * RENDER
-   * ----------------------- */
   return (
     <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
+      {/* -------------------------------- HEADER -------------------------------- */}
       <Card
         elevation={0}
         sx={{
@@ -178,9 +164,8 @@ const ClusterNodo = ({ clusterNodo }) => {
           mb: 3,
         }}
       >
-        {/* HEADER (DISEÑO ORIGINAL RESTAURADO) */}
         <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Tooltip title="Volver a lista">
+          <Tooltip title="Volver">
             <IconButton
               onClick={() => navigate(routes.clusterNodos())}
               sx={{
@@ -212,23 +197,26 @@ const ClusterNodo = ({ clusterNodo }) => {
           </Box>
         </Box>
 
-        {/* CONTENIDO PRINCIPAL (ESTRUCTURA ORIGINAL RESTAURADA) */}
+        {/* --------------------------- GRID PRINCIPAL --------------------------- */}
         <CardContent sx={{ px: 5, pb: 5 }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 3, alignItems: 'start' }}>
-
-            {/* IZQUIERDA: INFORMACIÓN GENERAL Y VINCULACIONES COMBINADAS */}
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+              gap: 3,
+            }}
+          >
+            {/* ----------- IZQUIERDA ----------- */}
             <Stack spacing={2}>
               <SectionCard icon={<GeneralIcon />} title="Información General">
-                <RowItem
-                  label="Tipo de Nodo"
-                  value={clusterNodo.nodoTipo}
-                  icon={<TypeIcon />}
-                />
+                <RowItem label="Tipo de Nodo" value={clusterNodo.nodoTipo} icon={<TypeIcon />} />
+
                 <RowItem
                   label="Rol"
-                  value={clusterNodo.rolInfo?.nombre || clusterNodo.rol || 'No definido'}
+                  value={clusterNodo.rolInfo?.nombre || 'No definido'}
                   icon={<ConfigIcon />}
                 />
+
                 {clusterNodo.identity_key && (
                   <RowItem
                     label="Identificador"
@@ -241,11 +229,10 @@ const ClusterNodo = ({ clusterNodo }) => {
                             bgcolor: 'action.hover',
                             px: 0.5,
                             borderRadius: 1,
-                            display: 'inline-block',
                             maxWidth: '250px',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           {clusterNodo.identity_key}
@@ -256,6 +243,7 @@ const ClusterNodo = ({ clusterNodo }) => {
                 )}
 
                 <RowItem label="Tipo Recurso" value={recurso.tipo} icon={recurso.icon} />
+
                 <RowItem
                   label="Recurso Vinculado"
                   value={
@@ -263,8 +251,8 @@ const ClusterNodo = ({ clusterNodo }) => {
                       <Link
                         to={recurso.route}
                         style={{
-                          color: theme.palette.primary.main,
                           fontWeight: 600,
+                          color: theme.palette.primary.main,
                           textDecoration: 'none',
                         }}
                       >
@@ -275,8 +263,9 @@ const ClusterNodo = ({ clusterNodo }) => {
                     )
                   }
                 />
+
                 <RowItem
-                  label="Cluster Perteneciente"
+                  label="Cluster"
                   icon={<ClusterIcon />}
                   isLast
                   value={
@@ -284,8 +273,8 @@ const ClusterNodo = ({ clusterNodo }) => {
                       <Link
                         to={routes.cluster({ id: clusterNodo.cluster.id })}
                         style={{
-                          color: theme.palette.primary.main,
                           fontWeight: 600,
+                          color: theme.palette.primary.main,
                           textDecoration: 'none',
                         }}
                       >
@@ -299,22 +288,18 @@ const ClusterNodo = ({ clusterNodo }) => {
               </SectionCard>
             </Stack>
 
-            {/* DERECHA: AUDITORÍA Y ESTADO */}
+            {/* ----------- DERECHA (AUDITORÍA) ----------- */}
             <Stack spacing={2}>
-              <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
+              <SectionCard icon={<AuditIcon />} title="Auditoría" bgcolor={theme.palette.warning.main}>
                 <RowItem
-                  label="Estado Actual"
+                  label="Estado"
                   value={
                     <Chip
                       label={clusterNodo.estado}
                       size="small"
                       color={clusterNodo.estado === 'ACTIVO' ? 'success' : 'error'}
                       icon={<StatusIcon fontSize="small" />}
-                      sx={{
-                        height: 20,
-                        fontWeight: 700,
-                        fontSize: '0.75rem',
-                      }}
+                      sx={{ height: 20, fontWeight: 700 }}
                     />
                   }
                 />
@@ -328,25 +313,37 @@ const ClusterNodo = ({ clusterNodo }) => {
         </CardContent>
       </Card>
 
-      {/* --------- SECCIÓN DINÁMICA: VMS ALOJADAS (Solo si es Físico) --------- */}
-      {/* Se eliminaron los tabs y se muestra esta sección condicionalmente */}
+      {/* -----------------------------------------------------------------------------
+       * SECCIÓN DE MÁQUINAS VIRTUALES ALOJADAS (Sólo si es nodo Físico)
+       ----------------------------------------------------------------------------- */}
       {isPhysicalNode && (
-        <Card sx={{ borderRadius: 2, border: `1px solid ${theme.palette.divider}`, mt: 3 }} elevation={0}>
+        <Card
+          sx={{
+            borderRadius: 2,
+            border: `1px solid ${theme.palette.divider}`,
+            mt: 3,
+          }}
+          elevation={0}
+        >
           <CardHeader
             avatar={
-               <Avatar sx={{ bgcolor: theme.palette.secondary.main, width: 32, height: 32 }}>
-                  <VmIcon fontSize="small"/>
-               </Avatar>
+              <Avatar sx={{ bgcolor: theme.palette.secondary.main, width: 32, height: 32 }}>
+                <VmIcon fontSize="small" />
+              </Avatar>
             }
             title={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Typography variant="subtitle1" fontWeight={700}>
-                        Máquinas Virtuales Alojadas
-                    </Typography>
-                    <Chip label={hostedVms.length} size="small" color="secondary" sx={{ height: 20 }} />
-                </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700}>
+                  Máquinas Virtuales Alojadas
+                </Typography>
+                <Chip
+                  label={hostedVms.length}
+                  size="small"
+                  color="secondary"
+                  sx={{ height: 20 }}
+                />
+              </Box>
             }
-            sx={{ borderBottom: `1px solid ${theme.palette.divider}`, px: 3, py: 1.5 }}
           />
 
           <CardContent sx={{ p: 0 }}>
@@ -357,36 +354,73 @@ const ClusterNodo = ({ clusterNodo }) => {
                     <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: 'background.default' } }}>
                       <TableCell sx={{ pl: 3 }}>VMID</TableCell>
                       <TableCell>Nombre</TableCell>
+                      <TableCell>RAM (GB)</TableCell>
+                      <TableCell>CPU</TableCell>
                       <TableCell>IP</TableCell>
-                      <TableCell>Plataforma</TableCell>
                       <TableCell align="center">Estado</TableCell>
                     </TableRow>
                   </TableHead>
+
                   <TableBody>
-                    {hostedVms.map((vm) => (
-                      <TableRow key={vm.id} hover>
-                        <TableCell sx={{ pl: 3, fontFamily: 'monospace' }}>{vm.proxmox_vmid || '-'}</TableCell>
-                        <TableCell>
-                          <Link
-                            to={routes.maquina({ id: vm.id })}
-                            style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}
-                          >
-                            {vm.nombre}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{vm.ip || '-'}</TableCell>
-                        <TableCell>{vm.cod_plataforma}</TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={vm.estado_operativo || 'Desconocido'}
-                            size="small"
-                            variant="outlined"
-                            color={vm.estado_operativo === 'RUNNING' ? 'success' : 'default'}
-                            sx={{ height: 20, fontSize: '0.7rem', minWidth: 80 }}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {hostedVms.map((vm) => {
+                      const estado = vm.estadoOperativoInfo?.nombre || 'Desconocido'
+                      const color =
+                        estado === 'Operativo'
+                          ? 'success'
+                          : estado === 'Fuera de Servicio'
+                          ? 'error'
+                          : 'default'
+
+                      return (
+                        <TableRow key={vm.id} hover>
+                          {/* VMID */}
+                          <TableCell sx={{ pl: 3, fontFamily: 'monospace' }}>
+                            {vm.proxmox_vmid || '-'}
+                          </TableCell>
+
+                          {/* Nombre sin subrayado */}
+                          <TableCell>
+                            <Link
+                              to={routes.maquina({ id: vm.id })}
+                              style={{
+                                fontWeight: 600,
+                                color: theme.palette.primary.main,
+                                textDecoration: 'none',
+                              }}
+                            >
+                              {vm.nombre}
+                            </Link>
+                          </TableCell>
+
+                          {/* RAM */}
+                          <TableCell>
+                            {vm.ram ? `${(vm.ram)} GB` : '-'}
+                          </TableCell>
+
+                          {/* CPU */}
+                          <TableCell>{vm.cpu || '-'}</TableCell>
+
+                          {/* IP */}
+                          <TableCell>{vm.ip || '-'}</TableCell>
+
+                          {/* Estado operativo */}
+                          <TableCell align="center">
+                            <Chip
+                              label={estado}
+                              size="small"
+                              variant="outlined"
+                              color={color}
+                              sx={{
+                                height: 20,
+                                fontSize: '0.75rem',
+                                minWidth: 120,
+                                fontWeight: 600,
+                              }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>

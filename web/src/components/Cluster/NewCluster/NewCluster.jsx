@@ -33,9 +33,6 @@ const NewCluster = () => {
   return (
     <div className="rw-segment">
       <div className="rw-segment-main">
-        {/* IMPORTANTE: No pasamos props de datos (endpoints/parámetros) 
-           porque ClusterForm ya usa useQuery internamente para obtenerlos.
-        */}
         <ClusterForm onSave={onSave} loading={loading} error={error} />
       </div>
     </div>

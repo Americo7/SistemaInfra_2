@@ -15,6 +15,7 @@ import {
   TextSnippet as CsvIcon,
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
+  RestoreFromTrash as RestoreIcon,
 } from '@mui/icons-material'
 
 import {
@@ -61,20 +62,11 @@ const QUERY_REFETCH = gql`
 `
 
 // --- HELPERS ---
-const parseAlmacenamiento = (value) => {
-  if (!value) return []
-  try {
-    return typeof value === 'string' ? JSON.parse(value) : value
-  } catch {
-    return []
-  }
-}
-
 const getStatusColor = (codigo) => {
   if (!codigo) return 'default'
   const c = codigo.toUpperCase()
   if (['OPERATIVO', 'ACTIVO', 'ONLINE', 'RUNNING', 'OK'].includes(c)) return 'success'
-  if (['FUERA_SERVICIO', 'BAJA', 'ERROR', 'STOPPED', 'OFFLINE', 'FALLA'].includes(c)) return 'error'
+  if (['FUERA_SERVICIO', 'BAJA', 'ERROR', 'STOPPED', 'OFFLINE', 'FALLA', 'INACTIVO'].includes(c)) return 'error'
   if (['MANTENIMIENTO', 'WARNING', 'RESTARTING'].includes(c)) return 'warning'
   return 'default'
 }
@@ -85,9 +77,6 @@ const formatUser = (userObj) => {
     return `${userObj.nombres || ''} ${userObj.primer_apellido || ''}`.trim()
 }
 
-// Objeto helpers simplificado para el exportador
-// Nota: Como usamos accessorFn en las columnas, el exportador recibirá los valores ya procesados,
-// pero mantenemos esto por compatibilidad si el exportador lo requiere.
 const helpers = {
     getNombrePlataforma: (val) => val, 
     getUsuarioNombre: (val) => val,
@@ -120,7 +109,8 @@ const Maquinas = ({ maquinas }) => {
   // --- HANDLERS DE ELIMINACIÓN ---
   const handleSoftDelete = (rows) => {
     rows.forEach((maquina) => {
-      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      // Si showDeleted es true, queremos RESTAURAR (ACTIVO). Si es false, queremos DESACTIVAR (INACTIVO).
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO' 
       updateMaquina({
         variables: { id: maquina.id, input: { estado: newState } },
       })
@@ -133,8 +123,8 @@ const Maquinas = ({ maquinas }) => {
 
   const handleHardDelete = (rows) => {
     if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
-        closeAllDialogs()
-        return
+      closeAllDialogs()
+      return
     }
 
     rows.forEach((maquina) => {
@@ -145,11 +135,12 @@ const Maquinas = ({ maquinas }) => {
     closeAllDialogs()
   }
 
-  // --- DATOS ---
+  // --- DATOS (LÓGICA DE FILTRADO CORREGIDA) ---
   const filteredData = useMemo(() => {
     if (!maquinas) return []
     return maquinas.filter((m) =>
-      showDeleted ? m.estado === 'INACTIVO' : m.estado === 'ACTIVO'
+      // Mostrar todos los no-eliminados vs solo los eliminados
+      showDeleted ? m.estado === 'INACTIVO' : m.estado !== 'INACTIVO'
     )
   }, [maquinas, showDeleted])
 
@@ -182,47 +173,89 @@ const Maquinas = ({ maquinas }) => {
     },
     { accessorKey: 'ip', header: 'IP', size: 130 },
     { 
-        accessorKey: 'ram', 
-        header: 'RAM', 
-        size: 90, 
-        Cell: ({ cell }) => `${cell.getValue()} GB` 
-    },
-    {
-      accessorKey: 'almacenamiento',
-      header: 'Discos',
-      size: 160,
-      Cell: ({ row }) => {
-        const discos = parseAlmacenamiento(row.original.almacenamiento)
-        return (
-          <Stack direction="row" spacing={0.5} flexWrap="wrap">
-            {discos.length ? discos.map((d, i) => (
-              <Chip key={i} size="small" label={`D${d.Disco}: ${d.Valor}GB`} variant="outlined" sx={{ height: 22, fontSize: '0.75rem' }} />
-            )) : <Chip size="small" label="-" variant="outlined" />}
-          </Stack>
-        )
-      },
+      accessorKey: 'ram', 
+      header: 'RAM', 
+      size: 90, 
+      Cell: ({ cell }) => `${cell.getValue()} GB` 
     },
     { 
-        accessorKey: 'cpu', 
-        header: 'CPU', 
-        size: 90, 
-        Cell: ({ cell }) => `${cell.getValue()} vCores` 
+      accessorKey: 'cpu', 
+      header: 'CPU', 
+      size: 90, 
+      Cell: ({ cell }) => `${cell.getValue()} vCores` 
     },
     { accessorKey: 'so', header: 'SO', size: 110 },
     
-    // --- COLUMNAS CON RELACIONES ---
+    // --- COLUMNAS CON RELACIONES JERÁRQUICAS ---
+    { 
+        id: 'host',
+        header: 'Host (Servidor)', 
+        size: 150, 
+        accessorFn: (row) => row.servidores?.nombre || '-',
+        Cell: ({ row }) => {
+            const servidor = row.original.servidores
+            if (!servidor?.id) return '-';
+            return (
+                <Link 
+                    to={routes.servidor({ id: servidor.id })}
+                    style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.info.main }}
+                >
+                    {servidor.nombre}
+                </Link>
+            )
+        }
+    },
+    {
+        id: 'data_center',
+        header: 'Data Center',
+        size: 150,
+        accessorFn: (row) => row.servidores?.data_centers?.nombre || '-',
+        Cell: ({ row }) => {
+            const dataCenter = row.original.servidores?.data_centers
+            if (!dataCenter?.id) return '-';
+            return (
+                <Link 
+                    to={routes.dataCenter({ id: dataCenter.id })}
+                    style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.info.main }}
+                >
+                    {dataCenter.nombre}
+                </Link>
+            )
+        }
+    },
+    { 
+        id: 'cluster_perteneciente',
+        header: 'Cluster', 
+        size: 150, 
+        accessorFn: (row) => {
+            const vmCluster = row.cluster_nodos?.[0]?.cluster;
+            const hostCluster = row.servidores?.cluster_nodos?.[0]?.cluster;
+            const targetCluster = vmCluster || hostCluster;
+            return targetCluster?.nombre || '-';
+        },
+        Cell: ({ row }) => {
+            const vmCluster = row.original.cluster_nodos?.[0]?.cluster;
+            const hostCluster = row.original.servidores?.cluster_nodos?.[0]?.cluster;
+            const targetCluster = vmCluster || hostCluster;
+            
+            if (!targetCluster?.id) return '-';
+
+            return (
+                <Link 
+                    to={routes.cluster({ id: targetCluster.id })}
+                    style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.info.main }}
+                >
+                    {targetCluster.nombre}
+                </Link>
+            )
+        }
+    },
     { 
         // Usamos accessorFn para que el exportador obtenga el nombre real, no el código
         id: 'plataforma',
         header: 'Plataforma', 
         size: 120,
-        accessorFn: (row) => row.plataformaInfo?.nombre || row.cod_plataforma || '-',
-    },
-    { 
-        id: 'host',
-        header: 'Host', 
-        size: 120, 
-        accessorFn: (row) => row.servidores?.nombre || '-' 
+        accessorFn: (row) => row.plataformaInfo?.nombre || '-',
     },
     {
       id: 'estado_operativo',
@@ -285,7 +318,7 @@ const Maquinas = ({ maquinas }) => {
         size: 150, 
         accessorFn: (row) => formatUser(row.modificadoPor)
     },
-  ], []) // Sin dependencias externas
+  ], [theme])
 
   // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
@@ -301,8 +334,7 @@ const Maquinas = ({ maquinas }) => {
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
-        almacenamiento: false,
-        so: false, 
+        so: false,
         estado: false,
         fecha_creacion: false, 
         creadoPor: false, 
@@ -362,14 +394,14 @@ const Maquinas = ({ maquinas }) => {
         fontWeight: 'bold',
         fontSize: '0.85rem',
         borderBottom: `1px solid ${theme.palette.divider}`, 
-        borderRight: `1px solid ${theme.palette.divider}`,  
+        borderRight: `1px solid ${theme.palette.divider}`,  
         '&:last-child': { borderRight: 'none' },
       }
     },
     muiTableBodyCellProps: {
-        sx: {
-            borderBottom: `1px solid ${theme.palette.divider}`,
-        }
+      sx: {
+        borderBottom: `1px solid ${theme.palette.divider}`,
+      }
     },
     muiTableBodyRowProps: ({ row }) => ({
       sx: {
@@ -480,8 +512,8 @@ const Maquinas = ({ maquinas }) => {
         onClose={closeAllDialogs}
       >
         <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
-          Desactivar (Soft Delete)
+          <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
+          {showDeleted ? 'Restaurar (Activar)' : 'Desactivar (Soft Delete)'}
         </MenuItem>
         <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
@@ -496,10 +528,17 @@ const Maquinas = ({ maquinas }) => {
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
       
       handleBulkAction: (e) => {
+        if (selectedRowCount === 0) {
+            toast.error('Debe seleccionar al menos un registro.')
+            return;
+        }
+
         if (showDeleted) {
-            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+             // Si estamos viendo eliminados, el botón principal es RESTAURAR
+             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
         } else {
-            setBulkMenuAnchorEl(e.currentTarget)
+             // Si estamos viendo activos, el botón principal abre el menú de baja/eliminación
+             setBulkMenuAnchorEl(e.currentTarget)
         }
       },
       
@@ -513,7 +552,8 @@ const Maquinas = ({ maquinas }) => {
     exportMenuAnchorEl, 
     bulkMenuAnchorEl, 
     table.getState().rowSelection,
-    table.getState().pagination
+    table.getState().pagination,
+    table.getSelectedRowModel().rows.length, 
   ])
 
   return (

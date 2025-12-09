@@ -21,7 +21,9 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   DeleteForever as HardDeleteIcon,
   Block as SoftDeleteIcon,
+  CheckCircle as RestoreIcon, // Icono para restaurar
   WarningAmberRounded as WarningIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material'
 
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout'
@@ -35,6 +37,7 @@ const MAQUINA_QUERY = gql`
     maquina(id: $id) {
       id
       nombre
+      estado  # <--- IMPORTANTE: Agregado para lógica de estado
     }
   }
 `
@@ -62,13 +65,15 @@ const MaquinaPage = ({ id }) => {
   const [anchorEl, setAnchorEl] = useState(null)
   const openMenu = Boolean(anchorEl)
 
-  // Estado para el Dialog de Confirmación
-  // Guardamos el tipo de acción ('soft' o 'hard')
+  // Estado para el Dialog: { open: boolean, type: 'soft' | 'hard' | 'restore' }
   const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null })
 
-  // 1. Carga de datos básica
-  const { data } = useQuery(MAQUINA_QUERY, { variables: { id } })
-  const nombreMaquina = data?.maquina?.nombre || 'Cargando...'
+  // 1. Carga de datos
+  const { data, refetch } = useQuery(MAQUINA_QUERY, { variables: { id } })
+  
+  const maquina = data?.maquina || {}
+  const nombreMaquina = maquina.nombre || 'Cargando...'
+  const isActivo = maquina.estado === 'ACTIVO' // Lógica de estado
 
   // 2. Mutaciones
   const [deleteMaquina] = useMutation(DELETE_MAQUINA_MUTATION, {
@@ -80,9 +85,10 @@ const MaquinaPage = ({ id }) => {
   })
 
   const [updateMaquina] = useMutation(UPDATE_MAQUINA_MUTATION, {
-    onCompleted: () => {
-      toast.success('Máquina desactivada (INACTIVO)')
-      navigate(routes.maquinas())
+    onCompleted: (data) => {
+      const nuevoEstado = data.updateMaquina.estado
+      toast.success(`Máquina ${nuevoEstado === 'ACTIVO' ? 'restaurada' : 'desactivada'} correctamente`)
+      refetch() // Recargamos para actualizar el botón
     },
     onError: (error) => toast.error(error.message),
   })
@@ -93,10 +99,10 @@ const MaquinaPage = ({ id }) => {
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget)
   const handleMenuClose = () => setAnchorEl(null)
 
-  // Abre el diálogo para "Desactivar"
-  const handleSoftDeleteClick = () => {
+  // Maneja tanto Desactivar como Restaurar
+  const handleToggleStateClick = () => {
     handleMenuClose()
-    setConfirmDialog({ open: true, type: 'soft' })
+    setConfirmDialog({ open: true, type: isActivo ? 'soft' : 'restore' })
   }
 
   // Abre el diálogo para "Eliminar Permanentemente"
@@ -115,6 +121,8 @@ const MaquinaPage = ({ id }) => {
     handleCloseConfirm()
     if (confirmDialog.type === 'soft') {
       updateMaquina({ variables: { id, input: { estado: 'INACTIVO' } } })
+    } else if (confirmDialog.type === 'restore') {
+      updateMaquina({ variables: { id, input: { estado: 'ACTIVO' } } })
     } else if (confirmDialog.type === 'hard') {
       deleteMaquina({ variables: { id } })
     }
@@ -132,16 +140,16 @@ const MaquinaPage = ({ id }) => {
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       PaperProps={{
         elevation: 3,
-        sx: { mt: 1, minWidth: 240, borderRadius: 2 },
+        sx: { mt: 1, minWidth: 260, borderRadius: 2 },
       }}
     >
-      <MenuItem onClick={handleSoftDeleteClick} disableRipple sx={{ py: 1.5 }}>
+      <MenuItem onClick={handleToggleStateClick} disableRipple sx={{ py: 1.5 }}>
         <ListItemIcon>
-          <SoftDeleteIcon color="warning" />
+          {isActivo ? <SoftDeleteIcon color="warning" /> : <RestoreIcon color="success" />}
         </ListItemIcon>
         <ListItemText
-          primary="Desactivar"
-          secondary="Cambiar estado a INACTIVO"
+          primary={isActivo ? "Desactivar" : "Restaurar"}
+          secondary={isActivo ? "Cambiar estado a INACTIVO" : "Habilitar nuevamente la máquina"}
           primaryTypographyProps={{ variant: 'body2', fontWeight: 600 }}
           secondaryTypographyProps={{ variant: 'caption' }}
         />
@@ -162,18 +170,17 @@ const MaquinaPage = ({ id }) => {
   )
 
   /* -----------------------
-   * CONFIGURACIÓN BOTONES
+   * CONFIGURACIÓN BOTONES SCAFFOLD
    * ----------------------- */
   const actionButtons = [
     {
       label: 'Editar',
-      iconName: 'edit',
+      startIcon: <EditIcon />, // Pasando el componente icono directamente
       variant: 'contained',
       onClick: () => navigate(routes.editMaquina({ id })),
     },
     {
       label: 'Opciones',
-      iconName: 'delete',
       variant: 'outlined',
       color: 'error',
       endIcon: <ArrowDownIcon />,
@@ -182,14 +189,32 @@ const MaquinaPage = ({ id }) => {
     },
   ]
 
-  // Determinar textos y colores del diálogo según la acción
-  const isHardDelete = confirmDialog.type === 'hard'
-  const dialogTitle = isHardDelete ? '¿Eliminar permanentemente?' : '¿Desactivar máquina?'
-  const dialogContent = isHardDelete
-    ? `Estás a punto de ELIMINAR PERMANENTEMENTE la máquina "${nombreMaquina}". Esta acción NO se puede deshacer.`
-    : `¿Estás seguro de DESACTIVAR la máquina "${nombreMaquina}"? Pasará a estado INACTIVO.`
-  const confirmButtonColor = isHardDelete ? 'error' : 'warning'
-  const confirmButtonText = isHardDelete ? 'Eliminar' : 'Desactivar'
+  // Lógica visual del Dialog
+  let dialogTitle = ''
+  let dialogContent = ''
+  let confirmButtonColor = 'primary'
+  let confirmButtonText = ''
+  let DialogIcon = WarningIcon
+
+  if (confirmDialog.type === 'hard') {
+    dialogTitle = '¿Eliminar permanentemente?'
+    dialogContent = `Estás a punto de ELIMINAR PERMANENTEMENTE la máquina "${nombreMaquina}". Esta acción NO se puede deshacer.`
+    confirmButtonColor = 'error'
+    confirmButtonText = 'Eliminar'
+    DialogIcon = HardDeleteIcon
+  } else if (confirmDialog.type === 'soft') {
+    dialogTitle = '¿Desactivar máquina?'
+    dialogContent = `¿Estás seguro de DESACTIVAR la máquina "${nombreMaquina}"? Pasará a estado INACTIVO.`
+    confirmButtonColor = 'warning'
+    confirmButtonText = 'Desactivar'
+    DialogIcon = SoftDeleteIcon
+  } else if (confirmDialog.type === 'restore') {
+    dialogTitle = '¿Restaurar máquina?'
+    dialogContent = `¿Deseas RESTAURAR la máquina "${nombreMaquina}"? Pasará a estado ACTIVO.`
+    confirmButtonColor = 'success'
+    confirmButtonText = 'Restaurar'
+    DialogIcon = RestoreIcon
+  }
 
   return (
     <>
@@ -204,21 +229,19 @@ const MaquinaPage = ({ id }) => {
       </ScaffoldLayout>
 
       {/* -----------------------
-       * DIALOGO DE CONFIRMACIÓN (Modal Bonito)
+       * DIALOGO DE CONFIRMACIÓN
        * ----------------------- */}
       <Dialog
         open={confirmDialog.open}
         onClose={handleCloseConfirm}
-        aria-labelledby="alert-dialog-title"
-        aria-describedby="alert-dialog-description"
-        PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+        PaperProps={{ sx: { borderRadius: 3, p: 1, maxWidth: 500 } }}
       >
-        <DialogTitle id="alert-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <WarningIcon color={confirmButtonColor} />
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <DialogIcon color={confirmButtonColor} />
           {dialogTitle}
         </DialogTitle>
         <DialogContent>
-          <DialogContentText id="alert-dialog-description" sx={{ color: 'text.primary' }}>
+          <DialogContentText sx={{ color: 'text.primary' }}>
             {dialogContent}
           </DialogContentText>
         </DialogContent>
@@ -231,7 +254,7 @@ const MaquinaPage = ({ id }) => {
             variant="contained"
             color={confirmButtonColor}
             autoFocus
-            startIcon={isHardDelete ? <HardDeleteIcon /> : <SoftDeleteIcon />}
+            startIcon={<DialogIcon />}
             sx={{ fontWeight: 600, px: 3 }}
           >
             {confirmButtonText}

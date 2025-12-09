@@ -33,7 +33,9 @@ import {
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/servidoresExporter'
 
-// --- GRAPHQL ---
+/* ------------------------------------------
+   MUTACIONES
+------------------------------------------ */
 const UPDATE_SERVIDOR_MUTATION = gql`
   mutation UpdateServidor($id: Int!, $input: UpdateServidorInput!) {
     updateServidor(id: $id, input: $input) {
@@ -60,33 +62,48 @@ const QUERY_REFETCH = gql`
   }
 `
 
-// --- HELPERS ---
+/* ------------------------------------------
+   HELPERS
+------------------------------------------ */
 const getStatusColor = (codigo) => {
   if (!codigo) return 'default'
   const c = codigo.toUpperCase()
+
   if (['OPERATIVO', 'ACTIVO', 'ONLINE', 'RUNNING'].includes(c)) return 'success'
-  if (['FUERA_SERVICIO', 'BAJA', 'ERROR', 'STOPPED', 'OFFLINE', 'FALLA', 'APAGADO'].includes(c)) return 'error'
-  if (['MANTENIMIENTO', 'WARNING', 'RESTARTING', 'DISPONIBLE'].includes(c)) return 'warning'
+  if (['FUERA_SERVICIO', 'BAJA', 'ERROR', 'STOPPED', 'OFFLINE'].includes(c)) return 'error'
+  if (['MANTENIMIENTO', 'WARNING', 'RESTARTING'].includes(c)) return 'warning'
+
   return 'default'
 }
-
 
 const formatDate = (d) => {
   if (!d) return '-'
   try {
-    return new Date(d).toLocaleString('es-BO', {
-      day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    })
-  } catch { return '-' }
+    return new Date(d).toLocaleString('es-BO')
+  } catch {
+    return '-'
+  }
 }
 
+/* ------------------------------------------
+   COMPONENTE PRINCIPAL
+------------------------------------------ */
 const Servidores = ({ servidores, parametros, usuarios }) => {
   const theme = useTheme()
+
+  /* -------------------------
+     SELECCIÓN CONTROLADA
+  -------------------------- */
+  const [rowSelection, setRowSelection] = useState({})
+
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
-  
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
+
+  const closeAllDialogs = () => {
+    setExportMenuAnchorEl(null)
+    setBulkMenuAnchorEl(null)
+  }
 
   const [updateServidor] = useMutation(UPDATE_SERVIDOR_MUTATION, {
     onError: (error) => toast.error(error.message),
@@ -99,44 +116,19 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  const closeAllDialogs = () => {
-    setExportMenuAnchorEl(null)
-    setBulkMenuAnchorEl(null)
-  }
+  /* ------------------------------------------
+     FILTRO ACTIVOS/INACTIVOS
+  ------------------------------------------ */
+  const filteredData = useMemo(() => {
+    if (!servidores) return []
+    return servidores.filter((s) =>
+      showDeleted ? s.estado === 'INACTIVO' : s.estado === 'ACTIVO'
+    )
+  }, [servidores, showDeleted])
 
-  // --- HANDLERS DE ELIMINACIÓN ---
-  const handleSoftDelete = (rows) => {
-    rows.forEach((servidor) => {
-      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
-      updateServidor({
-        variables: { id: servidor.id, input: { estado: newState, usuario_modificacion: 1 } },
-      })
-    })
-    
-    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
-    table.toggleAllRowsSelected(false)
-    closeAllDialogs()
-  }
-
-  const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
-        closeAllDialogs()
-        return
-    }
-
-    rows.forEach((servidor) => {
-      deleteServidor({ variables: { id: servidor.id } })
-    })
-    
-    table.toggleAllRowsSelected(false)
-    closeAllDialogs()
-  }
-
-  // --- MAPEOS ---
-  const tiposServidorMap = useMemo(() => {
-    return (parametros || []).reduce((a, p) => { a[p.codigo] = p.nombre; return a }, {})
-  }, [parametros])
-
+  /* ------------------------------------------
+     MAPEOS
+  ------------------------------------------ */
   const estadosOperativosMap = useMemo(() => {
     return (parametros || [])
       .filter((p) => p.grupo === 'ESTADO_OPERATIVO')
@@ -147,90 +139,209 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
   }, [parametros])
 
   const usuariosMap = useMemo(() => {
-    return (usuarios || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
+    return (usuarios || []).reduce((acc, u) => {
+      acc[u.id] = `${u.nombres} ${u.primer_apellido}`
+      return acc
+    }, {})
   }, [usuarios])
 
   const helpers = {
-    getNombreTipoServidor: (c) => tiposServidorMap[c] || c || '-',
-    getUsuarioNombre: (id) => usuariosMap[id] || `ID: ${id}`,
+    getUsuarioNombre: (id) => usuariosMap[id] || `ID ${id}`,
     getNombreEstadoOperativo: (c) => estadosOperativosMap[c] || c || 'Desconocido',
   }
 
-  // --- DATOS ---
-  const filteredData = useMemo(() => {
-    if (!servidores) return []
-    return servidores.filter((s) =>
-      showDeleted ? s.estado === 'INACTIVO' : s.estado === 'ACTIVO'
+  /* ------------------------------------------
+     SOFT DELETE / RESTAURAR
+  ------------------------------------------ */
+  const handleSoftDelete = (rows) => {
+    rows.forEach((servidor) => {
+      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+      updateServidor({
+        variables: { id: servidor.id, input: { estado: newState } },
+      })
+    })
+
+    toast.success(
+      `${rows.length} registro(s) ${showDeleted ? 'restaurado(s)' : 'desactivado(s)'}.`
     )
-  }, [servidores, showDeleted])
 
-  const columns = useMemo(() => [
-    { accessorKey: 'id', header: 'ID', size: 60 },
-    {
-      accessorKey: 'nombre',
-      header: 'Nombre Servidor',
-      size: 200,
-      Cell: ({ row }) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <ServerIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
-          <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+    setRowSelection({})
+    closeAllDialogs()
+  }
+
+  /* ------------------------------------------
+     HARD DELETE
+  ------------------------------------------ */
+  const handleHardDelete = (rows) => {
+    if (!confirm(`¿Eliminar DEFINITIVAMENTE ${rows.length} registro(s)?`)) {
+      closeAllDialogs()
+      return
+    }
+
+    rows.forEach((servidor) => {
+      deleteServidor({ variables: { id: servidor.id } })
+    })
+
+    toast.success('Registros eliminados permanentemente.')
+
+    setRowSelection({})
+    closeAllDialogs()
+  }
+
+  /* ------------------------------------------
+     COLUMNS
+  ------------------------------------------ */
+  const columns = useMemo(
+    () => [
+      { accessorKey: 'id', header: 'ID', size: 60 },
+
+      {
+        accessorKey: 'nombre',
+        header: 'Nombre Servidor',
+        size: 180,
+        Cell: ({ row }) => (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <ServerIcon fontSize="small" color="primary" />
             {row.original.nombre}
-          </Typography>
-        </Box>
-      ),
-    },
-    { accessorKey: 'ip_primaria', header: 'IP Primaria', size: 130 },
-    { accessorKey: 'marca', header: 'Marca', size: 100 },
-    { accessorKey: 'modelo', header: 'Modelo', size: 150 },
-    { accessorKey: 'serie', header: 'Serie', size: 120 },
-    { accessorKey: 'ram', header: 'RAM', size: 90, Cell: ({ cell }) => `${cell.getValue()} GB` },
-    { accessorKey: 'almacenamiento', header: 'Almacenamiento', size: 130, Cell: ({ cell }) => `${cell.getValue()} GB` },
-    { accessorKey: 'sistema_operativo', header: 'Sistema Operativo', size: 180 },
-    { accessorKey: 'cod_tipo_servidor', header: 'Tipo Servidor', size: 140, Cell: ({ cell }) => helpers.getNombreTipoServidor(cell.getValue()) },
-    { accessorKey: 'data_centers.nombre', header: 'Data Center', size: 140, Cell: ({ row }) => row.original.data_centers?.nombre || '-' },
-    { accessorKey: 'servidores_padre.nombre', header: 'Servidor Padre', size: 140, Cell: ({ row }) => row.original.servidores_padre?.nombre || '-' },
-    { accessorKey: 'cod_inventario_agetic', header: 'Cod. Inventario', size: 140 },
-    {
-      accessorKey: 'estado_operativo',
-      header: 'Estado Operativo',
-      size: 150,
-      Cell: ({ cell }) => {
-        const codigo = cell.getValue()
-        const label = helpers.getNombreEstadoOperativo(codigo)
-        const color = getStatusColor(codigo)
-        
-        return (
-          <Chip 
-            size="small" 
-            label={label} 
-            color={color} 
-            variant={codigo ? 'filled' : 'outlined'} 
-            sx={{ fontWeight: 'bold' }} 
-          />
-        )
+          </Box>
+        ),
       },
-    },
-    {
-      accessorKey: 'estado',
-      header: 'Estado',
-      size: 100,
-      Cell: ({ cell }) => (
-        <Chip 
-            label={cell.getValue()} 
-            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
-            size="small" 
-            variant="outlined" 
-            sx={{ fontSize: '0.7rem' }}
-        />
-      ),
-    },
-    { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-    { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) },
-  ], [tiposServidorMap, usuariosMap, estadosOperativosMap])
 
-  // --- CONFIGURACIÓN DE MRT ---
+      { accessorKey: 'ip_primaria', header: 'IP', size: 120 },
+
+      {
+        accessorKey: 'ram',
+        header: 'RAM',
+        size: 90,
+        Cell: ({ cell }) => `${cell.getValue()} GB`,
+      },
+
+      {
+        accessorKey: 'almacenamiento',
+        header: 'Disco',
+        size: 90,
+        Cell: ({ cell }) => `${cell.getValue()} GB`,
+      },
+
+      {
+        accessorKey: 'data_centers',
+        header: 'Data Center',
+        size: 160,
+        Cell: ({ row }) => row.original.data_centers?.[0]?.nombre || '—',
+      },
+
+      /* RELACIÓN NODOS */
+      {
+        accessorKey: 'nodos',
+        header: 'Nodos',
+        size: 180,
+        Cell: ({ row }) => {
+          const nodos = row.original.cluster_nodos
+          if (!nodos?.length) return '—'
+          return (
+            <Stack spacing={0.3}>
+              {nodos.map((n) => (
+                <Link
+                  key={n.id}
+                  to={routes.clusterNodo({ id: n.id })}
+                  style={{ textDecoration: 'none', color: theme.palette.primary.main }}
+                >
+                  {n.nombre}
+                </Link>
+              ))}
+            </Stack>
+          )
+        },
+      },
+
+      /* RELACIÓN CLUSTERS */
+      {
+        accessorKey: 'clusters',
+        header: 'Clusters',
+        size: 180,
+        Cell: ({ row }) => {
+          const nodos = row.original.cluster_nodos
+          if (!nodos?.length) return '—'
+          return (
+            <Stack spacing={0.3}>
+              {nodos.map((n) => (
+                <Link
+                  key={n.cluster?.id}
+                  to={routes.cluster({ id: n.cluster?.id })}
+                  style={{ textDecoration: 'none', color: theme.palette.secondary.main }}
+                >
+                  {n.cluster?.nombre}
+                </Link>
+              ))}
+            </Stack>
+          )
+        },
+      },
+
+      /* ESTADO OPERATIVO */
+      {
+        accessorKey: 'estadoOperativoInfo',
+        header: 'Estado Operativo',
+        size: 150,
+        Cell: ({ row }) => {
+          const info = row.original.estadoOperativoInfo
+          return (
+            <Chip
+              size="small"
+              label={info?.nombre || '—'}
+              color={getStatusColor(info?.codigo)}
+              sx={{ fontWeight: 'bold' }}
+            />
+          )
+        },
+      },
+
+      /* ESTADO (OCULTO) */
+      {
+        accessorKey: 'estado',
+        header: 'Estado',
+        size: 100,
+        Cell: ({ cell }) => (
+          <Chip
+            label={cell.getValue()}
+            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
+            size="small"
+          />
+        ),
+      },
+
+      /* AUDITORÍA (OCULTA) */
+      {
+        accessorKey: 'fecha_creacion',
+        header: 'Creación',
+        size: 150,
+        Cell: ({ cell }) => formatDate(cell.getValue()),
+      },
+      {
+        accessorKey: 'usuario_creacion',
+        header: 'Creó',
+        size: 150,
+        Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
+      },
+      {
+        accessorKey: 'fecha_modificacion',
+        header: 'Modif.',
+        size: 150,
+        Cell: ({ cell }) => formatDate(cell.getValue()),
+      },
+      {
+        accessorKey: 'usuario_modificacion',
+        header: 'Modificó',
+        size: 150,
+        Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
+      },
+    ],
+    [theme]
+  )
+
+  /* ------------------------------------------
+     MRT CONFIG
+  ------------------------------------------ */
   const table = useMaterialReactTable({
     columns,
     data: filteredData,
@@ -238,89 +349,24 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     enableRowSelection: true,
     enableGlobalFilter: true,
     enableRowVirtualization: true,
-    rowVirtualizerOptions: { overscan: 5 },
+
+    /* SELECCIÓN CONTROLADA */
+    state: { rowSelection },
+    onRowSelectionChange: setRowSelection,
+
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: { 
-        id: false, 
-        serie: false, 
-        cod_inventario_agetic: false,
+      columnVisibility: {
+        id: false,
         estado: false,
-        fecha_creacion: false, 
-        usuario_creacion: false, 
-        fecha_modificacion: false, 
-        usuario_modificacion: false 
+        fecha_creacion: false,
+        usuario_creacion: false,
+        fecha_modificacion: false,
+        usuario_modificacion: false,
       },
     },
-    muiTablePaperProps: {
-      elevation: 0,
-      sx: {
-        maxWidth: 1500,
-        mx: 'auto',
-        px: 2, 
-        py: 1,
-        border: `1px solid ${theme.palette.divider}`,
-        borderTop: 'none', 
-        borderRadius: 2, 
-        borderTopLeftRadius: '0 !important',
-        borderTopRightRadius: '0 !important',
-        backgroundColor: 'background.paper',
-        overflow: 'hidden',
-      },
-    },
-    muiTableContainerProps: {
-       sx: {
-         border: `1px solid ${theme.palette.divider}`,
-         borderRadius: 2, 
-         overflow: 'auto', 
-       }
-    },
-    muiTopToolbarProps: {
-      sx: {
-        pl: 1, 
-        pr: 1,
-        backgroundColor: 'background.paper',
-        mb: 1, 
-      }
-    },
-    muiBottomToolbarProps: {
-        sx: {
-            backgroundColor: 'background.paper',
-            border: 'none', 
-            boxShadow: 'none',
-        }
-    },
-    renderTopToolbarCustomActions: () => (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Servidores
-        </Typography>
-      </Box>
-    ),
-    muiTableHeadCellProps: {
-      sx: {
-        backgroundColor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
-        color: 'text.primary',
-        fontWeight: 'bold',
-        fontSize: '0.85rem',
-        borderBottom: `1px solid ${theme.palette.divider}`, 
-        borderRight: `1px solid ${theme.palette.divider}`,  
-        '&:last-child': { borderRight: 'none' },
-      }
-    },
-    muiTableBodyCellProps: {
-        sx: {
-            borderBottom: `1px solid ${theme.palette.divider}`,
-        }
-    },
-    muiTableBodyRowProps: ({ row }) => ({
-      sx: {
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
-        },
-      }
-    }),
+
     renderRowActions: ({ row }) => (
       <Stack direction="row" spacing={0.5}>
         <Tooltip title="Ver Detalles">
@@ -328,6 +374,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
             <VisibilityIcon fontSize="small" color="primary" />
           </IconButton>
         </Tooltip>
+
         <Tooltip title="Editar">
           <IconButton component={Link} to={routes.editServidor({ id: row.original.id })} size="small">
             <EditIcon fontSize="small" color="info" />
@@ -337,128 +384,177 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     ),
   })
 
-  // --- LOGICA DE EXPORTACIÓN OPTIMIZADA ---
+  /* ------------------------------------------
+     EXPORTACIÓN
+  ------------------------------------------ */
   const handleExport = (scope, suffix, format) => {
-    let rowsToExport = []
+    let rows = []
 
     if (scope === 'page') {
-      const allRows = table.getPrePaginationRowModel().rows
-      
       const { pageIndex, pageSize } = table.getState().pagination
-      const startRow = pageIndex * pageSize
-      const endRow = startRow + pageSize
-      
-      rowsToExport = allRows.slice(startRow, endRow)
+      const allRows = table.getPrePaginationRowModel().rows
+      rows = allRows.slice(pageIndex * pageSize, pageIndex * pageSize + pageSize)
     }
 
-    if (scope === 'all') {
-       rowsToExport = table.getPrePaginationRowModel().rows
-    }
+    if (scope === 'all') rows = table.getPrePaginationRowModel().rows
+    if (scope === 'selected') rows = table.getSelectedRowModel().rows
 
-    if (scope === 'selected') {
-      rowsToExport = table.getSelectedRowModel().rows
-    }
+    if (!rows.length) return toast.error('No hay datos para exportar')
 
-    if (!rowsToExport || rowsToExport.length === 0) {
-        toast.error('No hay datos para exportar')
-        return
-    }
+    const visibleCols =
+      table.getVisibleLeafColumns().filter((c) => !['mrt-row-actions', 'mrt-row-select', 'id'].includes(c.id))
 
-    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
-    
-    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
-    
-    closeAllDialogs()
+    if (format === 'excel') exportToExcel(rows, visibleCols, helpers, suffix)
+    if (format === 'pdf') exportToPDF(rows, visibleCols, helpers, suffix)
+    if (format === 'csv') exportToCSV(rows, visibleCols, helpers, suffix)
+
+    setExportMenuAnchorEl(null)
   }
 
-  // --- CONFIG PARA SCAFFOLD ---
+  /* ------------------------------------------
+     ACCIONES DEL LAYOUT
+  ------------------------------------------ */
   const listActionsConfig = useMemo(() => {
-    const selectedRowCount = table.getSelectedRowModel().rows.length
-    
-    const ExportMenu = (
-      <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
-        {/* EXCEL */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-        
-        <Divider />
-
-        {/* PDF */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-
-        <Divider />
-
-        {/* CSV */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-      </Menu>
-    )
-
-    const BulkActionMenu = (
-      <Menu
-        anchorEl={bulkMenuAnchorEl}
-        open={Boolean(bulkMenuAnchorEl)}
-        onClose={closeAllDialogs}
-      >
-        <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
-          Desactivar (Soft Delete)
-        </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
-          Eliminar de Base de Datos
-        </MenuItem>
-      </Menu>
-    )
+    const selected = Object.keys(rowSelection).length
 
     return {
       showDeleted,
-      selectedRowCount,
+      selectedRowCount: selected,
+
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
-      
+
       handleBulkAction: (e) => {
+        const rows = table.getSelectedRowModel().rows.map((r) => r.original)
+
         if (showDeleted) {
-            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+          handleSoftDelete(rows)
         } else {
-            setBulkMenuAnchorEl(e.currentTarget)
+          setBulkMenuAnchorEl(e.currentTarget)
         }
       },
-      
+
+      bulkActionMenu: (
+        <Menu
+          anchorEl={bulkMenuAnchorEl}
+          open={Boolean(bulkMenuAnchorEl)}
+          onClose={closeAllDialogs}
+        >
+          <MenuItem
+            onClick={() =>
+              handleSoftDelete(table.getSelectedRowModel().rows.map((r) => r.original))
+            }
+          >
+            <ListItemIcon>
+              <SoftDeleteIcon fontSize="small" color="warning" />
+            </ListItemIcon>
+            Desactivar
+          </MenuItem>
+
+          <MenuItem
+            onClick={() =>
+              handleHardDelete(table.getSelectedRowModel().rows.map((r) => r.original))
+            }
+          >
+            <ListItemIcon>
+              <HardDeleteIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            Eliminar Definitivo
+          </MenuItem>
+        </Menu>
+      ),
+
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
-      exportMenu: ExportMenu,
-      bulkActionMenu: BulkActionMenu,
+
+      exportMenu: (
+        <Menu
+          anchorEl={exportMenuAnchorEl}
+          open={Boolean(exportMenuAnchorEl)}
+          onClose={closeAllDialogs}
+        >
+          {/* EXCEL */}
+          <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={700}>
+              EXCEL
+            </Typography>
+          </Box>
+
+          <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
+            <ListItemIcon>
+              <ExcelIcon fontSize="small" color="success" />
+            </ListItemIcon>
+            Página Actual
+          </MenuItem>
+
+          <MenuItem
+            disabled={selected === 0}
+            onClick={() => handleExport('selected', '-Seleccionados', 'excel')}
+          >
+            <ListItemIcon>
+              <ExcelIcon fontSize="small" color="success" />
+            </ListItemIcon>
+            Selección ({selected})
+          </MenuItem>
+
+          <Divider />
+
+          {/* PDF */}
+          <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={700}>
+              PDF
+            </Typography>
+          </Box>
+
+          <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
+            <ListItemIcon>
+              <PdfIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            Página Actual
+          </MenuItem>
+
+          <MenuItem
+            disabled={selected === 0}
+            onClick={() => handleExport('selected', '-Seleccionados', 'pdf')}
+          >
+            <ListItemIcon>
+              <PdfIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            Selección ({selected})
+          </MenuItem>
+
+          <Divider />
+
+          {/* CSV */}
+          <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={700}>
+              CSV
+            </Typography>
+          </Box>
+
+          <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
+            <ListItemIcon>
+              <CsvIcon fontSize="small" color="info" />
+            </ListItemIcon>
+            Página Actual
+          </MenuItem>
+
+          <MenuItem
+            disabled={selected === 0}
+            onClick={() => handleExport('selected', '-Seleccionados', 'csv')}
+          >
+            <ListItemIcon>
+              <CsvIcon fontSize="small" color="info" />
+            </ListItemIcon>
+            Selección ({selected})
+          </MenuItem>
+        </Menu>
+      ),
     }
   }, [
-    table, 
-    showDeleted, 
-    exportMenuAnchorEl, 
-    bulkMenuAnchorEl, 
-    table.getState().rowSelection,
-    table.getState().pagination
+    showDeleted,
+    rowSelection,
+    table,
+    exportMenuAnchorEl,
+    bulkMenuAnchorEl,
   ])
 
   return (
