@@ -60,7 +60,7 @@ export const Success = ({ sistema, sistemas, entidads }) => {
     UPDATE_SISTEMA_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Sistema updated')
+        toast.success('Sistema actualizado correctamente')
         navigate(routes.sistemas())
       },
       onError: (error) => {
@@ -83,7 +83,6 @@ export const Success = ({ sistema, sistemas, entidads }) => {
           onSave={onSave}
           loading={loading}
           error={error}
-        />
         />
       </div>
     </div>

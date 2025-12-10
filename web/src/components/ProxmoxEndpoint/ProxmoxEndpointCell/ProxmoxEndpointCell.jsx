@@ -38,7 +38,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Loading...</div>
 
-export const Empty = () => <div>No encontrado</div>
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

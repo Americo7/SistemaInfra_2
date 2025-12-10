@@ -43,37 +43,27 @@ export const QUERY = gql`
         codigo
         nombre
       }
-      tecnologiaInfo {
-        id
-        codigo
-        nombre
-      } 
       sistemas {
         id
         nombre
         sigla
       }   
+      # Campo eliminado: parametros: parametrosFormularioComponente
     }
   }
 `
 
 export const Loading = () => <div>Loading...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No componentes yet. '}
-      <Link to={routes.newComponente()} className="rw-link">
-        {'Create one?'}
-      </Link>
-    </div>
-  )
-}
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ componentes, parametrosFormularioComponente }) => {
-  return <Componentes componentes={componentes} parametros={parametrosFormularioComponente} />
+// CORRECCIÓN APLICADA: Eliminamos 'parametros' de la desestructuración, 
+// ya que no se carga en la QUERY.
+export const Success = ({ componentes }) => {
+  // Ahora Componentes recibe solo los datos de la lista
+  return <Componentes componentes={componentes} /> 
 }

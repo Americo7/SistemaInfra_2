@@ -31,16 +31,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Loading...</div>
 
-export const Empty = () => {
-  return (
-    <div className="rw-text-center">
-      {'No hay sistemas registrados'}
-      <Link to={routes.newSistema()} className="rw-link">
-        {'Create uno?'}
-      </Link>
-    </div>
-  )
-}
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

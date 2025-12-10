@@ -15,6 +15,7 @@ import {
   TextSnippet as CsvIcon,
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
+  RestoreFromTrash as RestoreIcon, // Importar RestoreIcon para Soft Delete
 } from '@mui/icons-material'
 
 import {
@@ -28,6 +29,13 @@ import {
   ListItemIcon,
   Typography,
   Divider,
+  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
@@ -71,21 +79,35 @@ const formatDate = (d) => {
   } catch { return '-' }
 }
 
+// Reubicación de helpers para ser accesibles dentro de Clusters
+const helpers = {
+  // CORRECCIÓN AQUÍ: Se agregan ambos apellidos
+  getUsuarioNombre: (userObj) => {
+    if (!userObj) return '-'
+    // Concatenamos Nombres + Primer Apellido + Segundo Apellido (si existe)
+    return `${userObj.nombres} ${userObj.primer_apellido || ''} ${userObj.segundo_apellido || ''}`.trim()
+  },
+  getNombreTipoCluster: (row) => row.tipoClusterInfo?.nombre || row.cod_tipo_cluster || '-',
+}
+
 const Clusters = ({ clusters }) => {
   const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
-  
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
+
+  // --- NUEVOS ESTADOS PARA EL DIÁLOGO ---
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas
 
   const [updateCluster] = useMutation(UPDATE_CLUSTER_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
+  // 1. ELIMINADA la llamada a toast.success de aquí
   const [deleteCluster] = useMutation(DELETE_CLUSTER_MUTATION, {
     onError: (error) => toast.error(error.message),
-    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
@@ -108,31 +130,29 @@ const Clusters = ({ clusters }) => {
     closeAllDialogs()
   }
 
+  // 2. MODIFICADA: Ahora solo abre el diálogo y guarda las filas
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
-        closeAllDialogs()
-        return
-    }
+    const dataObjects = rows.map((r) => r.original)
+    setRowsToDelete(dataObjects)
+    setOpenDeleteDialog(true)
+  }
 
-    rows.forEach((cluster) => {
+  // 3. NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo
+  const confirmHardDelete = () => {
+    setOpenDeleteDialog(false)
+    
+    if (rowsToDelete.length === 0) return
+
+    rowsToDelete.forEach((cluster) => {
       deleteCluster({ variables: { id: cluster.id } })
     })
     
+    // Muestra el toast de éxito UNA SOLA VEZ
+    toast.success(`${rowsToDelete.length} registro(s) eliminados permanentemente.`) 
+
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
-  }
-
-  // --- HELPERS ACTUALIZADOS ---
-  const helpers = {
-    getNombreTipoCluster: (row) => row.tipoClusterInfo?.nombre || row.cod_tipo_cluster || '-',
-    
-    // CORRECCIÓN AQUÍ: Se agregan ambos apellidos
-    getUsuarioNombre: (userObj) => {
-      if (!userObj) return '-'
-      // Concatenamos Nombres + Primer Apellido + Segundo Apellido (si existe)
-      return `${userObj.nombres} ${userObj.primer_apellido || ''} ${userObj.segundo_apellido || ''}`.trim()
-    },
-    
+    setRowsToDelete([]) 
   }
 
   // --- DATOS ---
@@ -216,7 +236,6 @@ const Clusters = ({ clusters }) => {
         fecha_creacion: false, 
         fecha_modificacion: false, 
         identity_key: false,
-        // Mostramos las columnas de usuario por defecto si deseas, o déjalas ocultas:
         'creadoPor.nombres': false, 
         'modificadoPor.nombres': false 
       },
@@ -384,10 +403,10 @@ const Clusters = ({ clusters }) => {
         onClose={closeAllDialogs}
       >
         <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
-          Desactivar (Soft Delete)
+          <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
+          {showDeleted ? 'Restaurar' : 'Desactivar'}
         </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
           Eliminar de Base de Datos
         </MenuItem>
@@ -420,6 +439,11 @@ const Clusters = ({ clusters }) => {
     table.getState().pagination
   ])
 
+  // Lógica segura para obtener el nombre(s) en el diálogo
+  const namesToDelete = rowsToDelete.length === 1 
+    ? rowsToDelete[0]?.nombre || 'este registro' 
+    : `${rowsToDelete.length} registros`
+
   return (
     <ScaffoldLayout
       title="Clusters"
@@ -430,6 +454,46 @@ const Clusters = ({ clusters }) => {
       listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
+
+      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
+      <Dialog
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
+          ADVERTENCIA: ¡Eliminación Definitiva!
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Estás a punto de eliminar **{namesToDelete}** de forma permanente.
+            <br />
+            **Esta acción es irreversible** y eliminará los datos de la base de datos.
+            <br />
+            ¿Deseas continuar?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => { 
+                setOpenDeleteDialog(false); 
+                setRowsToDelete([]); 
+            }} 
+            color="primary"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={confirmHardDelete} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </ScaffoldLayout>
   )
 }

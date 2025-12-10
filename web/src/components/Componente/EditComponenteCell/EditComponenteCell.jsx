@@ -43,13 +43,19 @@ export const QUERY = gql`
         codigo
         nombre
       }
+      tecnologiaInfo {
+        id
+        codigo
+        nombre
+      }
     }
     sistemas {
       id
       nombre
       estado
     }
-    parametros {
+
+    parametros: parametrosFormularioComponente { 
       id
       codigo
       nombre
@@ -76,12 +82,13 @@ export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
+// Ahora, la data desestructurada 'parametros' viene directamente del alias de la QUERY.
 export const Success = ({ componente, sistemas, parametros }) => {
   const [updateComponente, { loading, error }] = useMutation(
     UPDATE_COMPONENTE_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Componente updated')
+        toast.success('Componente actualizado correctamente')
         navigate(routes.componentes())
       },
       onError: (error) => {
@@ -91,6 +98,8 @@ export const Success = ({ componente, sistemas, parametros }) => {
   )
 
   const onSave = (input, id) => {
+    // Si la tecnología es un array vacío, se envía directamente.
+    // Si es JSON, Prisma lo manejará.
     updateComponente({ variables: { id, input } })
   }
 
@@ -100,6 +109,7 @@ export const Success = ({ componente, sistemas, parametros }) => {
         <ComponenteForm
           componente={componente}
           sistemas={sistemas}
+          // El prop 'parametros' ahora contiene la data de 'parametrosFormularioComponente'
           parametros={parametros}
           onSave={onSave}
           error={error}

@@ -40,15 +40,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando endpoints Kubernetes...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen endpoints registrados.{' '}
-    <Link to={routes.newK8sEndpoint()} className="rw-link">
-      Crear uno nuevo
-    </Link>
-  </div>
-)
-
+export const isEmpty = () => false
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )

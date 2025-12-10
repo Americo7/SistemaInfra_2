@@ -99,8 +99,6 @@ const ProxmoxEndpointForm = (props) => {
     const formData = {
       ...data,
       puerto: Number(data.puerto),
-      usuario_modificacion: 2,
-      usuario_creacion: isEdit ? undefined : 3,
     }
     props.onSave(formData, props?.proxmoxEndpoint?.id)
   }
@@ -156,7 +154,7 @@ const ProxmoxEndpointForm = (props) => {
             {/* Mensaje de Error */}
             {props.error && (
               <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
-                <ErrorOutlineIcon color="error" />
+                <ErrorIcon color="error" />
                 <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
               </Paper>
             )}
@@ -180,11 +178,10 @@ const ProxmoxEndpointForm = (props) => {
                   {/* FILA 1: Nombre y Dominio */}
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                     <FormControl fullWidth error={!!errors.nombre}>
-                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre del Nodo *</FormLabel>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nombre del endpoint *</FormLabel>
                       <Controller
                         name="nombre"
                         control={control}
-                        rules={{ required: 'El nombre es requerido' }}
                         render={({ field }) => (
                           <TextField 
                             {...field} 

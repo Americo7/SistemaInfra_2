@@ -18,7 +18,7 @@ const NewProxmoxEndpoint = () => {
     CREATE_PROXMOX_ENDPOINT_MUTATION,
     {
       onCompleted: () => {
-        toast.success('ProxmoxEndpoint created')
+        toast.success('Nuevo Proxmox Endpoint creado correctamente')
         navigate(routes.proxmoxEndpoints())
       },
       onError: (error) => {

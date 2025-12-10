@@ -17,7 +17,7 @@ const NewComponente = () => {
     CREATE_COMPONENTE_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Componente created')
+        toast.success('Componente creado correctamente')
         navigate(routes.componentes())
       },
       onError: (error) => {

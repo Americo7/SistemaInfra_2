@@ -37,15 +37,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando roles...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen roles registrados.{' '}
-    <Link to={routes.newRole()} className="rw-link">
-      Crear uno nuevo
-    </Link>
-  </div>
-)
-
+export const isEmpty = () => false
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )

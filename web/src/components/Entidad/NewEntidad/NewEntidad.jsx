@@ -18,7 +18,7 @@ const NewEntidad = () => {
     CREATE_ENTIDAD_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Entidad created')
+        toast.success('Nueva entidad creada correctamente')
         navigate(routes.entidads())
       },
       onError: (error) => {

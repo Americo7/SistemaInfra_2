@@ -16,7 +16,7 @@ const CREATE_ROLE_MUTATION = gql`
 const NewRole = () => {
   const [createRole, { loading, error }] = useMutation(CREATE_ROLE_MUTATION, {
     onCompleted: () => {
-      toast.success('Role created')
+      toast.success('Nuevo Rol creado correctamente')
       navigate(routes.roles())
     },
     onError: (error) => {

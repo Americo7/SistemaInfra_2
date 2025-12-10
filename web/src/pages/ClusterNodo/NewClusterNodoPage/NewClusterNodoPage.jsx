@@ -5,9 +5,11 @@ import NewClusterNodo from 'src/components/ClusterNodo/NewClusterNodo'
 const NewClusterNodoPage = () => {
   return (
     <ScaffoldLayout
+      title="Nodos"
+      titleTo="clusterNodos"
+      groupTitle="Infraestructura"
       breadcrumbItems={[
-        { label: 'Nodos', link: routes.clusterNodos() },
-        { label: 'Nuevo Nodo' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewClusterNodo />

@@ -201,6 +201,7 @@ const DespliegueForm = (props) => {
   const onSubmit = (formData) => {
     const payload = {
       ...formData,
+      // Se asegura que las fechas se envíen como ISO string para el backend
       fecha_despliegue: formData.fecha_despliegue ? formData.fecha_despliegue.toISOString() : null,
       fecha_solicitud: formData.fecha_solicitud ? formData.fecha_solicitud.toISOString() : null,
       estado: 'ACTIVO',
@@ -502,26 +503,39 @@ const DespliegueForm = (props) => {
                     />
                   </FormControl>
 
-                  {/* Fechas */}
+                  {/* Fechas (CORREGIDO PARA CAMBIAR EL VALOR Y EL FORMATO) */}
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    
+                    {/* Fecha Solicitud */}
                     <FormControl fullWidth>
                       <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Fecha Solicitud</FormLabel>
                       <Controller
                         name="fecha_solicitud"
                         control={control}
-                        render={({ field }) => (
-                          <DateTimePicker {...field} slotProps={{ textField: { size: 'small' } }} />
+                        render={({ field: { onChange, value } }) => ( // <- CORRECCIÓN: Desestructuramos onChange y value
+                          <DateTimePicker 
+                            value={value} // <- CORRECCIÓN: Usamos el value de RHF
+                            onChange={onChange} // <- CORRECCIÓN: Pasamos el Dayjs object a RHF
+                            format="DD/MM/YYYY HH:mm" // <- CAMBIO: Aplicamos el nuevo formato
+                            slotProps={{ textField: { size: 'small' } }} 
+                          />
                         )}
                       />
                     </FormControl>
 
+                    {/* Fecha Despliegue */}
                     <FormControl fullWidth>
                       <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Fecha Despliegue</FormLabel>
                       <Controller
                         name="fecha_despliegue"
                         control={control}
-                        render={({ field }) => (
-                          <DateTimePicker {...field} slotProps={{ textField: { size: 'small' } }} />
+                        render={({ field: { onChange, value } }) => ( // <- CORRECCIÓN: Desestructuramos onChange y value
+                          <DateTimePicker 
+                            value={value} // <- CORRECCIÓN: Usamos el value de RHF
+                            onChange={onChange} // <- CORRECCIÓN: Pasamos el Dayjs object a RHF
+                            format="DD/MM/YYYY HH:mm" // <- CAMBIO: Aplicamos el nuevo formato
+                            slotProps={{ textField: { size: 'small' } }} 
+                          />
                         )}
                       />
                     </FormControl>

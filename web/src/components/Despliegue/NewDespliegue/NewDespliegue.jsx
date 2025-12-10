@@ -17,7 +17,7 @@ const NewDespliegue = () => {
     CREATE_DESPLIEGUE_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Despliegue Creado')
+        toast.success('Nuevo Despliegue creado correctamente')
         navigate(routes.despliegues())
       },
       onError: (error) => {

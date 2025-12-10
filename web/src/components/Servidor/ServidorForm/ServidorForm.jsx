@@ -17,6 +17,7 @@ import {
   Paper,
   useTheme,
   CircularProgress,
+  Autocomplete,
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 import { navigate, routes } from '@redwoodjs/router'
@@ -36,9 +37,49 @@ import BusinessIcon from '@mui/icons-material/Business'
 import MemoryIcon from '@mui/icons-material/Memory'
 import LanIcon from '@mui/icons-material/Lan'
 import ComputerIcon from '@mui/icons-material/Computer'
+import VpnKeyIcon from '@mui/icons-material/VpnKey'
 
 /* ----------------------------------------------------------
- * 1. QUERIES FALLBACK (solo si no vienen desde el CELL)
+ * DATOS RELACIONADOS (SO -> VERSIONES)
+ * ---------------------------------------------------------- */
+const OS_DATA = {
+  'Ubuntu Server': ['24.04 LTS', '22.04 LTS', '20.04 LTS', '18.04 LTS'],
+  'Windows Server': ['2022', '2019', '2016', '2012 R2'],
+  'Red Hat Enterprise Linux': ['9.3', '9.0', '8.9', '8.0', '7.9'],
+  'Debian': ['12 (Bookworm)', '11 (Bullseye)', '10 (Buster)'],
+  'CentOS': ['7', 'Stream 8', 'Stream 9'],
+  'Rocky Linux': ['9', '8'],
+  'AlmaLinux': ['9', '8'],
+  'VMware ESXi': ['8.0', '7.0', '6.7'],
+  'Proxmox VE': ['8.1', '8.0', '7.4', '7.0'],
+  'Fedora Server': ['39', '38', '37'],
+  'FreeBSD': ['14.0', '13.2'],
+}
+
+const COMMON_BRANDS = [
+  'HP Enterprise',
+  'Dell',
+  'Lenovo',
+  'Cisco',
+  'Supermicro',
+  'Huawei',
+  'IBM',
+  'Fujitsu',
+  'Oracle',
+]
+
+const COMMON_IPS = [
+  '192.168.1.',
+  '192.168.0.',
+  '192.168.100.',
+  '10.0.0.',
+  '10.10.10.',
+  '172.16.0.',
+  '127.0.0.1',
+]
+
+/* ----------------------------------------------------------
+ * QUERIES
  * ---------------------------------------------------------- */
 const GET_DATA_CENTERS = gql`
   query GetDataCenters {
@@ -72,7 +113,7 @@ const GET_PARAMETROS = gql`
 `
 
 /* ----------------------------------------------------------
- * 2. VALORES POR DEFECTO
+ * VALORES POR DEFECTO
  * ---------------------------------------------------------- */
 const getDefaultValues = () => ({
   nombre: '',
@@ -81,7 +122,8 @@ const getDefaultValues = () => ({
   marca: '',
   modelo: '',
   ip_primaria: '',
-  sistema_operativo: '',
+  os_base: '',
+  os_version: '',
   ram: '',
   almacenamiento: '',
   cod_tipo_servidor: '',
@@ -89,10 +131,11 @@ const getDefaultValues = () => ({
   id_data_center: '',
   id_padre: '',
   estado: 'ACTIVO',
+  identity_key: '',
 })
 
 /* ----------------------------------------------------------
- * SectionCard
+ * COMPONENTE VISUAL: SectionCard
  * ---------------------------------------------------------- */
 const SectionCard = ({ title, icon, children, color }) => {
   const theme = useTheme()
@@ -108,7 +151,11 @@ const SectionCard = ({ title, icon, children, color }) => {
       }}
     >
       <CardHeader
-        avatar={<Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>{icon}</Avatar>}
+        avatar={
+          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
         title={<Typography sx={{ fontWeight: 700 }}>{title}</Typography>}
       />
       <CardContent sx={{ p: 2.5 }}>{children}</CardContent>
@@ -117,7 +164,7 @@ const SectionCard = ({ title, icon, children, color }) => {
 }
 
 /* ----------------------------------------------------------
- * Form Principal (MODO HÍBRIDO)
+ * COMPONENTE PRINCIPAL: ServidorForm
  * ---------------------------------------------------------- */
 export default function ServidorForm({
   servidor,
@@ -135,15 +182,13 @@ export default function ServidorForm({
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
 
-  /* FALLBACK QUERIES */
+  /* --- DATA FETCHING --- */
   const { data: dcData, loading: dcLoading } = useQuery(GET_DATA_CENTERS, {
     skip: Boolean(dataCenters),
   })
-
   const { data: srvData, loading: srvLoading } = useQuery(GET_SERVIDORES, {
     skip: Boolean(servidores),
   })
-
   const { data: paramData, loading: paramLoading } = useQuery(GET_PARAMETROS, {
     skip: Boolean(parametros),
   })
@@ -157,11 +202,31 @@ export default function ServidorForm({
     (!servidores && srvLoading) ||
     (!parametros && paramLoading)
 
-  /* ----------------------------------------------------------
-   * Mapeo desde el CELL al formulario en modo edición
-   * ---------------------------------------------------------- */
+  /* --- MAPEO EN EDICIÓN --- */
   useEffect(() => {
     if (isEdit && servidor) {
+      // Lógica para separar "Ubuntu 22.04"
+      let loadedOsBase = ''
+      let loadedOsVersion = ''
+      const fullOs = servidor.sistema_operativo || ''
+
+      // Intentamos buscar coincidencia exacta con nuestra base de datos primero
+      const knownOS = Object.keys(OS_DATA).find(os => fullOs.startsWith(os));
+      
+      if (knownOS) {
+          loadedOsBase = knownOS;
+          loadedOsVersion = fullOs.replace(knownOS, '').trim();
+      } else {
+          // Si no es conocido, fallback a separar por el último espacio
+          const lastSpace = fullOs.lastIndexOf(' ')
+          if (lastSpace !== -1) {
+            loadedOsBase = fullOs.substring(0, lastSpace)
+            loadedOsVersion = fullOs.substring(lastSpace + 1)
+          } else {
+            loadedOsBase = fullOs
+          }
+      }
+
       setForm({
         nombre: servidor.nombre ?? '',
         cod_inventario_agetic: servidor.cod_inventario_agetic ?? '',
@@ -169,21 +234,24 @@ export default function ServidorForm({
         marca: servidor.marca ?? '',
         modelo: servidor.modelo ?? '',
         ip_primaria: servidor.ip_primaria ?? '',
-        sistema_operativo: servidor.sistema_operativo ?? '',
+        os_base: loadedOsBase,
+        os_version: loadedOsVersion,
         ram: servidor.ram ?? '',
         almacenamiento: servidor.almacenamiento ?? '',
         cod_tipo_servidor: servidor.cod_tipo_servidor ?? '',
-        estado_operativo: servidor.estadoOperativoInfo?.codigo ?? servidor.estado_operativo ?? '',
+        estado_operativo:
+          servidor.estadoOperativoInfo?.codigo ??
+          servidor.estado_operativo ??
+          '',
         id_data_center: servidor.id_data_center ?? '',
         id_padre: servidor.id_padre ?? '',
         estado: servidor.estado ?? 'ACTIVO',
+        identity_key: servidor.identity_key ?? '',
       })
     }
   }, [servidor, isEdit])
 
-  /* ----------------------------------------------------------
-   * Parámetros
-   * ---------------------------------------------------------- */
+  /* --- LISTAS FILTRADAS --- */
   const opcionesTipoServidor = finalParametros.filter(
     (p) => p.grupo === 'TIPO_SERVIDOR'
   )
@@ -191,9 +259,6 @@ export default function ServidorForm({
     (p) => p.grupo === 'ESTADO_OPERATIVO'
   )
 
-  /* ----------------------------------------------------------
-   * Servidores Padre filtrados por DataCenter
-   * ---------------------------------------------------------- */
   const opcionesPadre = useMemo(() => {
     if (!form.id_data_center) return []
     return finalServidores.filter(
@@ -204,9 +269,13 @@ export default function ServidorForm({
     )
   }, [form.id_data_center, finalServidores, servidor])
 
-  /* ----------------------------------------------------------
-   * Handlers
-   * ---------------------------------------------------------- */
+  // LÓGICA DE FILTRADO DE VERSIONES
+  const currentVersions = useMemo(() => {
+    if (!form.os_base) return []
+    return OS_DATA[form.os_base] || [] // Devuelve versiones del SO o array vacío
+  }, [form.os_base])
+
+  /* --- HANDLERS --- */
   const handleChange = (field, value) => {
     setForm((prev) => ({
       ...prev,
@@ -219,8 +288,11 @@ export default function ServidorForm({
   const validate = () => {
     const e = {}
     if (!form.nombre.trim()) e.nombre = 'El nombre es obligatorio'
-    if (!form.ip_primaria.trim()) e.ip_primaria = 'La IP es obligatoria'
-    if (!form.estado_operativo) e.estado_operativo = 'Seleccione un estado operativo'
+    if (form.cod_tipo_servidor !== 'CHASIS' && !form.ip_primaria.trim()) {
+      e.ip_primaria = 'La IP es obligatoria'
+    }
+    if (!form.estado_operativo)
+      e.estado_operativo = 'Seleccione un estado operativo'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -231,13 +303,35 @@ export default function ServidorForm({
 
     setSubmitting(true)
 
+    // Concatenar SO + Versión
+    const fullOS =
+      form.os_base && form.os_version
+        ? `${form.os_base} ${form.os_version}`.trim()
+        : form.os_base || ''
+
+    const cleanIp =
+      form.cod_tipo_servidor === 'CHASIS' || !form.ip_primaria.trim()
+        ? null
+        : form.ip_primaria
+
     const payload = {
       ...form,
       id_data_center: parseInt(form.id_data_center),
       id_padre: form.id_padre ? parseInt(form.id_padre) : null,
-      ram: form.ram ? parseInt(form.ram) : null,
-      almacenamiento: form.almacenamiento ? parseInt(form.almacenamiento) : null,
-      identity_key: undefined, // JAMÁS se envía
+      ip_primaria: cleanIp,
+      sistema_operativo: form.cod_tipo_servidor === 'CHASIS' ? '' : fullOS,
+      ram:
+        form.cod_tipo_servidor === 'CHASIS' || !form.ram
+          ? null
+          : parseInt(form.ram),
+      almacenamiento:
+        form.cod_tipo_servidor === 'CHASIS' || !form.almacenamiento
+          ? null
+          : parseInt(form.almacenamiento),
+      // Limpieza de campos temporales
+      identity_key: undefined,
+      os_base: undefined,
+      os_version: undefined,
     }
 
     try {
@@ -247,7 +341,6 @@ export default function ServidorForm({
     }
   }
 
-  /* LOADING */
   if (isLoadingData && !servidor) {
     return (
       <Box sx={{ p: 5, textAlign: 'center' }}>
@@ -257,22 +350,24 @@ export default function ServidorForm({
   }
 
   /* ----------------------------------------------------------
-   * FORMULARIO RENDER (NO SE TOCA ESTILO)
+   * RENDER
    * ---------------------------------------------------------- */
   return (
-    <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
-      <Card elevation={3} sx={{ borderRadius: 4 }}>
-        
+    <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
+      <Card
+        elevation={3}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+          borderRadius: 2,
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
         {/* HEADER */}
-        <Box
-          sx={{
-            px: 5,
-            py: 4,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-          }}
-        >
+        <Box sx={{ px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
           <Avatar
             sx={{
               width: 48,
@@ -283,7 +378,6 @@ export default function ServidorForm({
           >
             {isEdit ? <EditIcon /> : <AddCircleOutlineIcon />}
           </Avatar>
-
           <Box>
             <Typography variant="h5" fontWeight={800}>
               {isEdit ? 'Editar Servidor' : 'Registrar Servidor'}
@@ -294,21 +388,12 @@ export default function ServidorForm({
           </Box>
         </Box>
 
-        {/* FORMULARIO */}
         <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5 }}>
-          
-          {/* ERROR */}
           {error && (
             <Paper
               sx={{
-                p: 2,
-                mb: 4,
-                bgcolor: '#fff4f4',
-                borderColor: '#ffcdd2',
-                color: '#c62828',
-                display: 'flex',
-                gap: 1.5,
-                alignItems: 'center',
+                p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2',
+                color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center',
               }}
             >
               <ErrorOutlineIcon />
@@ -316,19 +401,11 @@ export default function ServidorForm({
             </Paper>
           )}
 
-          {/* GRID PRINCIPAL */}
-          <Box
-            sx={{
-              display: 'grid',
-              gap: 3,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            }}
-          >
-            {/* CARD 1 */}
+          <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+            
+            {/* 1. UBICACIÓN */}
             <SectionCard title="Ubicación y Jerarquía" icon={<DnsIcon />}>
               <Stack spacing={2.5}>
-                
-                {/* DATA CENTER */}
                 <FormControl fullWidth error={!!errors.id_data_center}>
                   <FormLabel>Data Center</FormLabel>
                   <TextField
@@ -339,15 +416,12 @@ export default function ServidorForm({
                   >
                     <MenuItem value="">Seleccione…</MenuItem>
                     {finalDataCenters.map((dc) => (
-                      <MenuItem key={dc.id} value={dc.id}>
-                        {dc.nombre}
-                      </MenuItem>
+                      <MenuItem key={dc.id} value={dc.id}>{dc.nombre}</MenuItem>
                     ))}
                   </TextField>
                   {errors.id_data_center && <FormHelperText>{errors.id_data_center}</FormHelperText>}
                 </FormControl>
 
-                {/* NOMBRE */}
                 <FormControl fullWidth error={!!errors.nombre}>
                   <FormLabel>Nombre del Servidor *</FormLabel>
                   <TextField
@@ -356,16 +430,13 @@ export default function ServidorForm({
                     onChange={(e) => handleChange('nombre', e.target.value)}
                     InputProps={{
                       startAdornment: (
-                        <InputAdornment position="start">
-                          <ComputerIcon fontSize="small" />
-                        </InputAdornment>
+                        <InputAdornment position="start"><ComputerIcon fontSize="small" /></InputAdornment>
                       ),
                     }}
                   />
                   {errors.nombre && <FormHelperText>{errors.nombre}</FormHelperText>}
                 </FormControl>
 
-                {/* TIPO + PADRE */}
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
                   <FormControl fullWidth error={!!errors.cod_tipo_servidor}>
                     <FormLabel>Tipo</FormLabel>
@@ -377,14 +448,10 @@ export default function ServidorForm({
                     >
                       <MenuItem value="">Seleccione…</MenuItem>
                       {opcionesTipoServidor.map((op) => (
-                        <MenuItem key={op.id} value={op.codigo}>
-                          {op.nombre}
-                        </MenuItem>
+                        <MenuItem key={op.id} value={op.codigo}>{op.nombre}</MenuItem>
                       ))}
                     </TextField>
-                    {errors.cod_tipo_servidor && (
-                      <FormHelperText>{errors.cod_tipo_servidor}</FormHelperText>
-                    )}
+                    {errors.cod_tipo_servidor && <FormHelperText>{errors.cod_tipo_servidor}</FormHelperText>}
                   </FormControl>
 
                   <FormControl fullWidth>
@@ -398,9 +465,7 @@ export default function ServidorForm({
                     >
                       <MenuItem value="">Ninguno</MenuItem>
                       {opcionesPadre.map((s) => (
-                        <MenuItem key={s.id} value={s.id}>
-                          {s.nombre}
-                        </MenuItem>
+                        <MenuItem key={s.id} value={s.id}>{s.nombre}</MenuItem>
                       ))}
                     </TextField>
                   </FormControl>
@@ -408,19 +473,47 @@ export default function ServidorForm({
               </Stack>
             </SectionCard>
 
-            {/* CARD 2 */}
+            {/* 2. IDENTIFICACIÓN FÍSICA */}
             <SectionCard title="Identificación Física" icon={<BusinessIcon />}>
               <Stack spacing={2.5}>
                 
+                {isEdit && (
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ color: 'text.secondary' }}>Identificador (Generado)</FormLabel>
+                    <TextField
+                      size="small"
+                      value={form.identity_key}
+                      variant="filled"
+                      InputProps={{
+                        readOnly: true,
+                        startAdornment: <InputAdornment position="start"><VpnKeyIcon fontSize="small" /></InputAdornment>,
+                      }}
+                      sx={{ '& .MuiInputBase-root': { bgcolor: '#f0f0f0' } }}
+                    />
+                  </FormControl>
+                )}
+
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
                   <FormControl fullWidth>
                     <FormLabel>Marca</FormLabel>
-                    <TextField size="small" value={form.marca} onChange={(e) => handleChange('marca', e.target.value)} />
+                    <Autocomplete
+                      freeSolo
+                      options={COMMON_BRANDS}
+                      value={form.marca}
+                      onInputChange={(_, newVal) => handleChange('marca', newVal)}
+                      renderInput={(params) => (
+                        <TextField {...params} size="small" placeholder="Ej: Dell" />
+                      )}
+                    />
                   </FormControl>
 
                   <FormControl fullWidth>
                     <FormLabel>Modelo</FormLabel>
-                    <TextField size="small" value={form.modelo} onChange={(e) => handleChange('modelo', e.target.value)} />
+                    <TextField
+                      size="small"
+                      value={form.modelo}
+                      onChange={(e) => handleChange('modelo', e.target.value)}
+                    />
                   </FormControl>
                 </Box>
 
@@ -431,11 +524,7 @@ export default function ServidorForm({
                     value={form.serie}
                     onChange={(e) => handleChange('serie', e.target.value)}
                     InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <QrCodeIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
+                      startAdornment: <InputAdornment position="start"><QrCodeIcon fontSize="small" /></InputAdornment>,
                     }}
                   />
                 </FormControl>
@@ -443,7 +532,11 @@ export default function ServidorForm({
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
                   <FormControl fullWidth>
                     <FormLabel>Código Inventario</FormLabel>
-                    <TextField size="small" value={form.cod_inventario_agetic} onChange={(e) => handleChange('cod_inventario_agetic', e.target.value)} />
+                    <TextField
+                      size="small"
+                      value={form.cod_inventario_agetic}
+                      onChange={(e) => handleChange('cod_inventario_agetic', e.target.value)}
+                    />
                   </FormControl>
 
                   <FormControl fullWidth error={!!errors.estado_operativo}>
@@ -456,51 +549,87 @@ export default function ServidorForm({
                     >
                       <MenuItem value="">Seleccione…</MenuItem>
                       {opcionesEstadoOperativo.map((op) => (
-                        <MenuItem key={op.id} value={op.codigo}>
-                          {op.nombre}
-                        </MenuItem>
+                        <MenuItem key={op.id} value={op.codigo}>{op.nombre}</MenuItem>
                       ))}
                     </TextField>
-                    {errors.estado_operativo && (
-                      <FormHelperText>{errors.estado_operativo}</FormHelperText>
-                    )}
+                    {errors.estado_operativo && <FormHelperText>{errors.estado_operativo}</FormHelperText>}
                   </FormControl>
                 </Box>
               </Stack>
             </SectionCard>
 
-            {/* CARD 3 */}
+            {/* 3. RED Y RECURSOS */}
             <SectionCard title="Red y Recursos" icon={<SettingsEthernetIcon />} color="#2e7d32">
               <Stack spacing={2.5}>
-                <FormControl fullWidth error={!!errors.ip_primaria}>
-                  <FormLabel>IP Primaria *</FormLabel>
-                  <TextField
-                    size="small"
-                    value={form.ip_primaria}
-                    onChange={(e) => handleChange('ip_primaria', e.target.value)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <LanIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                  {errors.ip_primaria && (
-                    <FormHelperText>{errors.ip_primaria}</FormHelperText>
-                  )}
-                </FormControl>
+                {form.cod_tipo_servidor !== 'CHASIS' && (
+                  <>
+                    <FormControl fullWidth error={!!errors.ip_primaria}>
+                      <FormLabel>IP Primaria *</FormLabel>
+                      <Autocomplete
+                        freeSolo
+                        options={COMMON_IPS}
+                        value={form.ip_primaria}
+                        onInputChange={(_, newVal) => handleChange('ip_primaria', newVal)}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            size="small"
+                            placeholder="Ej: 192.168.1.10"
+                            error={!!errors.ip_primaria}
+                            InputProps={{
+                              ...params.InputProps,
+                              startAdornment: (
+                                <InputAdornment position="start"><LanIcon fontSize="small" /></InputAdornment>
+                              ),
+                            }}
+                          />
+                        )}
+                      />
+                      {errors.ip_primaria && <FormHelperText>{errors.ip_primaria}</FormHelperText>}
+                    </FormControl>
 
-                <FormControl fullWidth>
-                  <FormLabel>Sistema Operativo</FormLabel>
-                  <TextField
-                    size="small"
-                    value={form.sistema_operativo}
-                    onChange={(e) => handleChange('sistema_operativo', e.target.value)}
-                  />
-                </FormControl>
+                    {/* --- SISTEMA OPERATIVO Y VERSIÓN CON FILTRO DINÁMICO --- */}
+                    <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '2fr 1fr' }}>
+                      <FormControl fullWidth>
+                        <FormLabel>Sistema Operativo</FormLabel>
+                        <Autocomplete
+                          freeSolo
+                          options={Object.keys(OS_DATA)} // Muestra solo las claves (nombres de SO)
+                          value={form.os_base}
+                          onInputChange={(_, newVal) => {
+                            handleChange('os_base', newVal)
+                            // IMPORTANTE: Limpiar versión si cambiamos el SO
+                            handleChange('os_version', '')
+                          }}
+                          renderInput={(params) => (
+                            <TextField {...params} size="small" placeholder="Ej: Ubuntu Server" />
+                          )}
+                        />
+                      </FormControl>
+                      
+                      <FormControl fullWidth>
+                        <FormLabel>Versión</FormLabel>
+                        <Autocomplete
+                          freeSolo
+                          // IMPORTANTE: Las opciones dependen de lo seleccionado arriba
+                          options={currentVersions}
+                          // Deshabilita el dropdown si no hay SO o si el SO no tiene versiones definidas
+                          disabled={!form.os_base} 
+                          value={form.os_version}
+                          onInputChange={(_, newVal) => handleChange('os_version', newVal)}
+                          renderInput={(params) => (
+                            <TextField 
+                              {...params} 
+                              size="small" 
+                              placeholder={currentVersions.length > 0 ? "Seleccione..." : "Escriba..."} 
+                            />
+                          )}
+                        />
+                      </FormControl>
+                    </Box>
+                  </>
+                )}
 
-                {/* OCULTAR RAM Y STORAGE SI ES CHASIS */}
                 {form.cod_tipo_servidor !== 'CHASIS' && (
                   <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
                     <FormControl fullWidth>
@@ -511,11 +640,7 @@ export default function ServidorForm({
                         value={form.ram}
                         onChange={(e) => handleChange('ram', e.target.value)}
                         InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <MemoryIcon fontSize="small" />
-                            </InputAdornment>
-                          ),
+                          startAdornment: <InputAdornment position="start"><MemoryIcon fontSize="small" /></InputAdornment>,
                         }}
                       />
                     </FormControl>
@@ -528,41 +653,32 @@ export default function ServidorForm({
                         value={form.almacenamiento}
                         onChange={(e) => handleChange('almacenamiento', e.target.value)}
                         InputProps={{
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <StorageIcon fontSize="small" />
-                            </InputAdornment>
-                          ),
+                          startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" /></InputAdornment>,
                         }}
                       />
                     </FormControl>
+                  </Box>
+                )}
+
+                {form.cod_tipo_servidor === 'CHASIS' && (
+                  <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1, textAlign: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      La configuración de red y recursos no aplica para servidores tipo Chasis.
+                    </Typography>
                   </Box>
                 )}
               </Stack>
             </SectionCard>
           </Box>
 
-          {/* BOTONES */}
           <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
-            <Button
-              variant="outlined"
-              color="inherit"
-              startIcon={<CancelIcon />}
-              onClick={() => navigate(routes.servidors())}
-            >
+            <Button variant="outlined" color="inherit" startIcon={<CancelIcon />} onClick={() => navigate(routes.servidors())}>
               Cancelar
             </Button>
-
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              loading={loading || submitting}
-              startIcon={<SaveIcon />}
-            >
+            <LoadingButton type="submit" variant="contained" loading={loading || submitting} startIcon={<SaveIcon />}>
               {isEdit ? 'Guardar Cambios' : 'Guardar Servidor'}
             </LoadingButton>
           </Box>
-
         </Box>
       </Card>
     </Box>

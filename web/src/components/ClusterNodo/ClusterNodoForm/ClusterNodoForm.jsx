@@ -152,9 +152,20 @@ const ClusterNodoForm = (props) => {
   }
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 1400, mx: 'auto', p: 2 }}>
+    <Box sx={{  width: '100%', maxWidth: 1500, mx: 'auto'  }}>
       
-      <Card elevation={3} sx={{ borderRadius: 4, overflow: 'visible' }}>
+      <Card elevation={3} 
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+          borderRadius: 2,
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+        
+      >
         
         {/* --- HEADER --- */}
         <Box sx={{ 

@@ -79,14 +79,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando máquinas virtuales...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen máquinas registradas.{' '}
-    <Link to={routes.newMaquina()} className="rw-link">
-      Crear una nueva
-    </Link>
-  </div>
-)
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

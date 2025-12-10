@@ -23,7 +23,7 @@ export const schema = gql`
     modificadoPor: Usuario
     entornoInfo: Parametro
     categoriaInfo: Parametro
-    tecnologiaInfo: Parametro
+    tecnologiaInfo: [Parametro!]
   }
 
   enum estado {

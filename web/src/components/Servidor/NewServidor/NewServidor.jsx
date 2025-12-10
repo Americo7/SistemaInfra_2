@@ -17,7 +17,7 @@ const NewServidor = () => {
     CREATE_SERVIDOR_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Servidor created')
+        toast.success('Nuevo servidor creado correctamente')
         navigate(routes.servidors())
       },
       onError: (error) => {

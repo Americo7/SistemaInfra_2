@@ -16,6 +16,7 @@ import {
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
   RestoreFromTrash as RestoreIcon,
+  Dns as ParentIcon,
 } from '@mui/icons-material'
 
 import {
@@ -84,7 +85,6 @@ const formatDate = (d) => {
 const Servidores = ({ servidores, parametros, usuarios }) => {
   const theme = useTheme()
   
-  // Estado para selección manual (preservando lógica original)
   const [rowSelection, setRowSelection] = useState({})
   
   const [showDeleted, setShowDeleted] = useState(false)
@@ -107,7 +107,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     setBulkMenuAnchorEl(null)
   }
 
-  // --- MAPEOS (LOGICA ORIGINAL) ---
+  // --- MAPEOS ---
   const estadosOperativosMap = useMemo(() => {
     return (parametros || [])
       .filter((p) => p.grupo === 'ESTADO_OPERATIVO')
@@ -129,7 +129,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     getNombreEstadoOperativo: (c) => estadosOperativosMap[c] || c || 'Desconocido',
   }
 
-  // --- HANDLERS DE ELIMINACIÓN ---
+  // --- HANDLERS ---
   const handleSoftDelete = (rows) => {
     rows.forEach((servidor) => {
       const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
@@ -159,7 +159,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     closeAllDialogs()
   }
 
-  // --- DATOS (FILTRADO) ---
+  // --- DATOS ---
   const filteredData = useMemo(() => {
     if (!servidores) return []
     return servidores.filter((s) =>
@@ -167,13 +167,17 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     )
   }, [servidores, showDeleted])
 
-  // --- COLUMNAS ---
+  // --- COLUMNAS (Corrección de anchos) ---
   const columns = useMemo(() => [
-    { accessorKey: 'id', header: 'ID', size: 60 },
+    { 
+      accessorKey: 'id', 
+      header: 'ID',
+      // Se eliminó size para auto-ancho
+    },
     {
       accessorKey: 'nombre',
-      header: 'Nombre Servidor',
-      size: 200,
+      header: 'Nombre',
+      // Se eliminó size: 200
       Cell: ({ row }) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <ServerIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
@@ -183,29 +187,57 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
         </Box>
       ),
     },
-    { accessorKey: 'ip_primaria', header: 'IP', size: 130 },
+    {
+      accessorKey: 'ip_primaria',
+      header: 'IP',
+      // Se eliminó size: 130
+      Cell: ({ cell }) => cell.getValue() || '-', 
+    },
+    // --- MANTENEMOS FIJOS RAM Y DISCO ---
     {
       accessorKey: 'ram',
       header: 'RAM',
-      size: 90,
-      Cell: ({ cell }) => `${cell.getValue()} GB`,
+      size: 110, // FIJO
+      Cell: ({ cell }) => {
+        const val = cell.getValue()
+        return val ? `${val} GB` : '-'
+      },
     },
     {
       accessorKey: 'almacenamiento',
       header: 'Disco',
-      size: 90,
-      Cell: ({ cell }) => `${cell.getValue()} GB`,
+      size: 110, // FIJO
+      Cell: ({ cell }) => {
+        const val = cell.getValue()
+        return val ? `${val} GB` : '-'
+      },
+    },
+    // ------------------------------------
+    {
+      id: 'servidores_padre',
+      header: 'Serv. Padre',
+      accessorFn: (row) => row.servidores_padre?.nombre,
+      // Se eliminó size: 150
+      Cell: ({ cell }) => {
+        const val = cell.getValue()
+        if (!val) return '-'
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+            <ParentIcon fontSize="inherit" />
+            <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+              {val}
+            </Typography>
+          </Box>
+        )
+      }
     },
     {
       accessorKey: 'data_centers',
       header: 'Data Center',
-      size: 150,
+      // Se eliminó size: 150
       Cell: ({ row }) => {
-        // CORRECCIÓN: Accedemos directamente al objeto, NO como array
         const dc = row.original.data_centers 
-        
         if (!dc) return '-'
-        
         return (
              <Typography variant="body2" fontWeight={600} color="info.main">
                 {dc.nombre}
@@ -215,8 +247,8 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     },
     {
         accessorKey: 'nodos',
-        header: 'Nodos',
-        size: 180,
+        header: 'Nodo',
+        // Se eliminó size: 180
         Cell: ({ row }) => {
           const nodos = row.original.cluster_nodos
           if (!nodos?.length) return '-'
@@ -237,8 +269,8 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     },
     {
         accessorKey: 'clusters',
-        header: 'Clusters',
-        size: 180,
+        header: 'Cluster',
+        // Se eliminó size: 180
         Cell: ({ row }) => {
           const nodos = row.original.cluster_nodos
           if (!nodos?.length) return '-'
@@ -260,7 +292,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
         accessorKey: 'estadoOperativoInfo',
         header: 'Estado Operativo',
-        size: 150,
+        // Se eliminó size: 150
         Cell: ({ row }) => {
           const info = row.original.estadoOperativoInfo
           const label = info?.nombre || '-'
@@ -279,7 +311,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
       accessorKey: 'estado',
       header: 'Estado',
-      size: 100,
+      // Se eliminó size: 100
       Cell: ({ cell }) => (
         <Chip 
             label={cell.getValue()} 
@@ -293,25 +325,25 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
         accessorKey: 'fecha_creacion',
         header: 'Creación',
-        size: 150,
+        // Se eliminó size: 150
         Cell: ({ cell }) => formatDate(cell.getValue()),
     },
     {
         accessorKey: 'usuario_creacion',
         header: 'Creado por',
-        size: 150,
+        // Se eliminó size: 150
         Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
     },
     {
         accessorKey: 'fecha_modificacion',
         header: 'Modificación',
-        size: 150,
+        // Se eliminó size: 150
         Cell: ({ cell }) => formatDate(cell.getValue()),
     },
     {
         accessorKey: 'usuario_modificacion',
         header: 'Modif. por',
-        size: 150,
+        // Se eliminó size: 150
         Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
     },
   ], [theme, usuariosMap, estadosOperativosMap])
@@ -326,7 +358,6 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     enableRowVirtualization: true,
     rowVirtualizerOptions: { overscan: 5 },
     
-    // Preservando estado manual requerido por la lógica original
     state: { rowSelection },
     onRowSelectionChange: setRowSelection,
 
@@ -462,7 +493,6 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
 
   // --- CONFIG PARA SCAFFOLD ---
   const listActionsConfig = useMemo(() => {
-    // Calculamos seleccionados usando el estado manual rowSelection
     const selectedRowCount = Object.keys(rowSelection).length
     
     const ExportMenu = (
@@ -550,7 +580,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     showDeleted, 
     exportMenuAnchorEl, 
     bulkMenuAnchorEl, 
-    rowSelection, // Dependencia clave en lógica Servidores
+    rowSelection, 
   ])
 
   return (

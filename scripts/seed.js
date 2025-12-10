@@ -130,70 +130,62 @@ export default async () => {
         { codigo: 'INICIADO', nombre: 'Iniciado', grupo: 'E_EVENTO_DESPLIEGUE', descripcion: 'Despliegue iniciado', usuario_creacion: 1 },
         { codigo: 'FINALIZADO', nombre: 'Finalizado', grupo: 'E_EVENTO_DESPLIEGUE', descripcion: 'Despliegue finalizado', usuario_creacion: 1 },
 
-        // ========================
-        // LENGUAJES / RUNTIMES
-        // ========================
-        { codigo: 'LANG_JS', nombre: 'JavaScript', grupo: 'COMP_TECH', descripcion: 'Lenguaje JavaScript', usuario_creacion: 1 },
-        { codigo: 'LANG_TS', nombre: 'TypeScript', grupo: 'COMP_TECH', descripcion: 'Lenguaje TypeScript', usuario_creacion: 1 },
-        { codigo: 'LANG_PY', nombre: 'Python', grupo: 'COMP_TECH', descripcion: 'Lenguaje Python', usuario_creacion: 1 },
-        { codigo: 'LANG_JAVA', nombre: 'Java', grupo: 'COMP_TECH', descripcion: 'Lenguaje Java', usuario_creacion: 1 },
-        { codigo: 'LANG_GO', nombre: 'Go', grupo: 'COMP_TECH', descripcion: 'Lenguaje GoLang', usuario_creacion: 1 },
+      { codigo: 'BACKEND_JAVA', nombre: 'Java', grupo: 'COMP_TECH', descripcion: 'Lenguaje Java', usuario_creacion: 1 },
+      { codigo: 'BACKEND_PYTHON', nombre: 'Python', grupo: 'COMP_TECH', descripcion: 'Lenguaje Python', usuario_creacion: 1 },
+      { codigo: 'BACKEND_GO', nombre: 'Go (Golang)', grupo: 'COMP_TECH', descripcion: 'Lenguaje Go', usuario_creacion: 1 },
+      { codigo: 'BACKEND_CSHARP', nombre: 'C# .NET', grupo: 'COMP_TECH', descripcion: 'Lenguaje C#', usuario_creacion: 1 },
+      { codigo: 'BACKEND_PHP', nombre: 'PHP', grupo: 'COMP_TECH', descripcion: 'Lenguaje PHP', usuario_creacion: 1 },
+      
+      // Frameworks Backend
+      { codigo: 'BACKEND_NODE', nombre: 'Node.js (Runtime)', grupo: 'COMP_TECH', descripcion: 'Runtime JavaScript', usuario_creacion: 1 },
+      { codigo: 'BACKEND_NEST', nombre: 'NestJS', grupo: 'COMP_TECH', descripcion: 'Framework Node.js', usuario_creacion: 1 },
+      { codigo: 'BACKEND_EXPRESS', nombre: 'Express.js', grupo: 'COMP_TECH', descripcion: 'Framework Node.js', usuario_creacion: 1 },
+      { codigo: 'BACKEND_SPRING', nombre: 'Spring Boot', grupo: 'COMP_TECH', descripcion: 'Framework Java', usuario_creacion: 1 },
+      { codigo: 'BACKEND_FASTAPI', nombre: 'FastAPI', grupo: 'COMP_TECH', descripcion: 'Framework Python', usuario_creacion: 1 },
+      { codigo: 'BACKEND_DJANGO', nombre: 'Django', grupo: 'COMP_TECH', descripcion: 'Framework Python', usuario_creacion: 1 },
+      { codigo: 'BACKEND_LARAVEL', nombre: 'Laravel', grupo: 'COMP_TECH', descripcion: 'Framework PHP', usuario_creacion: 1 },
 
-        // ========================
-        // FRAMEWORKS BACKEND
-        // ========================
-        { codigo: 'FW_EXPRESS', nombre: 'Express.js', grupo: 'COMP_TECH', descripcion: 'Framework backend Express', usuario_creacion: 1 },
-        { codigo: 'FW_NEST', nombre: 'NestJS', grupo: 'COMP_TECH', descripcion: 'Framework backend NestJS', usuario_creacion: 1 },
-        { codigo: 'FW_FASTAPI', nombre: 'FastAPI', grupo: 'COMP_TECH', descripcion: 'Framework backend FastAPI', usuario_creacion: 1 },
-        { codigo: 'FW_SPRING', nombre: 'Spring Boot', grupo: 'COMP_TECH', descripcion: 'Framework backend Spring Boot', usuario_creacion: 1 },
-        { codigo: 'FW_DJANGO', nombre: 'Django', grupo: 'COMP_TECH', descripcion: 'Framework backend Django', usuario_creacion: 1 },
+      // ===========================================
+      // CATEGORÍA: FRONTEND (Prefijo: FRONTEND_)
+      // ===========================================
+      // Lenguajes / Básicos
+      { codigo: 'FRONTEND_JS', nombre: 'JavaScript', grupo: 'COMP_TECH', descripcion: 'Estándar JS', usuario_creacion: 1 },
+      { codigo: 'FRONTEND_TS', nombre: 'TypeScript', grupo: 'COMP_TECH', descripcion: 'Superset TS', usuario_creacion: 1 },
+      
+      // Frameworks / Librerías
+      { codigo: 'FRONTEND_REACT', nombre: 'React', grupo: 'COMP_TECH', descripcion: 'Librería UI', usuario_creacion: 1 },
+      { codigo: 'FRONTEND_NEXT', nombre: 'Next.js', grupo: 'COMP_TECH', descripcion: 'Framework React', usuario_creacion: 1 },
+      { codigo: 'FRONTEND_VUE', nombre: 'Vue.js', grupo: 'COMP_TECH', descripcion: 'Framework UI', usuario_creacion: 1 },
+      { codigo: 'FRONTEND_NUXT', nombre: 'Nuxt.js', grupo: 'COMP_TECH', descripcion: 'Framework Vue', usuario_creacion: 1 },
+      { codigo: 'FRONTEND_ANGULAR', nombre: 'Angular', grupo: 'COMP_TECH', descripcion: 'Framework Google', usuario_creacion: 1 },
+      { codigo: 'FRONTEND_TAILWIND', nombre: 'Tailwind CSS', grupo: 'COMP_TECH', descripcion: 'Framework CSS', usuario_creacion: 1 },
 
-        // ========================
-        // FRAMEWORKS FRONTEND
-        // ========================
-        { codigo: 'FW_REACT', nombre: 'React', grupo: 'COMP_TECH', descripcion: 'Biblioteca frontend React', usuario_creacion: 1 },
-        { codigo: 'FW_NEXT', nombre: 'Next.js', grupo: 'COMP_TECH', descripcion: 'Framework React Next.js', usuario_creacion: 1 },
-        { codigo: 'FW_VUE', nombre: 'Vue.js', grupo: 'COMP_TECH', descripcion: 'Framework frontend Vue', usuario_creacion: 1 },
-        { codigo: 'FW_NUXT', nombre: 'Nuxt.js', grupo: 'COMP_TECH', descripcion: 'Framework Vue Nuxt', usuario_creacion: 1 },
-        { codigo: 'FW_ANGULAR', nombre: 'Angular', grupo: 'COMP_TECH', descripcion: 'Framework frontend Angular', usuario_creacion: 1 },
+      // ===========================================
+      // CATEGORÍA: BASE DE DATOS (Prefijo: BD_)
+      // ===========================================
+      // Relacionales
+      { codigo: 'BD_PGSQL', nombre: 'PostgreSQL', grupo: 'COMP_TECH', descripcion: 'RDBMS PostgreSQL', usuario_creacion: 1 },
+      { codigo: 'BD_MYSQL', nombre: 'MySQL', grupo: 'COMP_TECH', descripcion: 'RDBMS MySQL', usuario_creacion: 1 },
+      { codigo: 'BD_MARIADB', nombre: 'MariaDB', grupo: 'COMP_TECH', descripcion: 'RDBMS MariaDB', usuario_creacion: 1 },
+      { codigo: 'BD_ORACLE', nombre: 'Oracle DB', grupo: 'COMP_TECH', descripcion: 'RDBMS Oracle', usuario_creacion: 1 },
+      { codigo: 'BD_SQLSERVER', nombre: 'SQL Server', grupo: 'COMP_TECH', descripcion: 'RDBMS Microsoft', usuario_creacion: 1 },
+      
+      // NoSQL / Cache
+      { codigo: 'BD_MONGO', nombre: 'MongoDB', grupo: 'COMP_TECH', descripcion: 'NoSQL Documental', usuario_creacion: 1 },
+      { codigo: 'BD_REDIS', nombre: 'Redis', grupo: 'COMP_TECH', descripcion: 'In-Memory Cache', usuario_creacion: 1 },
+      { codigo: 'BD_ELASTIC', nombre: 'Elasticsearch', grupo: 'COMP_TECH', descripcion: 'Motor de búsqueda', usuario_creacion: 1 },
 
-        // ========================
-        // BASES DE DATOS
-        // ========================
-        { codigo: 'DB_PGSQL', nombre: 'PostgreSQL', grupo: 'COMP_TECH', descripcion: 'Base de datos PostgreSQL', usuario_creacion: 1 },
-        { codigo: 'DB_MYSQL', nombre: 'MySQL/MariaDB', grupo: 'COMP_TECH', descripcion: 'Base de datos MySQL/MariaDB', usuario_creacion: 1 },
-        { codigo: 'DB_MONGO', nombre: 'MongoDB', grupo: 'COMP_TECH', descripcion: 'Base de datos MongoDB', usuario_creacion: 1 },
-        { codigo: 'DB_SQLITE', nombre: 'SQLite', grupo: 'COMP_TECH', descripcion: 'Base de datos SQLite', usuario_creacion: 1 },
-        { codigo: 'DB_ORACLE', nombre: 'Oracle DB', grupo: 'COMP_TECH', descripcion: 'Base de datos Oracle', usuario_creacion: 1 },
-
-        // ========================
-        // CACHE / IN-MEMORY
-        // ========================
-        { codigo: 'CACHE_REDIS', nombre: 'Redis', grupo: 'COMP_TECH', descripcion: 'Base de datos en memoria Redis', usuario_creacion: 1 },
-        { codigo: 'CACHE_MEMC', nombre: 'Memcached', grupo: 'COMP_TECH', descripcion: 'Cache Memcached', usuario_creacion: 1 },
-
-        // ========================
-        // MENSAJERÍA / COLAS
-        // ========================
-        { codigo: 'MSG_RMQ', nombre: 'RabbitMQ', grupo: 'COMP_TECH', descripcion: 'Mensajería RabbitMQ', usuario_creacion: 1 },
-        { codigo: 'MSG_KAFKA', nombre: 'Kafka', grupo: 'COMP_TECH', descripcion: 'Mensajería distribuida Kafka', usuario_creacion: 1 },
-        { codigo: 'MSG_NATS', nombre: 'NATS', grupo: 'COMP_TECH', descripcion: 'Mensajería NATS', usuario_creacion: 1 },
-
-        // ========================
-        // ORM / MAPEADORES
-        // ========================
-        { codigo: 'ORM_PRISMA', nombre: 'Prisma ORM', grupo: 'COMP_TECH', descripcion: 'ORM para Node.js', usuario_creacion: 1 },
-        { codigo: 'ORM_SEQUELIZE', nombre: 'Sequelize', grupo: 'COMP_TECH', descripcion: 'ORM para Node.js Sequelize', usuario_creacion: 1 },
-        { codigo: 'ORM_TYPEORM', nombre: 'TypeORM', grupo: 'COMP_TECH', descripcion: 'ORM TypeORM', usuario_creacion: 1 },
-        { codigo: 'ORM_MONGOOSE', nombre: 'Mongoose', grupo: 'COMP_TECH', descripcion: 'ODM Mongoose para MongoDB', usuario_creacion: 1 },
-
-        // ========================
-        // TESTING
-        // ========================
-        { codigo: 'TEST_JEST', nombre: 'Jest', grupo: 'COMP_TECH', descripcion: 'Framework de testing Jest', usuario_creacion: 1 },
-        { codigo: 'TEST_PYTEST', nombre: 'PyTest', grupo: 'COMP_TECH', descripcion: 'Framework testing PyTest', usuario_creacion: 1 },
-        { codigo: 'TEST_CYPRESS', nombre: 'Cypress', grupo: 'COMP_TECH', descripcion: 'Testing end-to-end Cypress', usuario_creacion: 1 },
-
+      // ===========================================
+      // CATEGORÍA: INFRAESTRUCTURA / OTROS (Prefijo: INFRA_ u OTROS_)
+      // ===========================================
+      // Mensajería
+      { codigo: 'INFRA_KAFKA', nombre: 'Apache Kafka', grupo: 'COMP_TECH', descripcion: 'Streaming de eventos', usuario_creacion: 1 },
+      { codigo: 'INFRA_RABBIT', nombre: 'RabbitMQ', grupo: 'COMP_TECH', descripcion: 'Message Broker', usuario_creacion: 1 },
+      
+      // Contenedores / CI/CD
+      { codigo: 'INFRA_DOCKER', nombre: 'Docker', grupo: 'COMP_TECH', descripcion: 'Contenedores', usuario_creacion: 1 },
+      { codigo: 'INFRA_K8S', nombre: 'Kubernetes', grupo: 'COMP_TECH', descripcion: 'Orquestación', usuario_creacion: 1 },
+      { codigo: 'INFRA_NGINX', nombre: 'Nginx', grupo: 'COMP_TECH', descripcion: 'Web Server / Proxy', usuario_creacion: 1 },
         // NODO_ROL
         { codigo: 'NM', nombre: 'Master', grupo: 'NODO_ROL', descripcion: 'Nodo master', usuario_creacion: 1 },
         { codigo: 'NW', nombre: 'Worker', grupo: 'NODO_ROL', descripcion: 'Nodo worker', usuario_creacion: 1 },
@@ -294,6 +286,13 @@ export default async () => {
       },
     })
 
+    await db.$executeRawUnsafe(
+      `SELECT setval(
+        pg_get_serial_sequence('registro.usuarios', 'id'),
+        (SELECT COALESCE(MAX(id), 0) FROM registro.usuarios),
+        true
+      );`
+    );
     console.log('✔ Seed ejecutado correctamente')
   } catch (error) {
     console.error(error)

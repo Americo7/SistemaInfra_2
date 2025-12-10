@@ -17,7 +17,7 @@ const NewSistema = () => {
     CREATE_SISTEMA_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Sistema created')
+        toast.success('Sistema creado correctamente')
         navigate(routes.sistemas())
       },
       onError: (error) => {

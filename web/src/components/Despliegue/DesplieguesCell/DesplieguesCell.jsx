@@ -103,17 +103,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando despliegues...</div>
 
-// TRUCO: Forzamos Success para que se vea la tabla vacía con los botones y el diseño correcto
 export const isEmpty = () => false
-
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen despliegues registrados.{' '}
-    <Link to={routes.newDespliegue()} className="rw-link">
-      Crear uno nuevo
-    </Link>
-  </div>
-)
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

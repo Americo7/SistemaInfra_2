@@ -131,8 +131,6 @@ const SistemaForm = (props) => {
     const formData = {
       ...data,
       estado: 'ACTIVO',
-      usuario_modificacion: 2, // Ajustar según lógica de auth real
-      usuario_creacion: props.sistema ? undefined : 3,
     }
 
     if (props?.sistema?.id) {
@@ -347,11 +345,10 @@ const SistemaForm = (props) => {
 
                 {/* Descripción */}
                 <FormControl fullWidth error={!!errors.descripcion}>
-                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción *</FormLabel>
+                  <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
                   <Controller
                     name="descripcion"
                     control={control}
-                    rules={{ required: 'La descripción es requerida' }}
                     render={({ field }) => (
                       <TextField
                         {...field}

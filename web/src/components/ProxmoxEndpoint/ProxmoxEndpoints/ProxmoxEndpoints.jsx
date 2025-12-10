@@ -17,6 +17,7 @@ import {
   PowerOff as SoftDeleteIcon,
   Check as CheckIcon,
   Close as CloseIcon,
+  RestoreFromTrash as RestoreIcon, // Importado para Soft Delete/Restore
 } from '@mui/icons-material'
 
 import {
@@ -30,6 +31,13 @@ import {
   ListItemIcon,
   Typography,
   Divider,
+  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
@@ -68,14 +76,18 @@ const ProxmoxEndpoints = ({ proxmoxEndpoints, usuarios }) => {
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
+  // --- ESTADOS PARA EL DIÁLOGO ---
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
+
   const [updateProxmoxEndpoint] = useMutation(UPDATE_PROXMOX_ENDPOINT_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
+  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteProxmoxEndpoint] = useMutation(DELETE_PROXMOX_ENDPOINT_MUTATION, {
     onError: (error) => toast.error(error.message),
-    onCompleted: () => toast.success('Endpoints eliminados permanentemente.'),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
@@ -98,18 +110,29 @@ const ProxmoxEndpoints = ({ proxmoxEndpoints, usuarios }) => {
     closeAllDialogs()
   }
 
+  // MODIFICACIÓN: Abre el diálogo y guarda las filas
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} endpoint(s)?\n\nEsta acción no se puede deshacer.`)) {
-        closeAllDialogs()
-        return
-    }
+    const dataObjects = rows.map((r) => r.original)
+    setRowsToDelete(dataObjects)
+    setOpenDeleteDialog(true)
+  }
 
-    rows.forEach((row) => {
+  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
+  const confirmHardDelete = () => {
+    setOpenDeleteDialog(false)
+    
+    if (rowsToDelete.length === 0) return
+
+    rowsToDelete.forEach((row) => {
       deleteProxmoxEndpoint({ variables: { id: row.id } })
     })
     
+    // Muestra el toast de éxito UNA SOLA VEZ
+    toast.success(`${rowsToDelete.length} endpoint(s) eliminado(s) permanentemente.`) 
+
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
+    setRowsToDelete([])
   }
 
   // --- MAPEOS Y HELPERS ---
@@ -383,10 +406,10 @@ const ProxmoxEndpoints = ({ proxmoxEndpoints, usuarios }) => {
         onClose={closeAllDialogs}
       >
         <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
-          Desactivar (Soft Delete)
+          <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
+          {showDeleted ? 'Restaurar' : 'Desactivar'} (Soft Delete)
         </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
           Eliminar de Base de Datos
         </MenuItem>
@@ -399,6 +422,11 @@ const ProxmoxEndpoints = ({ proxmoxEndpoints, usuarios }) => {
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
       
       handleBulkAction: (e) => {
+        if (selectedRowCount === 0) {
+            toast.error('Debe seleccionar al menos un registro.')
+            return;
+        }
+
         if (showDeleted) {
             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
         } else {
@@ -419,6 +447,11 @@ const ProxmoxEndpoints = ({ proxmoxEndpoints, usuarios }) => {
     table.getState().pagination
   ])
 
+  // Lógica segura para obtener el nombre(s) en el diálogo
+  const namesToDelete = rowsToDelete.length === 1 
+    ? rowsToDelete[0]?.nombre || rowsToDelete[0]?.ip || `el endpoint ID ${rowsToDelete[0]?.id}` 
+    : `${rowsToDelete.length} registros`
+
   return (
     <ScaffoldLayout
       title="Endpoints"
@@ -429,6 +462,47 @@ const ProxmoxEndpoints = ({ proxmoxEndpoints, usuarios }) => {
       listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
+
+      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
+      <Dialog
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
+          ADVERTENCIA: ¡Eliminación Definitiva!
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Estás a punto de eliminar **{namesToDelete}** de forma permanente.
+            <br />
+            **Esta acción es irreversible** y eliminará los datos de la base de datos.
+            <br />
+            ¿Deseas continuar?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => { 
+                setOpenDeleteDialog(false); 
+                setRowsToDelete([]); 
+            }} 
+            color="primary"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={confirmHardDelete} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

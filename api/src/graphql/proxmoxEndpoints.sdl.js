@@ -57,6 +57,7 @@ export const schema = gql`
     token_secret: String
     descripcion: String
     estado: estado
+    usuario_modificacion: Int
   }
 
   type Mutation {

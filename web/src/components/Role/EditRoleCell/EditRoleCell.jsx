@@ -47,7 +47,7 @@ export const Failure = ({ error }) => (
 export const Success = ({ role, parametros }) => {
   const [updateRole, { loading, error }] = useMutation(UPDATE_ROLE_MUTATION, {
     onCompleted: () => {
-      toast.success('Role updated')
+      toast.success('Rol actualizado correctamente')
       navigate(routes.roles())
     },
     onError: (error) => {
@@ -61,11 +61,6 @@ export const Success = ({ role, parametros }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Edit Role {role?.id}
-        </h2>
-      </header>
       <div className="rw-segment-main">
         <RoleForm role={role} parametros={parametros} onSave={onSave} error={error} loading={loading} />
       </div>

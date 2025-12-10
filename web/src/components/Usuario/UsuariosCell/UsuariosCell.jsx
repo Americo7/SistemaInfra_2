@@ -36,14 +36,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando usuarios...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen usuarios registrados.{' '}
-    <Link to={routes.newUsuario()} className="rw-link">
-      Crear uno nuevo
-    </Link>
-  </div>
-)
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

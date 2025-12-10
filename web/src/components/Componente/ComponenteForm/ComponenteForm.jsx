@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useForm, Controller } from 'react-hook-form'
-import { useQuery, gql } from '@redwoodjs/web'
 import { navigate, routes } from '@redwoodjs/router'
-
+import { useQuery, gql } from '@redwoodjs/web'
 import {
   Box,
   Card,
@@ -16,15 +15,14 @@ import {
   Select,
   MenuItem,
   Checkbox,
-  FormControlLabel,
-  FormGroup,
   Stack,
   Avatar,
   Button,
   useTheme,
   CircularProgress,
   Paper,
-  FormHelperText
+  InputAdornment, 
+  Divider,
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
 
@@ -39,11 +37,11 @@ import {
   AddCircle as AddIcon,
   Edit as EditIcon,
   ErrorOutline as ErrorIcon,
-  Storage as EntornoIcon
+  WarningAmber as WarningAmberIcon,
 } from '@mui/icons-material'
 
 /* ---------------------------------------------
- * 1. QUERIES
+ * 1. QUERIES (Asegurando el alias 'parametros')
  * --------------------------------------------- */
 const OBTENER_SISTEMAS = gql`
   query ObtenerSistemas2 {
@@ -56,8 +54,8 @@ const OBTENER_SISTEMAS = gql`
 `
 
 const GET_PARAMETROS = gql`
-  query GetParametros {
-    parametros {
+  query GetParametrosComponentes {
+    parametros: parametrosFormularioComponente {
       id
       codigo
       nombre
@@ -94,98 +92,19 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
         title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
         sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
       />
-      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
+      <CardContent sx={{ px:3, pt:0, flexGrow: 1 }}>{children}</CardContent>
     </Card>
   )
 }
 
-/* ---------------------------------------------
- * 3. SUBCOMPONENTE: Selector de Tecnologías
- * --------------------------------------------- */
-const TecnologiasSelector = ({ tecnologias, value, onChange }) => {
-  const theme = useTheme()
-  // Parseamos el JSON inicial o usamos array vacío
-  const [selectedTechs, setSelectedTechs] = useState(() => {
-    try {
-      return value ? JSON.parse(value) : []
-    } catch {
-      return []
-    }
-  })
-
-  // Actualizar estado interno y propagar al padre cuando cambia
-  const updateTechs = (newTechs) => {
-    setSelectedTechs(newTechs)
-    onChange(JSON.stringify(newTechs))
-  }
-
-  const handleTechChange = (tech, isChecked) => {
-    if (isChecked) {
-      updateTechs([...selectedTechs, { codigo: tech.codigo, nombre: tech.nombre, version: '' }])
-    } else {
-      updateTechs(selectedTechs.filter(t => t.codigo !== tech.codigo))
-    }
-  }
-
-  const handleVersionChange = (codigo, version) => {
-    const updated = selectedTechs.map(t =>
-      t.codigo === codigo ? { ...t, version } : t
-    )
-    updateTechs(updated)
-  }
-
-  return (
-    <Box sx={{ mt: 1, p: 2, border: `1px dashed ${theme.palette.divider}`, borderRadius: 2, bgcolor: '#fafafa' }}>
-      <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mb: 1, display: 'block' }}>
-        Seleccione las tecnologías:
-      </Typography>
-      <FormGroup>
-        <Stack spacing={1}>
-          {tecnologias?.map(tech => {
-            const isSelected = selectedTechs.some(t => t.codigo === tech.codigo)
-            return (
-              <Box key={tech.codigo} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      size="small"
-                      checked={isSelected}
-                      onChange={e => handleTechChange(tech, e.target.checked)}
-                    />
-                  }
-                  label={<Typography variant="body2">{tech.nombre}</Typography>}
-                />
-                {isSelected && (
-                  <TextField
-                    size="small"
-                    placeholder="Ver."
-                    value={selectedTechs.find(t => t.codigo === tech.codigo)?.version || ''}
-                    onChange={e => handleVersionChange(tech.codigo, e.target.value)}
-                    sx={{ width: 80, bgcolor: 'white' }}
-                  />
-                )}
-              </Box>
-            )
-          })}
-          {tecnologias?.length === 0 && (
-            <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-              Seleccione una categoría para ver opciones.
-            </Typography>
-          )}
-        </Stack>
-      </FormGroup>
-    </Box>
-  )
-}
 
 /* ---------------------------------------------
- * 4. COMPONENTE PRINCIPAL
+ * 3. COMPONENTE PRINCIPAL (COMPACTADO)
  * --------------------------------------------- */
 const ComponenteForm = (props) => {
   const theme = useTheme()
   const isEdit = Boolean(props.componente?.id)
 
-  // Queries (LEGACY: si no vienen del cell)
   const { data: sistemasData, loading: loadingSistemas } = useQuery(OBTENER_SISTEMAS, {
     skip: Boolean(props.sistemas)
   })
@@ -193,13 +112,12 @@ const ComponenteForm = (props) => {
     skip: Boolean(props.parametros)
   })
 
-  // Usar datos del cell si existen, si no usar del query
   const sistemas = props.sistemas || sistemasData?.sistemas || []
   const allParametros = props.parametros || parametrosData?.parametros || []
   
   const loadingData = (!props.sistemas && loadingSistemas) || (!props.parametros && loadingParams)
 
-  // Listas
+  // Listas de Parámetros
   const sistemasOptions = useMemo(() => 
     sistemas?.filter(s => s.estado === 'ACTIVO') || [], 
   [sistemas])
@@ -212,6 +130,11 @@ const ComponenteForm = (props) => {
     allParametros?.filter(p => p.grupo === 'ENTORNO') || [], 
   [allParametros])
 
+  const allTecnologias = useMemo(() => 
+    allParametros?.filter(p => p.grupo === 'COMP_TECH') || [], 
+  [allParametros])
+
+
   // React Hook Form
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
     defaultValues: {
@@ -220,46 +143,74 @@ const ComponenteForm = (props) => {
       dominio: props.componente?.dominio || '',
       cod_entorno: props.componente?.cod_entorno || '',
       cod_categoria: props.componente?.cod_categoria || '',
-      tecnologia: props.componente?.tecnologia || '[]',
+      tecnologia: props.componente?.tecnologia || [],
       gitlab_repo: props.componente?.gitlab_repo || '',
       gitlab_rama: props.componente?.gitlab_rama || '',
       descripcion: props.componente?.descripcion || '',
     }
   })
 
-  // Lógica de Tecnologías según Categoría
   const watchedCategoria = watch('cod_categoria')
-  
+  const watchedTecnologia = watch('tecnologia')
+
   const CATEGORY_PREFIXES = {
-    BACKEND: 'BACKEND_',
-    DATABASE: 'BD_',
-    FRONTEND: 'FRONTEND_',
-    NFS: 'NFS_',
-    BLOCKCHAIN: 'BLOCKCHAIN_',
-    OTHER: 'OTHER_'
+    'BACKEND': 'BACKEND_',
+    'DATABASE': 'BD_',
+    'FRONTEND': 'FRONTEND_',
+    'NFS': 'NFS_',
+    'BLOCKCHAIN': 'BLOCKCHAIN_',
+    'OTHER': 'OTHER_',
   }
 
+  // Lógica de Filtrado de Tecnologías
   const tecnologiasDisponibles = useMemo(() => {
-    if (!watchedCategoria || !allParametros) return []
-    const prefix = CATEGORY_PREFIXES[watchedCategoria]
-    if (!prefix) return []
-    
-    return allParametros.filter(p => 
-      p.grupo === 'COMP_TECH' && p.codigo.startsWith(prefix)
-    )
-  }, [watchedCategoria, allParametros])
+    if (!watchedCategoria || allTecnologias.length === 0) return [];
 
-  // Limpiar tecnologías si cambia la categoría (opcional, depende de requerimiento de negocio)
-  // useEffect(() => {
-  //   setValue('tecnologia', '[]') 
-  // }, [watchedCategoria, setValue])
+    const prefix = CATEGORY_PREFIXES[watchedCategoria]
+    
+    if (prefix) {
+      const filtered = allTecnologias.filter(p => p.codigo.startsWith(prefix));
+      
+      return filtered.length > 0 ? filtered : allTecnologias;
+
+    }
+
+    return allTecnologias;
+
+  }, [watchedCategoria, allTecnologias])
+
+
+  // Handler para Autocomplete que permite selección múltiple y maneja versiones
+  const handleTechSelect = (newValue) => {
+    const existingTechs = Array.isArray(watchedTecnologia) ? watchedTecnologia : [];
+    
+    const newSelected = newValue.map(tech => {
+      const techInfo = allTecnologias.find(t => t.codigo === tech.codigo);
+      const existing = existingTechs.find(t => t.codigo === tech.codigo);
+      
+      return { 
+        codigo: tech.codigo, 
+        nombre: techInfo ? techInfo.nombre : tech.nombre, 
+        version: existing ? existing.version : '' 
+      };
+    });
+
+    setValue('tecnologia', newSelected, { shouldValidate: true, shouldDirty: true });
+  }
+
+  // Handler para actualizar la versión de una tecnología específica
+  const handleVersionChange = (codigo, newVersion) => {
+    const updated = watchedTecnologia.map(t =>
+      t.codigo === codigo ? { ...t, version: newVersion } : t
+    );
+    setValue('tecnologia', updated, { shouldValidate: true, shouldDirty: true });
+  }
+
 
   const onSubmit = (data) => {
     const formData = {
       ...data,
       estado: 'ACTIVO',
-      usuario_creacion: isEdit ? undefined : 3, // Ajustar IDs reales
-      usuario_modificacion: 2
     }
     props.onSave(formData, props?.componente?.id)
   }
@@ -284,7 +235,7 @@ const ComponenteForm = (props) => {
       >
         {/* HEADER */}
         <Box sx={{
-          px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+          px: 5, py: 3, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
           borderTopLeftRadius: 16, borderTopRightRadius: 16,
         }}>
           <Avatar
@@ -301,13 +252,13 @@ const ComponenteForm = (props) => {
               {isEdit ? 'Editar Componente' : 'Crear Componente'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {isEdit ? 'Actualizar datos del componente' : 'Registrar nuevo componente de software'}
+              {isEdit ? 'Actualizar información técnica' : 'Registrar nuevo componente de software'}
             </Typography>
           </Box>
         </Box>
 
         {/* CONTENIDO PRINCIPAL */}
-        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 2, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
 
           {props.error && (
             <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
@@ -324,13 +275,13 @@ const ComponenteForm = (props) => {
             alignItems: 'start'
           }}>
               
-              {/* --- CARD 1: IDENTIFICACIÓN --- */}
+              {/* --- CARD 1: IDENTIFICACIÓN (SPACING REDUCIDO) --- */}
               <SectionCard 
                 icon={<SystemIcon sx={{ fontSize: 20 }} />} 
                 title="Identificación"
                 bgcolor={theme.palette.primary.main}
               >
-                <Stack spacing={2.5}>
+                <Stack spacing={1}> {/* Reducción de 2.5 a 2 */}
                   
                   {/* Sistema */}
                   <FormControl fullWidth error={!!errors.id_sistema}>
@@ -379,80 +330,69 @@ const ComponenteForm = (props) => {
                     />
                   </FormControl>
 
+                  {/* Descripción */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
+                    <Controller
+                      name="descripcion"
+                      control={control}
+                      render={({ field }) => (
+                        <TextField 
+                          {...field} 
+                          multiline 
+                          rows={3} 
+                          size="small" 
+                          placeholder="Detalles adicionales del componente..." 
+                        />
+                      )}
+                    />
+                  </FormControl>
+
                 </Stack>
               </SectionCard>
 
-              {/* --- CARD 2: CLASIFICACIÓN Y TECNOLOGÍAS --- */}
+              {/* --- CARD 2: CLASIFICACIÓN Y REPOSITORIO (SPACING REDUCIDO) --- */}
               <SectionCard 
                 icon={<CategoryIcon sx={{ fontSize: 20 }} />} 
-                title="Clasificación"
+                title="Clasificación y Repositorio"
                 bgcolor={theme.palette.secondary.main}
               >
-                <Stack spacing={2.5}>
+                <Stack spacing={1.5}> {/* Reducción de 2.5 a 2 */}
                   
-                  {/* Entorno */}
+                  {/* ENTORNO */}
                   <FormControl fullWidth>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Entorno de Despliegue</FormLabel>
-                    <Controller
-                      name="cod_entorno"
-                      control={control}
-                      render={({ field }) => (
-                        <Select {...field} size="small" displayEmpty>
-                          <MenuItem value=""><em>Seleccionar...</em></MenuItem>
-                          {entornos.map(e => (
-                            <MenuItem key={e.codigo} value={e.codigo}>{e.nombre}</MenuItem>
-                          ))}
-                        </Select>
-                      )}
-                    />
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Entorno Despliegue</FormLabel>
+                      <Controller
+                          name="cod_entorno"
+                          control={control}
+                          render={({ field }) => (
+                              <Select {...field} size="small" displayEmpty>
+                                  <MenuItem value=""><em>Seleccionar...</em></MenuItem>
+                                  {entornos.map(e => (
+                                      <MenuItem key={e.codigo} value={e.codigo}>{e.nombre}</MenuItem>
+                                  ))}
+                              </Select>
+                          )}
+                      />
                   </FormControl>
 
                   {/* Categoría */}
                   <FormControl fullWidth error={!!errors.cod_categoria}>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Categoría del Componente</FormLabel>
-                    <Controller
-                      name="cod_categoria"
-                      control={control}
-                      render={({ field }) => (
-                        <Select {...field} size="small" displayEmpty>
-                          <MenuItem value=""><em>Seleccionar...</em></MenuItem>
-                          {categorias.map(c => (
-                            <MenuItem key={c.codigo} value={c.codigo}>{c.nombre}</MenuItem>
-                          ))}
-                        </Select>
-                      )}
-                    />
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Categoría Componente</FormLabel>
+                      <Controller
+                          name="cod_categoria"
+                          control={control}
+                          render={({ field }) => (
+                              <Select {...field} size="small" displayEmpty>
+                                  <MenuItem value=""><em>Seleccionar...</em></MenuItem>
+                                  {categorias.map(c => (
+                                      <MenuItem key={c.codigo} value={c.codigo}>{c.nombre}</MenuItem>
+                                  ))}
+                              </Select>
+                          )}
+                      />
                   </FormControl>
 
-                  {/* Selector de Tecnologías (Componente Custom) */}
-                  <Box>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <CodeIcon fontSize="small" color="action" /> Tecnologías
-                    </FormLabel>
-                    <Controller
-                      name="tecnologia"
-                      control={control}
-                      render={({ field: { value, onChange } }) => (
-                        <TecnologiasSelector 
-                          tecnologias={tecnologiasDisponibles} 
-                          value={value} 
-                          onChange={onChange} 
-                        />
-                      )}
-                    />
-                  </Box>
-
-                </Stack>
-              </SectionCard>
-
-              {/* --- CARD 3: DETALLES TÉCNICOS --- */}
-              <SectionCard 
-                icon={<DescIcon sx={{ fontSize: 20 }} />} 
-                title="Detalles Técnicos"
-                bgcolor="#2e7d32"
-              >
-                <Stack spacing={2.5}>
-                  
                   {/* Repositorio */}
                   <FormControl fullWidth>
                     <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Repositorio GitLab</FormLabel>
@@ -477,23 +417,133 @@ const ComponenteForm = (props) => {
                     />
                   </FormControl>
 
-                  {/* Descripción (Más grande) */}
-                  <FormControl fullWidth>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
-                    <Controller
-                      name="descripcion"
-                      control={control}
-                      render={({ field }) => (
-                        <TextField 
-                          {...field} 
-                          multiline 
-                          rows={4} 
-                          size="small" 
-                          placeholder="Detalles adicionales del componente..." 
-                        />
-                      )}
-                    />
-                  </FormControl>
+                </Stack>
+              </SectionCard>
+
+              {/* --- CARD 3: TECNOLOGÍAS (SPACING REDUCIDO y VERSIONES ORDENADAS) --- */}
+              <SectionCard 
+                icon={<CodeIcon sx={{ fontSize: 20 }} />} 
+                title="Tecnologías"
+                bgcolor="#2e7d32"
+              >
+                <Stack spacing={1}> {/* Reducción de 2.5 a 2 */}
+                  
+                  {/* Selector de Autocomplete */}
+                  <Box>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      Stack Tecnológico
+                    </FormLabel>
+                    
+                    {/* Contenedor condicional del Autocomplete */}
+                    {watchedCategoria ? (
+                      <Controller
+                        name="tecnologia"
+                        control={control}
+                        render={() => {
+                          const selectedOptions = (Array.isArray(watchedTecnologia) ? watchedTecnologia : [])
+                            .map(sel => allTecnologias.find(t => t.codigo === sel.codigo))
+                            .filter(t => t);
+
+                          return (
+                            <Stack spacing={2}>
+                              {/* 1. Selector principal */}
+                              <Autocomplete
+                                multiple
+                                options={tecnologiasDisponibles}
+                                disableCloseOnSelect
+                                getOptionLabel={(option) => option.nombre}
+                                value={selectedOptions} 
+                                
+                                onChange={(_, newValue) => handleTechSelect(newValue)}
+                                renderOption={(props, option, { selected }) => (
+                                  <li {...props}>
+                                    <Checkbox checked={selected} sx={{mr:1}} />
+                                    {option.nombre}
+                                  </li>
+                                )}
+                                renderInput={(params) => (
+                                  <TextField 
+                                    {...params} 
+                                    size="small" 
+                                    placeholder="Buscar y seleccionar tecnologías..." 
+                                  />
+                                )}
+                              />
+
+                              {/* 2. Sección de Versiones Dinámicas (Horizontal Compacta) */}
+                              {(Array.isArray(watchedTecnologia) && watchedTecnologia.length > 0) && (
+                                <Box sx={{ 
+                                  mt: 1,
+                                  p: 2, 
+                                  border: `1px dashed ${theme.palette.divider}`, 
+                                  borderRadius: 1,
+                                  bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100],
+                                  maxWidth:275,
+                                }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', mb: 1, display: 'block' }}>
+                                    Versiones de Componentes:
+                                  </Typography>
+                                  
+                                  <Stack spacing={1}> {/* Espaciado muy compacto */}
+                                    {watchedTecnologia.map((tech) => (
+                                      <Box 
+                                        key={tech.codigo} 
+                                        sx={{ 
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          justifyContent: 'space-between',
+                                          gap: 1.5, // Espacio entre label y input
+                                          py: 0.5 // Relleno vertical para separar filas
+                                        }}
+                                      >
+                                        {/* Label/Texto de la Tecnología */}
+                                        <Typography 
+                                            variant="body2" 
+                                            fontWeight={500}
+                                            sx={{ 
+                                                flexShrink: 0, 
+                                                width: '40%', // Asignar un ancho para el label
+                                                overflow: 'hidden', 
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                        >
+                                            {tech.nombre}
+                                        </Typography>
+
+                                        {/* Input de Versión al lado */}
+                                        <TextField
+                                          size="small"
+                                          placeholder="1.0.0 / LTS"
+                                          value={tech.version || ''}
+                                          onChange={(e) => handleVersionChange(tech.codigo, e.target.value)}
+                                          sx={{ 
+                                            flexGrow: 1, // Ocupa el espacio restante
+                                            bgcolor: 'white', 
+                                            maxWidth: '60%' 
+                                          }}
+                                          InputProps={{
+                                            startAdornment: <InputAdornment position="start">v</InputAdornment>
+                                          }}
+                                        />
+                                      </Box>
+                                    ))}
+                                  </Stack>
+                                </Box>
+                              )}
+                            </Stack>
+                          )
+                        }}
+                      />
+                    ) : (
+                      <Paper variant="outlined" sx={{ p: 2, bgcolor: '#fff3e0', borderColor: '#ffb74d' }}>
+                        <Typography variant="body2" color="#e65100" fontWeight={600} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <WarningAmberIcon fontSize="small" />
+                           Seleccione una **Categoría** para cargar las opciones de Stack Tecnológico.
+                        </Typography>
+                      </Paper>
+                    )}
+                  </Box>
 
                 </Stack>
               </SectionCard>

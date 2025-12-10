@@ -40,7 +40,7 @@ export const getProxmoxClient = async (endpointId) => {
   return axios.create({
     baseURL,
     headers: { Authorization: token },
-    timeout: 20000,
+    timeout: 5000,
     httpsAgent,
   })
 }

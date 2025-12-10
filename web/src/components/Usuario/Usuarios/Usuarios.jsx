@@ -29,6 +29,13 @@ import {
   ListItemIcon,
   Typography,
   Divider,
+  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
@@ -89,14 +96,18 @@ const Usuarios = ({ usuarios }) => {
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
+  // --- ESTADOS PARA EL DIÁLOGO ---
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
+
   const [updateUsuario] = useMutation(UPDATE_USUARIO_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
+  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteUsuario] = useMutation(DELETE_USUARIO_MUTATION, {
     onError: (error) => toast.error(error.message),
-    onCompleted: () => toast.success('Usuarios eliminados permanentemente.'),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
@@ -125,18 +136,29 @@ const Usuarios = ({ usuarios }) => {
     closeAllDialogs()
   }
 
+  // MODIFICACIÓN: Abre el diálogo y guarda las filas
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE a ${rows.length} usuario(s)?\n\nEsta acción no se puede deshacer.`)) {
-        closeAllDialogs()
-        return
-    }
+    const dataObjects = rows.map((r) => r.original)
+    setRowsToDelete(dataObjects)
+    setOpenDeleteDialog(true)
+  }
 
-    rows.forEach((usuario) => {
+  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
+  const confirmHardDelete = () => {
+    setOpenDeleteDialog(false)
+    
+    if (rowsToDelete.length === 0) return
+
+    rowsToDelete.forEach((usuario) => {
       deleteUsuario({ variables: { id: usuario.id } })
     })
     
+    // Muestra el toast de éxito UNA SOLA VEZ
+    toast.success(`${rowsToDelete.length} usuario(s) eliminado(s) permanentemente.`) 
+
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
+    setRowsToDelete([])
   }
 
   // --- FILTRADO ---
@@ -358,7 +380,7 @@ const Usuarios = ({ usuarios }) => {
           <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
           {showDeleted ? 'Restaurar' : 'Desactivar'}
         </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon> Eliminar BD
         </MenuItem>
       </Menu>
@@ -368,12 +390,27 @@ const Usuarios = ({ usuarios }) => {
       showDeleted,
       selectedRowCount,
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
-      handleBulkAction: (e) => showDeleted ? handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original)) : setBulkMenuAnchorEl(e.currentTarget),
+      handleBulkAction: (e) => {
+        if (selectedRowCount === 0) {
+            toast.error('Debe seleccionar al menos un registro.')
+            return;
+        }
+        if (showDeleted) {
+             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+        } else {
+             setBulkMenuAnchorEl(e.currentTarget)
+        }
+      },
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
       exportMenu: ExportMenu,
       bulkActionMenu: BulkActionMenu,
     }
   }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
+
+  // Lógica segura para obtener el nombre(s) en el diálogo
+  const namesToDelete = rowsToDelete.length === 1 
+    ? rowsToDelete[0]?.nombre_usuario || rowsToDelete[0]?.email || `el usuario ID ${rowsToDelete[0]?.id}` 
+    : `${rowsToDelete.length} registros`
 
   return (
     <ScaffoldLayout
@@ -385,6 +422,47 @@ const Usuarios = ({ usuarios }) => {
       listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
+
+      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
+      <Dialog
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
+          ADVERTENCIA: ¡Eliminación Definitiva!
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Estás a punto de eliminar **{namesToDelete}** de forma permanente.
+            <br />
+            **Esta acción es irreversible** y eliminará los datos de la base de datos.
+            <br />
+            ¿Deseas continuar?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => { 
+                setOpenDeleteDialog(false); 
+                setRowsToDelete([]); 
+            }} 
+            color="primary"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={confirmHardDelete} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

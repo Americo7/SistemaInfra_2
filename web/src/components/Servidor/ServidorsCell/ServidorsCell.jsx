@@ -65,14 +65,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando servidores...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen servidores registrados.{' '}
-    <Link to={routes.newServidor()} className="rw-link">
-      Crear uno nuevo
-    </Link>
-  </div>
-)
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

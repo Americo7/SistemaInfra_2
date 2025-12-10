@@ -29,6 +29,13 @@ import {
   ListItemIcon,
   Typography,
   Divider,
+  // --- IMPORTACIONES PARA EL DIÁLOGO ---
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
@@ -88,6 +95,10 @@ const Roles = ({ roles }) => {
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
+  
+  // --- ESTADOS PARA EL DIÁLOGO ---
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+  const [rowsToDelete, setRowsToDelete] = useState([]) // Inicializado como array vacío
 
   const [updateRole] = useMutation(UPDATE_ROLE_MUTATION, {
     onError: (error) => toast.error(error.message),
@@ -96,14 +107,13 @@ const Roles = ({ roles }) => {
 
   const [deleteRole] = useMutation(DELETE_ROLE_MUTATION, {
     onError: (error) => toast.error(error.message),
-    onCompleted: () => toast.success('Roles eliminados permanentemente.'),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
   // Helpers para el exportador
   const exportHelpers = {
     getUsuarioNombre: (val) => formatUser(val),
-    getTipoRol: (val, row) => row.tipoRolInfo?.nombre || val // Para exportar el nombre del tipo
+    getTipoRol: (val, row) => row.tipoRolInfo?.nombre || val 
   }
 
   const closeAllDialogs = () => {
@@ -125,18 +135,29 @@ const Roles = ({ roles }) => {
     closeAllDialogs()
   }
 
+  // Abre el diálogo y prepara los datos
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} rol(es)?\n\nEsta acción no se puede deshacer.`)) {
-        closeAllDialogs()
-        return
-    }
+    // Extraemos los datos originales (.original) de las filas seleccionadas
+    const dataObjects = rows.map((r) => r.original)
+    setRowsToDelete(dataObjects)
+    setOpenDeleteDialog(true)
+  }
 
-    rows.forEach((row) => {
+  // Ejecuta la eliminación tras confirmar en el diálogo
+  const confirmHardDelete = () => {
+    setOpenDeleteDialog(false)
+    
+    if (rowsToDelete.length === 0) return
+
+    rowsToDelete.forEach((row) => {
       deleteRole({ variables: { id: row.id } })
     })
     
+    toast.success(`${rowsToDelete.length} rol(es) eliminados permanentemente.`) 
+
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
+    setRowsToDelete([]) 
   }
 
   // --- FILTRADO ---
@@ -167,7 +188,6 @@ const Roles = ({ roles }) => {
         id: 'tipo_rol',
         header: 'Tipo Rol', 
         size: 150,
-        // Usamos accessorFn para mostrar el nombre del tipo si existe, o el código como fallback
         accessorFn: (row) => row.tipoRolInfo?.nombre || row.cod_tipo_rol,
         Cell: ({ row }) => (
             <Chip 
@@ -197,7 +217,6 @@ const Roles = ({ roles }) => {
         />
       ),
     },
-    // --- AUDITORÍA ---
     { 
         id: 'fecha_creacion',
         header: 'F. Creación', 
@@ -240,7 +259,6 @@ const Roles = ({ roles }) => {
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
-        // Visibles por defecto
         fecha_creacion: false, 
         creadoPor: false, 
         fecha_modificacion: true, 
@@ -349,7 +367,6 @@ const Roles = ({ roles }) => {
     
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
-        {/* EXCEL */}
         <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
           <Typography variant="caption" fontWeight={700}>EXCEL</Typography>
         </Box>
@@ -362,7 +379,6 @@ const Roles = ({ roles }) => {
         
         <Divider />
 
-        {/* PDF */}
         <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
           <Typography variant="caption" fontWeight={700}>PDF</Typography>
         </Box>
@@ -375,7 +391,6 @@ const Roles = ({ roles }) => {
 
         <Divider />
 
-        {/* CSV */}
         <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
           <Typography variant="caption" fontWeight={700}>CSV</Typography>
         </Box>
@@ -398,7 +413,7 @@ const Roles = ({ roles }) => {
           <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
           {showDeleted ? 'Restaurar' : 'Desactivar'}
         </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
           Eliminar de Base de Datos
         </MenuItem>
@@ -430,6 +445,12 @@ const Roles = ({ roles }) => {
     table.getState().rowSelection,
     table.getState().pagination
   ])
+  
+  // LOGICA SEGURA para obtener el nombre en el diálogo
+  // Usamos optional chaining (?.) para evitar el error "Cannot read properties of undefined"
+  const namesToDelete = rowsToDelete.length === 1 
+    ? rowsToDelete[0]?.nombre || 'este rol' 
+    : `${rowsToDelete.length} roles`
 
   return (
     <ScaffoldLayout
@@ -441,6 +462,46 @@ const Roles = ({ roles }) => {
       listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
+      
+      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
+      <Dialog
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+      >
+        <DialogTitle id="alert-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
+          ADVERTENCIA: ¡Eliminación Definitiva!
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description">
+            Estás a punto de eliminar **{namesToDelete}** de forma permanente.
+            <br />
+            **Esta acción es irreversible** y eliminará los datos de la base de datos.
+            <br />
+            ¿Deseas continuar?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => { 
+                setOpenDeleteDialog(false); 
+                setRowsToDelete([]); 
+            }} 
+            color="primary"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={confirmHardDelete} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </ScaffoldLayout>
   )
 }

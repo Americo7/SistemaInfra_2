@@ -122,8 +122,6 @@ const RoleForm = (props) => {
     const formData = {
       ...data,
       estado: props.role?.id ? props.role.estado : 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: isEdit ? undefined : 3,
     }
     props.onSave(formData, props?.role?.id)
   }
@@ -265,18 +263,17 @@ const RoleForm = (props) => {
               {/* --- CARD 2: DETALLES --- */}
               <SectionCard 
                 icon={<DescriptionIcon sx={{ fontSize: 20 }} />} 
-                title="Descripción y Permisos"
+                title="Descripción"
                 bgcolor={theme.palette.secondary.main}
               >
                 <Stack spacing={2.5}>
                   
                   {/* Descripción */}
                   <FormControl fullWidth error={!!errors.descripcion}>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción Detallada *</FormLabel>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción Detallada </FormLabel>
                     <Controller
                       name="descripcion"
                       control={control}
-                      rules={{ required: 'La descripción es requerida' }}
                       render={({ field }) => (
                         <TextField 
                           {...field} 

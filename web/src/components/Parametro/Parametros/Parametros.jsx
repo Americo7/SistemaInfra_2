@@ -12,6 +12,7 @@ import {
   Settings as ParamIcon, // Icono sugerido para parámetros
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
+  RestoreFromTrash as RestoreIcon, // Importado para Soft Delete/Restore
 } from '@mui/icons-material'
 
 import {
@@ -21,6 +22,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText, // Importación necesaria para texto del diálogo
   DialogActions,
   IconButton,
   Tooltip,
@@ -28,8 +30,8 @@ import {
   MenuItem,
   Stack,
   ListItemIcon,
-  ListItemText,
   Typography,
+  Divider,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
@@ -69,8 +71,13 @@ const Parametros = ({ parametros, usuarios }) => {
   
   // Estados de UI
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null, action: null })
-  const [actionMenu, setActionMenu] = useState({ anchorEl: null, row: null })
+  
+  // --- ESTADOS PARA EL DIÁLOGO DE ELIMINACIÓN ---
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
+  // El estado `deleteDialog` individual se puede simplificar o eliminar si solo usaremos el masivo. 
+  // Lo comentaré por ahora para usar solo el masivo:
+  // const [actionMenu, setActionMenu] = useState({ anchorEl: null, row: null })
 
   // --- MUTACIONES ---
   const [updateParametro] = useMutation(UPDATE_PARAMETRO_MUTATION, {
@@ -78,15 +85,15 @@ const Parametros = ({ parametros, usuarios }) => {
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
+  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteParametro] = useMutation(DELETE_PARAMETRO_MUTATION, {
     onError: (error) => toast.error(error.message),
-    onCompleted: () => toast.success('Registro eliminado permanentemente.'),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
   const closeAllDialogs = () => {
     setBulkMenuAnchorEl(null)
-    setActionMenu({ anchorEl: null, row: null })
+    // setActionMenu({ anchorEl: null, row: null }) // Si usas el menú de fila
   }
 
   // --- HANDLERS ACCIONES MASIVAS ---
@@ -103,35 +110,29 @@ const Parametros = ({ parametros, usuarios }) => {
     closeAllDialogs()
   }
 
+  // MODIFICACIÓN: Abre el diálogo y guarda las filas
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} parámetro(s)?\n\nEsta acción no se puede deshacer.`)) {
-        closeAllDialogs()
-        return
-    }
-
-    rows.forEach((row) => {
-      deleteParametro({ variables: { id: row.id } })
-    })
-    
-    table.toggleAllRowsSelected(false)
-    closeAllDialogs()
+    const dataObjects = rows.map((r) => r.original)
+    setRowsToDelete(dataObjects)
+    setOpenDeleteDialog(true)
+    closeAllDialogs() // Cierra el menú masivo si estaba abierto
   }
 
-  // --- HANDLERS ACCIONES INDIVIDUALES ---
-  const confirmarAccionIndividual = () => {
-    if (deleteDialog.action === 'desactivar') {
-        const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
-        updateParametro({
-            variables: { 
-                id: deleteDialog.id, 
-                input: { estado: newState, usuario_modificacion: 1 } 
-            },
-        })
-        toast.success(`Parámetro ${showDeleted ? 'reactivado' : 'desactivado'}`)
-    } else if (deleteDialog.action === 'eliminar') {
-        deleteParametro({ variables: { id: deleteDialog.id } })
-    }
-    setDeleteDialog({ open: false, id: null, action: null })
+  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
+  const confirmHardDelete = () => {
+    setOpenDeleteDialog(false)
+    
+    if (rowsToDelete.length === 0) return
+
+    rowsToDelete.forEach((row) => {
+      deleteParametro({ variables: { id: row.id } })
+    })
+
+    // Muestra el toast de éxito UNA SOLA VEZ
+    toast.success(`${rowsToDelete.length} registro(s) eliminado(s) permanentemente.`) 
+    
+    table.toggleAllRowsSelected(false)
+    setRowsToDelete([]) 
   }
 
   // --- HELPERS ---
@@ -310,10 +311,10 @@ const Parametros = ({ parametros, usuarios }) => {
         onClose={closeAllDialogs}
       >
         <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
-          <ListItemIcon><SoftDeleteIcon fontSize="small" color="warning" /></ListItemIcon>
+          <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
           {showDeleted ? 'Reactivar' : 'Desactivar'} (Soft Delete)
         </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
           Eliminar de Base de Datos
         </MenuItem>
@@ -326,6 +327,11 @@ const Parametros = ({ parametros, usuarios }) => {
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
       
       handleBulkAction: (e) => {
+        if (selectedRowCount === 0) {
+            toast.error('Debe seleccionar al menos un registro.')
+            return;
+        }
+        
         if (showDeleted) {
             // Si estamos viendo eliminados, el botón masivo actúa directamente para restaurar/eliminar
             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
@@ -345,6 +351,12 @@ const Parametros = ({ parametros, usuarios }) => {
     table.getState().rowSelection,
     table.getState().pagination
   ])
+  
+  // Lógica segura para obtener el nombre(s) en el diálogo
+  const namesToDelete = rowsToDelete.length === 1 
+    ? rowsToDelete[0]?.nombre || rowsToDelete[0]?.codigo || `el parámetro ID ${rowsToDelete[0]?.id}` 
+    : `${rowsToDelete.length} registros`
+
 
   return (
     <ScaffoldLayout
@@ -357,38 +369,39 @@ const Parametros = ({ parametros, usuarios }) => {
     >
       <MaterialReactTable table={table} />
 
-      {/* DIÁLOGO DE CONFIRMACIÓN INDIVIDUAL */}
+      {/* DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN DEFINITIVA (MUI) */}
       <Dialog
-        open={deleteDialog.open}
-        onClose={() => setDeleteDialog({ open: false, id: null, action: null })}
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
       >
-        <DialogTitle>
-          {deleteDialog.action === 'desactivar' ? 'Confirmar Desactivación' : 'Confirmar Eliminación'}
+        <DialogTitle id="delete-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
+          ADVERTENCIA: ¡Eliminación Definitiva!
         </DialogTitle>
         <DialogContent>
-          <Typography>
-            {deleteDialog.action === 'desactivar'
-              ? `¿Estás seguro de desactivar el parámetro? No se eliminará de la base de datos.`
-              : `¿Estás seguro de eliminar permanentemente el parámetro? Esta acción es irreversible.`}
-          </Typography>
+          <DialogContentText id="delete-dialog-description">
+            Estás seguro de eliminar permanentemente **{namesToDelete}**?
+            <br />
+            **Esta acción es irreversible** y eliminará los datos de la base de datos.
+            <br />
+            ¿Deseas continuar?
+          </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialog({ open: false, id: null, action: null })}>
+          <Button onClick={() => { setOpenDeleteDialog(false); setRowsToDelete([]); }}>
             Cancelar
           </Button>
           <Button
-            onClick={confirmarAccionIndividual}
+            onClick={confirmHardDelete}
             color="error"
             variant="contained"
+            autoFocus
           >
-            Confirmar
+            Confirmar Eliminación
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* MENÚ DE ACCIONES DE FILA (3 PUNTOS - OPCIONAL SI NO SE USAN BOTONES DIRECTOS) */}
-      {/* Actualmente usando botones directos en renderRowActions, pero si se necesita menú extra: */}
-      {/* ... */}
     </ScaffoldLayout>
   )
 }

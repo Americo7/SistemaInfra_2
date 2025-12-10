@@ -45,7 +45,7 @@ export const Success = ({ proxmoxEndpoint }) => {
     UPDATE_PROXMOX_ENDPOINT_MUTATION,
     {
       onCompleted: () => {
-        toast.success('ProxmoxEndpoint actualizado')
+        toast.success('Proxmox Endpoint actualizado correctamente')
         navigate(routes.proxmoxEndpoints())
       },
       onError: (error) => toast.error(error.message),

@@ -55,14 +55,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando nodos del cluster...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen nodos de cluster registrados.{' '}
-    <Link to={routes.newClusterNodo()} className="rw-link">
-      Crear uno nuevo
-    </Link>
-  </div>
-)
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

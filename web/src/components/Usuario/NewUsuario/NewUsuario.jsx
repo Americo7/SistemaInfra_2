@@ -18,7 +18,7 @@ const NewUsuario = () => {
     CREATE_USUARIO_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Usuario created')
+        toast.success('Usuario creado correctamente')
         navigate(routes.usuarios())
       },
       onError: (error) => {
@@ -33,9 +33,6 @@ const NewUsuario = () => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">New Usuario</h2>
-      </header>
       <div className="rw-segment-main">
         <UsuarioForm onSave={onSave} loading={loading} error={error} />
       </div>

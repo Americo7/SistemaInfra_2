@@ -7,7 +7,7 @@ export const schema = gql`
     nro_documento: String!
     nombres: String!
     primer_apellido: String!
-    segundo_apellido: String!
+    segundo_apellido: String
     celular: String!
     email: String!
     nombre_completo: String
@@ -40,7 +40,7 @@ export const schema = gql`
     nro_documento: String!
     nombres: String!
     primer_apellido: String!
-    segundo_apellido: String!
+    segundo_apellido: String
     celular: String!
     email: String!
     estado: estado!

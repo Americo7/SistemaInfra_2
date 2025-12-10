@@ -25,7 +25,7 @@ import {
   Cancel as CancelIcon,
   AddCircle as AddIcon,
   Edit as EditIcon,
-  ErrorOutline as ErrorIcon, // Importado como ErrorIcon
+  ErrorOutline as ErrorIcon,
   Business as EntityIcon,
 } from '@mui/icons-material'
 
@@ -89,9 +89,9 @@ const EntidadForm = (props) => {
   }
 
   return (
+    // CARD PRINCIPAL: Ocupa el ancho disponible del Layout (hasta 1500px)
     <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
       
-      {/* CONTENEDOR PRINCIPAL */}
       <Card 
         elevation={0}
         sx={{
@@ -105,40 +105,46 @@ const EntidadForm = (props) => {
         }}
       >
         
-        {/* HEADER */}
+        {/* HEADER DEL CARD PRINCIPAL */}
+        {/* El fondo blanco (bgcolor) ocupa todo el ancho, pero el contenido interno se alinea al centro */}
         <Box sx={{ 
-            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            px: 5, py: 4, bgcolor: '#fff',
             borderTopLeftRadius: 16, borderTopRightRadius: 16,
           }}>
-            <Avatar sx={{
-                  width: 38, height: 38,
-                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
-                }}>
-              {isEdit ? <EditIcon /> : <AddIcon />}
-            </Avatar>
-            
-            <Box>
-              <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2, color: '#000', mb: 0.5 }}>
-                {isEdit ? 'Editar Entidad' : 'Nueva Entidad'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {isEdit ? 'Modificar datos de la institución' : 'Registrar nueva institución en el sistema'}
-              </Typography>
+            <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{
+                    width: 38, height: 38,
+                    background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                  }}>
+                {isEdit ? <EditIcon /> : <AddIcon />}
+              </Avatar>
+              
+              <Box>
+                <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2, color: '#000', mb: 0.5 }}>
+                  {isEdit ? 'Editar Entidad' : 'Nueva Entidad'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {isEdit ? 'Modificar datos de la institución' : 'Registrar nueva institución en el sistema'}
+                </Typography>
+              </Box>
             </Box>
         </Box>
 
-        {/* CONTENIDO */}
+        {/* CONTENIDO DEL CARD PRINCIPAL */}
         <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
           
-          {/* Mensaje de Error (CORREGIDO AQUI) */}
-          {props.error && (
-            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
-              <ErrorIcon color="error" />
-              <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
-            </Paper>
-          )}
+          {/* WRAPPER CENTRADO: Limita el ancho a 800px para alinear con el header */}
+          <Box sx={{ maxWidth: 800, mx: 'auto', width: '100%' }}>
 
-            {/* UN SOLO CARD SECUNDARIO (Campos Verticales) */}
+            {/* Mensaje de Error */}
+            {props.error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
+              </Paper>
+            )}
+
+            {/* CARD SECUNDARIO (Información) */}
             <SectionCard 
               icon={<EntityIcon sx={{ fontSize: 20 }} />} 
               title="Información de la Entidad"
@@ -237,6 +243,8 @@ const EntidadForm = (props) => {
                 {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar Entidad')}
               </LoadingButton>
             </Box>
+
+          </Box> {/* Fin Wrapper Centrado */}
 
         </Box>
       </Card>

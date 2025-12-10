@@ -50,7 +50,8 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
         flexDirection: 'column',
         borderTop: `3px solid ${activeColor}`,
         bgcolor: 'background.paper',
-        height: '100%'
+        height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
       }}
     >
       <CardHeader
@@ -59,10 +60,10 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
             {icon}
           </Avatar>
         }
-        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '1rem' }}>{title}</Typography>}
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
         sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
       />
-      <CardContent sx={{ p: 3 }}>{children}</CardContent>
+      <CardContent sx={{ p: 3, flexGrow: 1 }}>{children}</CardContent>
     </Card>
   )
 }
@@ -124,175 +125,159 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
   }
 
   return (
-    <Box sx={{ width: '100%', maxWidth: 900, mx: 'auto', p: 2 }}>
+    // CARD PRINCIPAL: Ocupa el ancho del Layout (1500px)
+    <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
       
-      {/* 1. CARD PRINCIPAL CONTENEDOR */}
       <Card 
-        elevation={3} 
+        elevation={0} 
         sx={{ 
-          borderRadius: 4, // Bordes más redondeados
-          overflow: 'hidden' // Corta el contenido para respetar los bordes
+          border: `1px solid ${theme.palette.divider}`,
+          borderTop: 'none',
+          borderRadius: 2,
+          borderTopLeftRadius: '0 !important',
+          borderTopRightRadius: '0 !important',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
         }}
       >
         
-        {/* HEADER UNIFICADO (Sin línea, fondo blanco) */}
+        {/* HEADER: Fondo completo, contenido centrado a 800px */}
         <Box sx={{ 
-            px: 5,
-            py: 4,
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 2,
-            bgcolor: '#fff', // Fondo blanco igual que el cuerpo
-            // borderBottom eliminado para continuidad
+            px: 5, py: 4, 
+            bgcolor: '#fff',
+            borderTopLeftRadius: 16, borderTopRightRadius: 16
           }}>
-            <Avatar
-              sx={{
-                  width: 48,
-                  height: 48,
-                  background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
-                  color: 'white',
-                  boxShadow: 3
-                }}
-              >
-              {isEdit ? <EditIcon /> : <AddIcon />}
-            </Avatar>
-            
-            <Box>
-              <Typography
-                variant="h5"
-                fontWeight={800}
-                sx={{
-                  lineHeight: 1.2,
-                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  mb: 0.5
-                }}
-              >
-                {isEdit ? 'Editar Data Center' : 'Nuevo Data Center'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {isEdit ? 'Modificar información de la ubicación' : 'Registrar nueva ubicación física'}
-              </Typography>
+            {/* WRAPPER CENTRADO DEL HEADER (ALINEADO CON EL FORMULARIO) */}
+            <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{
+                    width: 38, height: 38,
+                    background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
+                  }}>
+                {isEdit ? <EditIcon /> : <AddIcon />}
+              </Avatar>
+              
+              <Box>
+                <Typography variant="h6" fontWeight={800} sx={{
+                    lineHeight: 1.2, color: '#000', mb: 0.5
+                  }}>
+                  {isEdit ? 'Editar Data Center' : 'Nuevo Data Center'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {isEdit ? 'Modificar información de la ubicación' : 'Registrar nueva ubicación física'}
+                </Typography>
+              </Box>
             </Box>
         </Box>
 
-        {/* CONTENIDO DEL FORMULARIO */}
+        {/* CONTENIDO: Fondo completo, formulario centrado a 800px */}
         <Box 
           component="form" 
           onSubmit={handleSubmit} 
           noValidate 
           sx={{ 
-            px: 5, 
-            pb: 5, 
-            pt: 0, // Sin padding superior para unirlo visualmente al header
-            bgcolor: '#fff' // Fondo blanco continuo
+            px: 5, pb: 5, 
+            bgcolor: '#fff', 
+            borderBottomLeftRadius: 16, borderBottomRightRadius: 16 
           }}
         >
           
-          {/* Mensaje de Error */}
-          {error && (
-            <Paper 
-              variant="outlined" 
-              sx={{ 
-                p: 2, mb: 3, 
-                bgcolor: '#fff4f4', 
-                borderColor: '#ffcdd2',
-                color: '#c62828', 
-                display: 'flex', 
-                gap: 1.5, 
-                alignItems: 'center',
-                borderRadius: 2
-              }}
+          {/* WRAPPER CENTRADO DEL FORMULARIO */}
+          <Box sx={{ maxWidth: 800, mx: 'auto', width: '100%' }}>
+
+            {/* Mensaje de Error */}
+            {error && (
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorIcon color="error" />
+                <Typography variant="body2" fontWeight={600}>{error?.message || 'Error al guardar el registro'}</Typography>
+              </Paper>
+            )}
+
+            {/* CARD SECUNDARIO (Campos) */}
+            <SectionCard 
+              icon={<InfoIcon sx={{ fontSize: 20 }} />} 
+              title="Información General"
+              bgcolor={theme.palette.primary.main}
             >
-              <ErrorIcon color="error" />
-              <Typography variant="body2" fontWeight={600}>{error?.message || 'Error al guardar el registro'}</Typography>
-            </Paper>
-          )}
+              <Stack spacing={3}>
+                
+                {/* CAMPO 1: NOMBRE */}
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 600, color: 'text.primary' }}>
+                    Nombre del Data Center *
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Ej. Data Center Central - Bloque A"
+                    value={form.nombre}
+                    onChange={(e) => handleChange('nombre', e.target.value)}
+                    error={!!errors.nombre}
+                    helperText={errors.nombre}
+                    InputProps={{
+                      startAdornment: <DataCenterIcon color="action" fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />,
+                    }}
+                  />
+                </Box>
 
-          {/* CARD DE CAMPOS INTERNO */}
-          <SectionCard 
-            icon={<InfoIcon sx={{ fontSize: 20 }} />} 
-            title="Información General"
-            bgcolor={theme.palette.primary.main}
-          >
-            {/* STACK VERTICAL */}
-            <Stack spacing={3}>
-              
-              {/* CAMPO 1: NOMBRE */}
-              <Box>
-                <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
-                  Nombre del Data Center *
-                </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="Ej. Data Center Central - Bloque A"
-                  value={form.nombre}
-                  onChange={(e) => handleChange('nombre', e.target.value)}
-                  error={!!errors.nombre}
-                  helperText={errors.nombre}
-                  InputProps={{
-                    startAdornment: <DataCenterIcon color="action" sx={{ mr: 1, opacity: 0.7 }} />,
-                  }}
-                />
-              </Box>
+                {/* CAMPO 2: UBICACIÓN */}
+                <Box>
+                  <Typography variant="body2" sx={{ mb: 0.5, fontWeight: 600, color: 'text.primary' }}>
+                    Ubicación Física *
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    placeholder="Ej. Av. Principal #123, Piso 3"
+                    value={form.ubicacion}
+                    onChange={(e) => handleChange('ubicacion', e.target.value)}
+                    error={!!errors.ubicacion}
+                    helperText={errors.ubicacion}
+                    InputProps={{
+                      startAdornment: <PlaceIcon color="action" fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />,
+                    }}
+                  />
+                </Box>
 
-              {/* CAMPO 2: UBICACIÓN */}
-              <Box>
-                <Typography variant="body2" sx={{ mb: 1, fontWeight: 700, color: 'text.primary' }}>
-                  Ubicación Física *
-                </Typography>
-                <TextField
-                  fullWidth
-                  placeholder="Ej. Av. Principal #123, Piso 3"
-                  value={form.ubicacion}
-                  onChange={(e) => handleChange('ubicacion', e.target.value)}
-                  error={!!errors.ubicacion}
-                  helperText={errors.ubicacion}
-                  InputProps={{
-                    startAdornment: <PlaceIcon color="action" sx={{ mr: 1, opacity: 0.7 }} />,
-                  }}
-                />
-              </Box>
+              </Stack>
+            </SectionCard>
 
-            </Stack>
-          </SectionCard>
+            {/* BOTONES DE ACCIÓN */}
+            <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
+              <Button 
+                variant="outlined" 
+                color="inherit" 
+                startIcon={<CancelIcon />}
+                onClick={() => navigate(routes.dataCenters())}
+                sx={{ 
+                  minWidth: 140,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  borderColor: 'rgba(0, 0, 0, 0.23)'
+                }}
+              >
+                Cancelar
+              </Button>
 
-          {/* BOTONES DE ACCIÓN */}
-          <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
-            <Button 
-              variant="outlined" 
-              color="inherit" 
-              startIcon={<CancelIcon />}
-              onClick={() => navigate(routes.dataCenters())}
-              sx={{ 
-                minWidth: 140,
-                borderRadius: 2,
-                textTransform: 'none',
-                borderColor: 'rgba(0, 0, 0, 0.23)'
-              }}
-            >
-              Cancelar
-            </Button>
+              <LoadingButton
+                type="submit"
+                variant="contained"
+                loading={loading || submitting}
+                startIcon={<SaveIcon />}
+                sx={{ 
+                  background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
+                  boxShadow: 4,
+                  px: 4,
+                  minWidth: 160,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 700
+                }}
+              >
+                {isEdit ? 'Guardar Cambios' : 'Guardar Data Center'}
+              </LoadingButton>
+            </Box>
 
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              loading={loading || submitting}
-              startIcon={<SaveIcon />}
-              sx={{ 
-                background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
-                boxShadow: 4,
-                px: 3,
-                minWidth: 160,
-                borderRadius: 2,
-                textTransform: 'none',
-                fontWeight: 700
-              }}
-            >
-              {isEdit ? 'Guardar Cambios' : 'Registrar'}
-            </LoadingButton>
-          </Box>
+          </Box> {/* Fin Wrapper Centrado */}
 
         </Box>
       </Card>

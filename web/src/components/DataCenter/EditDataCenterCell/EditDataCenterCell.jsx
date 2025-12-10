@@ -46,7 +46,7 @@ export const Success = ({ dataCenter }) => {
     UPDATE_DATA_CENTER_MUTATION,
     {
       onCompleted: () => {
-        toast.success('DataCenter updated')
+        toast.success('Data Center actualizado correctamente')
         navigate(routes.dataCenters())
       },
       onError: (error) => {

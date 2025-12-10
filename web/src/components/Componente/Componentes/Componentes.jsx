@@ -30,6 +30,13 @@ import {
   ListItemIcon,
   Typography,
   Divider,
+  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
@@ -78,15 +85,20 @@ const Componentes = ({ componentes, usuarios }) => {
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
+  const [rowSelection, setRowSelection] = useState({}) 
+  
+  // --- ESTADOS PARA EL DIÁLOGO ---
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas
 
   const [updateComponente] = useMutation(UPDATE_COMPONENTE_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
+  // 1. CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteComponente] = useMutation(DELETE_COMPONENTE_MUTATION, {
     onError: (error) => toast.error(error.message),
-    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
@@ -111,8 +123,7 @@ const Componentes = ({ componentes, usuarios }) => {
      if (id && usuariosMap.has(id)) {
          return usuariosMap.get(id)
      }
-     // 3. Si el ID existe (ej: 3) pero no está en la base de datos de usuarios:
-     // Devolvemos '-' en lugar de mostrar el ID crudo.
+     // 3. Si el ID existe (ej: 3) pero no está en la base de datos de usuarios, o no hay info:
      return '-' 
   }
 
@@ -130,20 +141,36 @@ const Componentes = ({ componentes, usuarios }) => {
       })
     })
     toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
+    // Limpiamos la selección después de la acción
+    setRowSelection({}) 
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
   }
 
+  // 2. MODIFICACIÓN: Abre el diálogo en lugar de window.confirm
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?`)) {
-      closeAllDialogs()
-      return
-    }
-    rows.forEach((componente) => {
+    const dataObjects = rows.map((r) => r.original)
+    setRowsToDelete(dataObjects)
+    setOpenDeleteDialog(true)
+  }
+
+  // 3. NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
+  const confirmHardDelete = () => {
+    setOpenDeleteDialog(false)
+    
+    if (rowsToDelete.length === 0) return
+
+    rowsToDelete.forEach((componente) => {
       deleteComponente({ variables: { id: componente.id } })
     })
+    
+    // Muestra el toast de éxito UNA SOLA VEZ
+    toast.success(`${rowsToDelete.length} registro(s) eliminado(s) permanentemente.`) 
+
+    setRowSelection({}) 
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
+    setRowsToDelete([]) 
   }
 
   // --- FILTRADO ---
@@ -161,6 +188,7 @@ const Componentes = ({ componentes, usuarios }) => {
         id: 'sistema',
         header: 'Sistema',
         size: 150,
+        // Usamos accessorFn para acceder a la relación y evitar errores si es null
         accessorFn: (row) => row.sistemas?.sigla || row.sistemas?.nombre || '-',
         Cell: ({ row }) => {
             const sistema = row.original.sistemas
@@ -195,7 +223,7 @@ const Componentes = ({ componentes, usuarios }) => {
       accessorKey: 'dominio', 
       header: 'Dominio', 
       size: 140,
-      Cell: ({ cell }) => <Typography variant="body2" noWrap>{cell.getValue()}</Typography>
+      Cell: ({ cell }) => <Typography variant="body2" noWrap>{cell.getValue() || '-'}</Typography>
     },
     { 
         id: 'entorno', 
@@ -211,14 +239,23 @@ const Componentes = ({ componentes, usuarios }) => {
     },
     {
       id: 'tecnologia',
+      // CORRECCIÓN CLAVE: Procesar el array JSON directamente del campo 'tecnologia'
       accessorFn: (row) => {
-          if (row.tecnologiaInfo && row.tecnologiaInfo.length > 0) {
-              return row.tecnologiaInfo.map(t => t.nombre).join(', ')
+          // row.tecnologia es el array JSON guardado: [{ codigo, nombre, version }, ...]
+          const techs = Array.isArray(row.tecnologia) ? row.tecnologia : []; 
+          
+          if (techs.length > 0) {
+              return techs.map(t => {
+                  const name = t.nombre || t.codigo;
+                  const version = t.version ? ` (v${t.version})` : '';
+                  return `${name}${version}`;
+              }).join(', ');
           }
-          return row.tecnologia || '-'
+          return '-';
       },
       header: 'Tecnología',
-      size: 150,
+      size: 250, // Aumentado para mostrar más texto
+      Cell: ({ cell }) => <Typography variant="body2" noWrap>{cell.getValue()}</Typography>
     },
     {
       accessorKey: 'estado',
@@ -269,12 +306,13 @@ const Componentes = ({ componentes, usuarios }) => {
     enableGlobalFilter: true,
     enableRowVirtualization: true,
     rowVirtualizerOptions: { overscan: 5 },
+    state: { rowSelection },
+    onRowSelectionChange: setRowSelection,
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
       columnVisibility: { 
         id: false,
-        tecnologia: false, 
         gitlab_repo: false,
         gitlab_rama: false,
         fecha_creacion: false, 
@@ -355,13 +393,16 @@ const Componentes = ({ componentes, usuarios }) => {
   // --- LOGICA EXPORTACIÓN ---
   const handleExport = (scope, suffix, format) => {
     let rowsToExport = []
+    // Usamos el modelo de filas de la tabla para obtener las filas correctas
     if (scope === 'page') {
-      const { pageIndex, pageSize } = table.getState().pagination
-      rowsToExport = table.getPrePaginationRowModel().rows.slice(pageIndex * pageSize, (pageIndex * pageSize) + pageSize)
+      rowsToExport = table.getPrePaginationRowModel().rows
+          .slice(table.getState().pagination.pageIndex * table.getState().pagination.pageSize, 
+                 (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize)
+          .map(row => row.original)
     } else if (scope === 'all') {
-       rowsToExport = table.getPrePaginationRowModel().rows
+       rowsToExport = table.getPrePaginationRowModel().rows.map(row => row.original)
     } else if (scope === 'selected') {
-      rowsToExport = table.getSelectedRowModel().rows
+      rowsToExport = table.getSelectedRowModel().rows.map(row => row.original)
     }
 
     if (!rowsToExport.length) {
@@ -371,15 +412,18 @@ const Componentes = ({ componentes, usuarios }) => {
 
     const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'id'].includes(col.id))
     
-    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, { getUsuarioNombre: (val) => val }, suffix)
-    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, { getUsuarioNombre: (val) => val }, suffix)
-    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, { getUsuarioNombre: (val) => val }, suffix)
+    // Aquí podrías necesitar ajustar los helpers si son necesarios en la exportación
+    const exportHelpers = { getUsuarioNombre: getUserName }
+    
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, exportHelpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, exportHelpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, exportHelpers, suffix)
     closeAllDialogs()
   }
 
   // --- CONFIG SCAFFOLD ---
   const listActionsConfig = useMemo(() => {
-    const selectedRowCount = table.getSelectedRowModel().rows.length
+    const selectedRowCount = Object.keys(rowSelection).length // Usamos el estado manual
     
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
@@ -403,7 +447,7 @@ const Componentes = ({ componentes, usuarios }) => {
           <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
           {showDeleted ? 'Restaurar' : 'Desactivar'}
         </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon> Eliminar BD
         </MenuItem>
       </Menu>
@@ -413,12 +457,27 @@ const Componentes = ({ componentes, usuarios }) => {
       showDeleted,
       selectedRowCount,
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
-      handleBulkAction: (e) => showDeleted ? handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original)) : setBulkMenuAnchorEl(e.currentTarget),
+      handleBulkAction: (e) => {
+        if (selectedRowCount === 0) {
+            toast.error('Debe seleccionar al menos un registro.')
+            return;
+        }
+        if (showDeleted) {
+             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+        } else {
+             setBulkMenuAnchorEl(e.currentTarget)
+        }
+      },
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
       exportMenu: ExportMenu,
       bulkActionMenu: BulkActionMenu,
     }
-  }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
+  }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, rowSelection])
+
+  // Lógica segura para obtener el nombre(s) en el diálogo
+  const namesToDelete = rowsToDelete.length === 1 
+    ? rowsToDelete[0]?.nombre || 'este registro' 
+    : `${rowsToDelete.length} registros`
 
   return (
     <ScaffoldLayout
@@ -430,6 +489,47 @@ const Componentes = ({ componentes, usuarios }) => {
       listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
+      
+      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
+      <Dialog
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
+          ADVERTENCIA: ¡Eliminación Definitiva!
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Estás a punto de eliminar **{namesToDelete}** de forma permanente.
+            <br />
+            **Esta acción es irreversible** y eliminará los datos de la base de datos.
+            <br />
+            ¿Deseas continuar?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => { 
+                setOpenDeleteDialog(false); 
+                setRowsToDelete([]); 
+            }} 
+            color="primary"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={confirmHardDelete} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

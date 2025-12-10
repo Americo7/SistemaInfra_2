@@ -43,7 +43,7 @@ export const Success = ({ entidad }) => {
     UPDATE_ENTIDAD_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Entidad updated')
+        toast.success('Entidad Actualizada correctamente')
         navigate(routes.entidads())
       },
       onError: (error) => {

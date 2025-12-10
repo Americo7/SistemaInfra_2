@@ -33,14 +33,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando parámetros...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen parámetros registrados.{' '}
-    <Link to={routes.newParametro()} className="rw-link">
-      Crear uno nuevo
-    </Link>
-  </div>
-)
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

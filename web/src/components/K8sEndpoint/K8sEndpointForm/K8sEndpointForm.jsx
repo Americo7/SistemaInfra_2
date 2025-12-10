@@ -27,7 +27,7 @@ import {
   Cancel as CancelIcon,
   AddCircle as AddIcon,
   Edit as EditIcon,
-  ErrorOutline as ErrorIcon,
+  ErrorOutline as ErrorOutlineIcon,
   Cloud as CloudIcon,
   Visibility,
   VisibilityOff,
@@ -229,7 +229,7 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
                       />
                     </FormControl>
 
-                    {/* 3. Descripción (Ahora en la misma fila) */}
+                    {/* 3. Descripción */}
                     <FormControl fullWidth>
                       <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
                       <Controller
@@ -240,7 +240,6 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
                             {...field} 
                             size="small" 
                             placeholder="Detalles adicionales..." 
-                            // Eliminado multiline para que la altura sea igual a los otros inputs
                           />
                         )}
                       />
@@ -325,7 +324,6 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
               </LoadingButton>
             </Box>
 
-          </Stack>
         </Box>
       </Card>
     </Box>

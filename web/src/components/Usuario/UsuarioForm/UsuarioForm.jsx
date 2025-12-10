@@ -32,7 +32,7 @@ import {
   VisibilityOff,
   Person as PersonIcon,
   Lock as SecurityIcon,
-  Badge as IdIcon, // Importamos Badge correctamente (Mayúscula)
+  Badge as IdIcon, 
   ContactPhone as ContactIcon
 } from '@mui/icons-material'
 
@@ -97,9 +97,7 @@ const UsuarioForm = (props) => {
   const onSubmit = (data) => {
     const formData = {
       ...data,
-      estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: isEdit ? undefined : 3,
+      estado: 'ACTIVO'
     }
     props.onSave(formData, props?.usuario?.id)
   }
@@ -155,7 +153,7 @@ const UsuarioForm = (props) => {
             {/* Mensaje de Error */}
             {props.error && (
               <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
-                <ErrorOutlineIcon color="error" />
+                <ErrorIcon color="error" />
                 <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
               </Paper>
             )}
@@ -195,13 +193,12 @@ const UsuarioForm = (props) => {
                     />
                   </FormControl>
 
-                  {/* Contraseña */}
+                  {/* Contraseña (Ya es opcional) */}
                   <FormControl fullWidth error={!!errors.contrasena}>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Contraseña {isEdit ? '(Opcional)' : '*'}</FormLabel>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Contraseña</FormLabel>
                     <Controller
                       name="contrasena"
                       control={control}
-                      rules={{ required: isEdit ? false : 'Requerido' }}
                       render={({ field }) => (
                         <TextField
                           {...field}
@@ -330,39 +327,37 @@ const UsuarioForm = (props) => {
               >
                 <Stack spacing={2.5}>
                   
-                  {/* Celular */}
-                  <FormControl fullWidth error={!!errors.celular}>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Celular *</FormLabel>
+                  {/* Celular (CORREGIDO: Ya no es requerido) */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Celular</FormLabel>
                     <Controller
                       name="celular"
                       control={control}
-                      rules={{ required: 'Requerido' }}
+                      // rules: ELIMINADO
                       render={({ field }) => (
                         <TextField 
                           {...field} 
                           size="small" 
                           placeholder="Ej. 77712345" 
-                          error={!!errors.celular}
-                          helperText={errors.celular?.message}
+                          // error y helperText ELIMINADOS
                         />
                       )}
                     />
                   </FormControl>
 
-                  {/* Nro Documento */}
-                  <FormControl fullWidth error={!!errors.nro_documento}>
-                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nro. Documento *</FormLabel>
+                  {/* Nro Documento (CORREGIDO: Ya no es requerido) */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Nro. Documento</FormLabel>
                     <Controller
                       name="nro_documento"
                       control={control}
-                      rules={{ required: 'Requerido' }}
+                      // rules: ELIMINADO
                       render={({ field }) => (
                         <TextField 
                           {...field} 
                           size="small" 
                           placeholder="Ej. 1234567 LP" 
-                          error={!!errors.nro_documento}
-                          helperText={errors.nro_documento?.message}
+                          // error y helperText ELIMINADOS
                           InputProps={{ startAdornment: <InputAdornment position="start"><IdIcon fontSize="small" /></InputAdornment> }}
                         />
                       )}

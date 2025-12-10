@@ -47,14 +47,7 @@ export const QUERY = gql`
 
 export const Loading = () => <div>Cargando asignaciones...</div>
 
-export const Empty = () => (
-  <div className="rw-text-center">
-    No existen asignaciones registradas.{' '}
-    <Link to={routes.newUsuarioRol()} className="rw-link">
-      Crear una nueva
-    </Link>
-  </div>
-)
+export const isEmpty = () => false
 
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>

@@ -31,6 +31,13 @@ import {
   ListItemIcon,
   Typography,
   Divider,
+  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
@@ -92,16 +99,19 @@ const Despliegues = ({ despliegues }) => {
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
+  
+  // --- ESTADOS PARA EL DIÁLOGO ---
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
 
   const [updateDespliegue] = useMutation(UPDATE_DESPLIEGUE_MUTATION, {
     onError: (error) => toast.error(error.message),
-    // Al completarse, refetch hace que la tabla obtenga la nueva fecha de modificación del server
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
+  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteDespliegue] = useMutation(DELETE_DESPLIEGUE_MUTATION, {
     onError: (error) => toast.error(error.message),
-    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
@@ -151,6 +161,7 @@ const Despliegues = ({ despliegues }) => {
         },
         
         respaldoNombre: (d) => d.tipoRespaldoInfo?.nombre || d.cod_tipo_respaldo || '-',
+        estadoDespliegueNombre: (d) => d.estadoDespliegueInfo?.nombre || d.estado_despliegue || '-',
     }
   }, []) 
   
@@ -166,13 +177,11 @@ const Despliegues = ({ despliegues }) => {
     rows.forEach((despliegue) => {
       const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
       
-      // CORRECCIÓN: No enviamos fecha_modificacion. El backend lo hace solo.
       updateDespliegue({
         variables: {
             id: despliegue.id,
             input: {
                 estado: newState,
-                // fecha_modificacion se elimina de aquí para evitar el error GraphQL
             },
         },
       })
@@ -183,18 +192,29 @@ const Despliegues = ({ despliegues }) => {
     closeAllDialogs()
   }
 
+  // MODIFICACIÓN: Abre el diálogo y guarda las filas
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
-      closeAllDialogs()
-      return
-    }
+    const dataObjects = rows.map((r) => r.original)
+    setRowsToDelete(dataObjects)
+    setOpenDeleteDialog(true)
+  }
+
+  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
+  const confirmHardDelete = () => {
+    setOpenDeleteDialog(false)
     
-    rows.forEach((d) => {
+    if (rowsToDelete.length === 0) return
+
+    rowsToDelete.forEach((d) => {
       deleteDespliegue({ variables: { id: d.id } })
     })
 
+    // Muestra el toast de éxito UNA SOLA VEZ
+    toast.success(`${rowsToDelete.length} registro(s) eliminado(s) permanentemente.`) 
+
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
+    setRowsToDelete([]) 
   }
 
   // --- FILTRADO ---
@@ -205,15 +225,21 @@ const Despliegues = ({ despliegues }) => {
     )
   }, [despliegues, showDeleted])
 
-  // --- COLUMNAS ---
+  /* -----------------------------------------------------------------
+   * COLUMNAS (ESTRATEGIA AJUSTADA AL ENCABEZADO)
+   * ----------------------------------------------------------------- */
   const columns = useMemo(
     () => [
-      { accessorKey: 'id', header: 'ID', size: 60 },
+      /* ANCHO FIJO: Corto y numérico */
+      { accessorKey: 'id', header: 'ID', size: 60 }, 
 
+      /* FLEXIBLE: Ocupa espacio restante (contenido muy variable) */
       {
         id: 'componente',
         header: 'Componente',
-        size: 180,
+        minSize: 150, 
+        size: 180, 
+        flex: 1, 
         accessorFn: (row) => deploymentHelpers.componenteNombre(row),
         Cell: ({ row }) => (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -224,25 +250,55 @@ const Despliegues = ({ despliegues }) => {
         ),
       },
       
+      /* ANCHO FIJO: Sigla (corto) */
       {
         id: 'sistema',
         header: 'Sistema',
-        size: 100,
+        size: 100, 
         accessorFn: (row) => deploymentHelpers.sistemaSigla(row),
-        Cell: ({ row }) => (
-            <Chip 
-                label={deploymentHelpers.sistemaSigla(row.original)} 
-                size="small" 
-                variant="outlined"
-                sx={{ fontWeight: 'bold', color: theme.palette.primary.main, borderColor: theme.palette.primary.light }}
-            />
-        ),
+        Cell: ({ row }) => {
+            const sistemaSigla = deploymentHelpers.sistemaSigla(row.original)
+            const sistemaId = row.original.componentes?.sistemas?.id
+            
+            if (!sistemaSigla || !sistemaId) {
+                return (
+                    <Chip 
+                        label={sistemaSigla || '-'} 
+                        size="small" 
+                        variant="outlined"
+                        sx={{ fontWeight: 'bold', borderColor: theme.palette.divider }}
+                    />
+                )
+            }
+            return (
+                <Link 
+                    to={routes.sistema({ id: sistemaId })}
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                >
+                    <Chip 
+                        label={sistemaSigla} 
+                        size="small" 
+                        variant="outlined"
+                        sx={{ 
+                            fontWeight: 'bold', 
+                            color: theme.palette.primary.main, 
+                            borderColor: theme.palette.primary.light,
+                            cursor: 'pointer',
+                            '&:hover': {
+                                backgroundColor: theme.palette.primary.light,
+                            }
+                        }}
+                    />
+                </Link>
+            )
+        },
       },
-
+      
+      /* ANCHO FIJO: 'Recurso Destino' es un encabezado largo */
       {
         id: 'recursoDestino',
         header: 'Recurso Destino',
-        size: 200,
+        size: 200, 
         accessorFn: (row) => deploymentHelpers.recursoDestino(row).nombre,
         Cell: ({ row }) => {
             const recurso = deploymentHelpers.recursoDestino(row.original)
@@ -275,10 +331,11 @@ const Despliegues = ({ despliegues }) => {
         },
       },
 
+      /* ANCHO FIJO: 'Cluster' */
       {
         id: 'cluster',
         header: 'Cluster',
-        size: 150,
+        size: 160, 
         accessorFn: (row) => deploymentHelpers.clusterInfo(row)?.nombre || '-',
         Cell: ({ row }) => {
             const cluster = deploymentHelpers.clusterInfo(row.original)
@@ -294,24 +351,27 @@ const Despliegues = ({ despliegues }) => {
         }
       },
 
+      /* ANCHO FIJO: Formato de fecha y hora */
       {
         accessorKey: 'fecha_despliegue',
         header: 'F. Despliegue',
-        size: 140,
+        size: 140, 
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
       },
 
+      /* ANCHO FIJO: Formato de fecha y hora */
       {
         accessorKey: 'fecha_solicitud',
         header: 'F. Solicitud',
-        size: 140,
+        size: 140, 
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
       },
 
+      /* ANCHO FIJO: Chip */
       {
         id: 'tipoRespaldo',
         header: 'Tipo Respaldo',
-        size: 130,
+        size: 120, 
         accessorFn: (row) => deploymentHelpers.respaldoNombre(row),
         Cell: ({ row }) => (
             <Chip 
@@ -321,14 +381,58 @@ const Despliegues = ({ despliegues }) => {
             />
         ),
       },
-
-      { accessorKey: 'unidad_solicitante', header: 'Unidad', size: 120 },
-      { accessorKey: 'solicitante', header: 'Solicitante', size: 150 },
       
+      /* ANCHO FIJO: Chip con color */
+      {
+        id: 'estadoDespliegue',
+        header: 'Estado Despliegue',
+        size: 130, 
+        accessorFn: (row) => deploymentHelpers.estadoDespliegueNombre(row),
+        Cell: ({ row }) => {
+            const estadoNombre = deploymentHelpers.estadoDespliegueNombre(row.original);
+            const estadoCodigo = (row.original.estadoDespliegueInfo?.codigo || row.original.estado_despliegue || '').toUpperCase();
+            
+            let chipColor = 'default';
+            
+            if (estadoCodigo.includes('COMPLETADO') || estadoCodigo.includes('FINALIZADO') || estadoCodigo.includes('OK')) {
+                chipColor = 'success';
+            } else if (estadoCodigo.includes('INICIADO') || estadoCodigo.includes('PROCESO')) {
+                chipColor = 'warning';
+            } else if (estadoCodigo.includes('ERROR') || estadoCodigo.includes('FALLIDO') || estadoCodigo.includes('CANCELADO')) {
+                chipColor = 'error';
+            } else if (estadoCodigo.includes('PENDIENTE') || estadoCodigo.includes('CREADO')) {
+                chipColor = 'info';
+            }
+
+            return (
+              <Chip 
+                  label={estadoNombre}
+                  size="small"
+                  variant="outlined"
+                  color={chipColor}
+                  sx={{ fontSize: '0.7rem' }}
+              />
+            )
+        },
+      },
+
+      /* ANCHO FIJO: Texto corto */
+      { accessorKey: 'unidad_solicitante', header: 'Unidad', size: 100 }, 
+      
+      /* FLEXIBLE: Ocupa espacio restante (contenido muy variable) */
+      { 
+        accessorKey: 'solicitante', 
+        header: 'Solicitante', 
+        size: 150, 
+        minSize: 120,
+        flex: 1, 
+      }, 
+      
+      /* ANCHO FIJO: Chip muy corto */
       {
         accessorKey: 'estado',
-        header: 'Estado',
-        size: 100,
+        header: 'Estado (Soft)',
+        size: 80, 
         Cell: ({ cell }) => (
           <Chip
             label={cell.getValue()}
@@ -340,29 +444,29 @@ const Despliegues = ({ despliegues }) => {
         ),
       },
 
-      // --- NUEVAS COLUMNAS DE AUDITORÍA ---
+      /* --- COLUMNAS DE AUDITORÍA (Fijas) --- */
       { 
         accessorKey: 'fecha_creacion', 
         header: 'F. Creación', 
-        size: 150, 
+        size: 140, 
         Cell: ({ cell }) => formatDateTime(cell.getValue()) 
       },
       { 
         id: 'creadoPor',
         header: 'Creado por', 
-        size: 150, 
+        size: 160, 
         accessorFn: (row) => formatUser(row.creadoPor)
       },
       { 
         accessorKey: 'fecha_modificacion', 
         header: 'F. Modificación', 
-        size: 150, 
+        size: 140, 
         Cell: ({ cell }) => formatDateTime(cell.getValue()) 
       },
       { 
         id: 'modificadoPor',
         header: 'Modif. por', 
-        size: 150, 
+        size: 160, 
         accessorFn: (row) => formatUser(row.modificadoPor)
       },
       
@@ -374,6 +478,7 @@ const Despliegues = ({ despliegues }) => {
   const table = useMaterialReactTable({
     columns,
     data: filteredData,
+    enableColumnResizing: true, 
     enableRowActions: true,
     enableRowSelection: true,
     enableGlobalFilter: true,
@@ -556,7 +661,7 @@ const Despliegues = ({ despliegues }) => {
           <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
           {showDeleted ? 'Restaurar (Activar)' : 'Desactivar (Soft Delete)'}
         </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
           Eliminar de Base de Datos
         </MenuItem>
@@ -591,6 +696,12 @@ const Despliegues = ({ despliegues }) => {
     table.getState().pagination,
   ])
 
+  // Lógica segura para obtener el nombre(s) en el diálogo
+  // Usamos el nombre del componente como identificador principal
+  const namesToDelete = rowsToDelete.length === 1 
+    ? rowsToDelete[0]?.componentes?.nombre || `el despliegue ID ${rowsToDelete[0]?.id}` 
+    : `${rowsToDelete.length} registros`
+
   return (
     <ScaffoldLayout
       title="Despliegues"
@@ -601,6 +712,47 @@ const Despliegues = ({ despliegues }) => {
       listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
+
+      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
+      <Dialog
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
+          ADVERTENCIA: ¡Eliminación Definitiva!
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Estás a punto de eliminar **{namesToDelete}** de forma permanente.
+            <br />
+            **Esta acción es irreversible** y eliminará los datos de la base de datos.
+            <br />
+            ¿Deseas continuar?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => { 
+                setOpenDeleteDialog(false); 
+                setRowsToDelete([]); 
+            }} 
+            color="primary"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={confirmHardDelete} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

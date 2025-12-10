@@ -101,21 +101,31 @@ export const Componente = {
       }
     })
   },
-  tecnologiaInfo: (_obj, { root }) => {
-    if (!root.tecnologia) return null
-    return db.parametro.findFirst({
-      where: {
-        codigo: root.tecnologia,
-        grupo: 'COMP_TECH'
-      }
-    })
-  },
   categoriaInfo: (_obj, { root }) => {
     if (!root.cod_categoria) return null
     return db.parametro.findFirst({
       where: {
         codigo: root.cod_categoria,
         grupo: 'CATEGORIA'
+      }
+    })
+  },
+  tecnologiaInfo: (_obj, { root }) => {
+    // 1. Verificar si el campo existe y es un array válido (o tratarlo como vacío si es null/undefined)
+    if (!root.tecnologia || !Array.isArray(root.tecnologia) || root.tecnologia.length === 0) {
+        return [] // Devolver un array vacío si no hay tecnologías
+    }
+    
+    // 2. Mapear el array de objetos a un array de solo los códigos (strings)
+    const codigosTecnologias = root.tecnologia.map(tech => tech.codigo)
+
+    // 3. Usar findMany con el filtro `in` para buscar todos los parámetros
+    return db.parametro.findMany({ // <--- CAMBIADO a findMany
+      where: {
+        codigo: {
+          in: codigosTecnologias // <--- Usando el filtro `in` con el array de strings
+        },
+        grupo: 'COMP_TECH'
       }
     })
   },

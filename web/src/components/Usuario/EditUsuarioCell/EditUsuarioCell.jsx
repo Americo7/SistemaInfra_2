@@ -56,7 +56,7 @@ export const Success = ({ usuario }) => {
     UPDATE_USUARIO_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Usuario updated')
+        toast.success('Usuario actualizado correctamente')
         navigate(routes.usuarios())
       },
       onError: (error) => {
@@ -71,11 +71,6 @@ export const Success = ({ usuario }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Edit Usuario {usuario?.id}
-        </h2>
-      </header>
       <div className="rw-segment-main">
         <UsuarioForm
           usuario={usuario}

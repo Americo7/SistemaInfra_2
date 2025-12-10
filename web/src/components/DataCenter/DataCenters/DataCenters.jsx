@@ -29,6 +29,13 @@ import {
   ListItemIcon,
   Typography,
   Divider,
+  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
@@ -76,17 +83,20 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
   const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
-  
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
+  
+  // --- ESTADOS PARA EL DIÁLOGO ---
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
+  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
 
   const [updateDataCenter] = useMutation(UPDATE_DATA_CENTER_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
+  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteDataCenter] = useMutation(DELETE_DATA_CENTER_MUTATION, {
     onError: (error) => toast.error(error.message),
-    onCompleted: () => toast.success('Registros eliminados permanentemente.'),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
@@ -95,13 +105,25 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
     setBulkMenuAnchorEl(null)
   }
 
+  // --- MAPEOS ---
+  const usuariosMap = useMemo(() => {
+    // Aseguramos que el mapa use la info de nombre completo si está disponible
+    return (usuarios || []).reduce((a, u) => { 
+        a[u.id] = `${u.nombres} ${u.primer_apellido || ''} ${u.segundo_apellido || ''}`.trim(); 
+        return a 
+    }, {})
+  }, [usuarios])
+
+  const helpers = {
+    getUsuarioNombre: (id) => usuariosMap[id] || `ID: ${id}`,
+  }
+
   // --- HANDLERS DE ELIMINACIÓN ---
   const handleSoftDelete = (rows) => {
     rows.forEach((dc) => {
       // Si showDeleted es true, queremos RESTAURAR (ACTIVO). Si es false, queremos DESACTIVAR (INACTIVO).
       const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
       updateDataCenter({
-        // Preservamos la lógica de negocio original de asignar usuario_modificacion: 1
         variables: { id: dc.id, input: { estado: newState, usuario_modificacion: 1 } },
       })
     })
@@ -111,27 +133,29 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
     closeAllDialogs()
   }
 
+  // MODIFICACIÓN: Abre el diálogo y guarda las filas a eliminar
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
-        closeAllDialogs()
-        return
-    }
+    const dataObjects = rows.map((r) => r.original)
+    setRowsToDelete(dataObjects)
+    setOpenDeleteDialog(true)
+  }
+  
+  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
+  const confirmHardDelete = () => {
+    setOpenDeleteDialog(false)
+    
+    if (rowsToDelete.length === 0) return
 
-    rows.forEach((dc) => {
+    rowsToDelete.forEach((dc) => {
       deleteDataCenter({ variables: { id: dc.id } })
     })
     
+    // Muestra el toast de éxito UNA SOLA VEZ
+    toast.success(`${rowsToDelete.length} registro(s) eliminado(s) permanentemente.`) 
+
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
-  }
-
-  // --- MAPEOS ---
-  const usuariosMap = useMemo(() => {
-    return (usuarios || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
-  }, [usuarios])
-
-  const helpers = {
-    getUsuarioNombre: (id) => usuariosMap[id] || `ID: ${id}`,
+    setRowsToDelete([]) 
   }
 
   // --- DATOS (LÓGICA DE FILTRADO) ---
@@ -197,7 +221,7 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
         size: 150, 
         Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()) 
     },
-  ], [theme, usuariosMap]) // Agregado theme a dependencias por consistencia
+  ], [theme, usuariosMap]) 
 
   // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
@@ -393,7 +417,7 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
           <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
           {showDeleted ? 'Restaurar (Activar)' : 'Desactivar (Soft Delete)'}
         </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
           Eliminar de Base de Datos
         </MenuItem>
@@ -434,6 +458,11 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
     table.getSelectedRowModel().rows.length, 
   ])
 
+  // Lógica segura para obtener el nombre(s) en el diálogo
+  const namesToDelete = rowsToDelete.length === 1 
+    ? rowsToDelete[0]?.nombre || 'este registro' 
+    : `${rowsToDelete.length} registros`
+
   return (
     <ScaffoldLayout
       title="Data Centers"
@@ -444,6 +473,47 @@ const DataCenters = ({ dataCenters, parametros, usuarios }) => {
       listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
+
+      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
+      <Dialog
+        open={openDeleteDialog}
+        onClose={() => setOpenDeleteDialog(false)}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
+          ADVERTENCIA: ¡Eliminación Definitiva!
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Estás a punto de eliminar **{namesToDelete}** de forma permanente.
+            <br />
+            **Esta acción es irreversible** y eliminará los datos de la base de datos.
+            <br />
+            ¿Deseas continuar?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => { 
+                setOpenDeleteDialog(false); 
+                setRowsToDelete([]); 
+            }} 
+            color="primary"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={confirmHardDelete} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

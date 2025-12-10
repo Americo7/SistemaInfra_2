@@ -17,7 +17,7 @@ const NewDataCenter = () => {
     CREATE_DATA_CENTER_MUTATION,
     {
       onCompleted: () => {
-        toast.success('DataCenter created')
+        toast.success('Nuevo Data Center creado')
         navigate(routes.dataCenters())
       },
       onError: (error) => {

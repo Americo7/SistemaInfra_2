@@ -53,6 +53,7 @@ const GET_DATA_FORM = gql`
     roles {
       id
       nombre
+      cod_tipo_rol // Se asegura de que el código esté disponible para la lógica
       estado
     }
     maquinas {
@@ -112,7 +113,43 @@ const UsuarioRolForm = (props) => {
   // Carga de datos
   const { data, loading: loadingData } = useQuery(GET_DATA_FORM)
 
-  // Preparación de Opciones
+  // --- 1. LÓGICA ACTUALIZADA DE REGLAS DE NEGOCIO POR CÓDIGO ---
+  const rolAccessMap = useMemo(() => {
+    return (data?.roles || []).reduce((map, rol) => {
+      const cod = rol.cod_tipo_rol.toUpperCase()
+      let allowsMachine = false
+      let allowsSystem = false
+
+      // Roles de Infraestructura y SO (VMs/Hosts)
+      if (cod.startsWith('INFRA_') || cod.startsWith('SO_')) {
+        allowsMachine = true
+      } 
+      
+      // Roles de DB (Sistemas/BD)
+      else if (cod.startsWith('DB_')) {
+        allowsSystem = true
+      } 
+      
+      // Roles de Sistema (Administradores Generales)
+      else if (cod.startsWith('SI_')) {
+        // Los super administradores/operadores pueden asignar ambos
+        if (cod === 'SI_SUPERADM' || cod === 'SI_OPS') {
+          allowsMachine = true
+          allowsSystem = true
+        }
+        // Los otros roles SI_ (visor, admin usuarios) generalmente no asignan recursos directos, 
+        // pero por seguridad si es un rol de alto nivel (no visor), mantendremos el potencial de asignar.
+      }
+      
+      // El auditor no tiene permisos de asignación
+      
+      map[rol.id] = { allowsMachine, allowsSystem }
+      return map
+    }, {})
+  }, [data])
+
+
+  // Preparación de Opciones (sin cambios)
   const usuariosOptions = useMemo(() => {
     if (!data?.usuarios) return []
     return data.usuarios
@@ -144,7 +181,6 @@ const UsuarioRolForm = (props) => {
     defaultValues: {
       id_usuario: props.usuarioRol?.id_usuario || null,
       id_rol: props.usuarioRol?.id_rol || null,
-      // Manejo de array para múltiples máquinas
       maquinas: props.usuarioRol?.id_maquina 
         ? [props.usuarioRol.id_maquina] 
         : (props.usuarioRol?.maquinas?.map(m => m.id) || []), 
@@ -152,9 +188,31 @@ const UsuarioRolForm = (props) => {
     },
   })
 
-  const { control, handleSubmit, formState: { errors } } = formMethods
+  const { control, handleSubmit, formState: { errors }, watch, setValue } = formMethods
+  
+  // --- VIGILANCIA DEL ROL SELECCIONADO ---
+  const selectedRoleId = watch('id_rol')
+  
+  // --- LÓGICA DE HABILITACIÓN CONDICIONAL ---
+  const currentAccess = rolAccessMap[selectedRoleId] || { allowsMachine: false, allowsSystem: false }
+  
+  const canAssignMachine = currentAccess.allowsMachine
+  const canAssignSystem = currentAccess.allowsSystem
 
-  // Manejador de Envío
+  // Limpieza de campos deshabilitados
+  React.useEffect(() => {
+    // Si no puede asignar máquinas y hay valores, limpiarlos
+    if (selectedRoleId && !canAssignMachine && watch('maquinas').length > 0) {
+      setValue('maquinas', [])
+    }
+    // Si no puede asignar sistemas y hay valor, limpiarlo
+    if (selectedRoleId && !canAssignSystem && watch('id_sistema')) {
+      setValue('id_sistema', null)
+    }
+  }, [selectedRoleId, canAssignMachine, canAssignSystem, setValue, watch])
+  
+
+  // Manejador de Envío 
   const onSubmit = async (formData) => {
     const basePayload = {
       id_usuario: formData.id_usuario,
@@ -167,40 +225,46 @@ const UsuarioRolForm = (props) => {
     const maquinasSeleccionadas = formData.maquinas || []
     const sistemaSeleccionado = formData.id_sistema
 
-    // Validación custom: Debe haber al menos un recurso seleccionado
-    if (maquinasSeleccionadas.length === 0 && !sistemaSeleccionado) {
-      alert("Debe asignar al menos una Máquina o un Sistema.")
+    // Validación custom: Debe haber al menos un recurso seleccionado *si el rol lo permite*
+    const hasSelections = maquinasSeleccionadas.length > 0 || !!sistemaSeleccionado;
+    const roleRequiresAssignment = canAssignMachine || canAssignSystem;
+
+    // Si el rol permite asignación pero no se seleccionó nada, alertar.
+    // Opcional: Si el rol no permite nada, se asume que la asignación es un rol "puro" sin recurso.
+    if (roleRequiresAssignment && !hasSelections) {
+      alert("El rol seleccionado requiere que asigne al menos una Máquina o un Sistema.")
       return
     }
-
-    // 1. Guardar Asignación de Sistema (si existe)
-    if (sistemaSeleccionado) {
+    
+    // 1. Guardar Asignación de Sistema (si existe y es permitido)
+    if (sistemaSeleccionado && canAssignSystem) {
       const payloadSistema = {
         ...basePayload,
         id_sistema: sistemaSeleccionado,
         id_maquina: null,
       }
+      // Usamos el ID existente para la edición si es el recurso principal
       await props.onSave(payloadSistema, isEdit && !maquinasSeleccionadas.length ? props.usuarioRol.id : undefined)
     }
 
-    // 2. Guardar Asignaciones de Máquinas (si existen)
-    // Nota: Esto creará múltiples registros.
-    if (maquinasSeleccionadas.length > 0) {
+    // 2. Guardar Asignaciones de Máquinas (si existen y son permitidas)
+    if (maquinasSeleccionadas.length > 0 && canAssignMachine) {
       for (const maquinaId of maquinasSeleccionadas) {
         const payloadMaquina = {
           ...basePayload,
           id_maquina: maquinaId,
           id_sistema: null
         }
-        // En edición simple, usamos el ID existente solo para el primer elemento si coincide,
-        // pero para asignación masiva suele ser mejor tratarlo como creaciones nuevas o lógica específica de backend.
-        // Aquí enviamos undefined en ID si estamos en un bucle para forzar creaciones nuevas salvo que sea edición unitaria.
+        // Nota: Las asignaciones múltiples (máquinas) generalmente fuerzan nuevas creaciones.
         await props.onSave(payloadMaquina, undefined) 
       }
     }
     
-    // Si es edición unitaria de un solo registro existente que tenía máquina y ahora cambiamos, 
-    // la lógica anterior podría crear nuevos. Esto depende de cómo tu `onSave` maneje el retorno.
+    // Si la asignación no requiere recurso (ej: Visor Sistema), enviar el payload base.
+    if (!roleRequiresAssignment && !hasSelections) {
+        const payloadBase = { ...basePayload, id_maquina: null, id_sistema: null }
+        await props.onSave(payloadBase, isEdit ? props.usuarioRol.id : undefined)
+    }
   }
 
   if (loadingData) {
@@ -335,7 +399,7 @@ const UsuarioRolForm = (props) => {
                   </FormControl>
 
                   <Alert severity="info" sx={{ fontSize: '0.8rem' }}>
-                    Seleccione un usuario y un rol, luego asigne los recursos necesarios a la derecha.
+                    Seleccione un usuario y un rol. La disponibilidad de recursos a la derecha se ajustará automáticamente.
                   </Alert>
 
                 </Stack>
@@ -351,9 +415,9 @@ const UsuarioRolForm = (props) => {
                   
                   {/* SECCIÓN SISTEMAS */}
                   <Box>
-                    <FormControl fullWidth>
+                    <FormControl fullWidth disabled={!canAssignSystem}>
                         <FormLabel sx={{ mb: 0.5, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                            <SystemIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> 
+                            <SystemIcon fontSize="small" sx={{ mr: 1, color: !canAssignSystem ? 'text.disabled' : 'text.secondary' }} /> 
                             Acceso a Sistema (Opcional)
                         </FormLabel>
                         <Controller
@@ -365,16 +429,22 @@ const UsuarioRolForm = (props) => {
                             getOptionLabel={(option) => option.nombre}
                             value={sistemasOptions.find(s => s.id === value) || null}
                             onChange={(_, newValue) => onChange(newValue ? newValue.id : null)}
+                            disabled={!canAssignSystem} // Deshabilitado aquí
                             renderInput={(params) => (
                                 <TextField 
                                 {...params} 
                                 size="small" 
-                                placeholder="Seleccionar sistema..." 
+                                placeholder={!canAssignSystem ? "No permitido para este rol" : "Seleccionar sistema..."}
                                 />
                             )}
                             />
                         )}
                         />
+                         {!canAssignSystem && (
+                            <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                                La asignación de Sistemas no está permitida para el rol seleccionado.
+                            </Typography>
+                        )}
                     </FormControl>
                   </Box>
 
@@ -382,9 +452,9 @@ const UsuarioRolForm = (props) => {
 
                   {/* SECCIÓN MÁQUINAS */}
                   <Box>
-                    <FormControl fullWidth>
+                    <FormControl fullWidth disabled={!canAssignMachine}>
                         <FormLabel sx={{ mb: 0.5, fontWeight: 600, display: 'flex', alignItems: 'center' }}>
-                            <MachineIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> 
+                            <MachineIcon fontSize="small" sx={{ mr: 1, color: !canAssignMachine ? 'text.disabled' : 'text.secondary' }} /> 
                             Acceso a Máquinas (Opcional)
                         </FormLabel>
                         <Controller
@@ -402,11 +472,12 @@ const UsuarioRolForm = (props) => {
                                 onChange={(_, newValue) => {
                                 onChange(newValue.map(v => v.id))
                                 }}
+                                disabled={!canAssignMachine} // Deshabilitado aquí
                                 renderInput={(params) => (
                                 <TextField 
                                     {...params} 
                                     size="small" 
-                                    placeholder={selectedValues.length === 0 ? "Seleccionar máquinas..." : ""}
+                                    placeholder={!canAssignMachine ? "No permitido para este rol" : "Seleccionar máquinas..."}
                                 />
                                 )}
                                 filterSelectedOptions
@@ -417,6 +488,11 @@ const UsuarioRolForm = (props) => {
                         <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                         Puede seleccionar múltiples máquinas simultáneamente.
                         </Typography>
+                         {!canAssignMachine && (
+                            <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                                La asignación de Máquinas no está permitida para el rol seleccionado.
+                            </Typography>
+                        )}
                     </FormControl>
                   </Box>
 
