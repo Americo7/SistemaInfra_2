@@ -123,10 +123,19 @@ export const QUERY = gql`
 
       infra_afectada {
         id
-        estado
         eventos {
           id
           cod_tipo_evento
+          tipoEventoInfo {
+            id
+            nombre  
+            codigo
+          }
+          estadoEventoInfo {
+            id
+            nombre
+            codigo
+          }  
           descripcion
           fecha_evento
           estado_evento

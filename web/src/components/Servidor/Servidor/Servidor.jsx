@@ -1,8 +1,5 @@
 import React, { useMemo, useState } from 'react'
 import { Link, routes } from '@redwoodjs/router'
-import { useMutation, gql } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
-
 import {
   Box,
   Typography,
@@ -23,7 +20,7 @@ import {
   TableRow,
   useTheme,
   Tooltip,
-  Switch,
+  alpha,
 } from '@mui/material'
 
 import {
@@ -39,25 +36,16 @@ import {
   Event as EventIcon,
   DeveloperBoard as HardwareIcon,
   Settings as OSIcon,
+  CalendarMonth as DateIcon,
+  Person as PersonIcon,
+  Apps as SystemIcon,
+  Code as CodeIcon,
+  ArrowBack as BackIcon,
+  Apartment as EntityIcon
 } from '@mui/icons-material'
 
 /* -----------------------
- * DEFINICIONES GRAPHQL
- * ----------------------- */
-
-const UPDATE_SERVIDOR_STATE_MUTATION = gql`
-  mutation UpdateServidorStateInternal($id: Int!, $input: UpdateServidorInput!) {
-    updateServidor(id: $id, input: $input) {
-      id
-      estado
-      fecha_modificacion
-      usuario_modificacion
-    }
-  }
-`
-
-/* -----------------------
- * HELPERS
+ * HELPERS GLOBALES
  * ----------------------- */
 const fmtDate = (d) => {
   if (!d) return '-'
@@ -77,54 +65,68 @@ const fmtDate = (d) => {
 const formatUserName = (userObj) => {
   if (!userObj) return 'Sistema Automático'
   const { nombres, primer_apellido, segundo_apellido } = userObj
-  return `${nombres} ${primer_apellido} ${segundo_apellido || ''}`.trim()
+  return `${nombres || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim() || '-'
 }
 
-const getEstadoOperativoColor = (codigo) => {
+// MEJORA: Lógica de colores ampliada para incluir estados de despliegue
+const getStatusColor = (codigo) => {
   if (!codigo) return 'default'
   const c = String(codigo).toUpperCase()
-  if (c === 'OPERATIVO') return 'success'
-  if (c === 'FUERA_SERVICIO') return 'error'
-  if (c === 'MANTENIMIENTO') return 'warning'
+  
+  // VERDE (Éxito / Operativo)
+  if (['OPERATIVO', 'ACTIVO', 'EXITOSO', 'REALIZADO', 'CORRECTO', 'FINALIZADO', 'OK', 'COMPLETADO'].includes(c)) return 'success'
+  
+  // ROJO (Error / Inactivo)
+  if (['FUERA_SERVICIO', 'INACTIVO', 'FALLIDO', 'CANCELADO', 'ERROR', 'CRITICO'].includes(c)) return 'error'
+  
+  // AMARILLO (Advertencia / Pendiente)
+  if (['MANTENIMIENTO', 'PENDIENTE', 'EN_PROGRESO', 'EN_EJECUCION', 'INICIADO', 'REVISION'].includes(c)) return 'warning'
+  
+  // AZUL (Info / Proceso)
+  if (['PROCESO', 'CREADO', 'PLANIFICADO'].includes(c)) return 'info'
+  
   return 'default'
 }
 
 /* -----------------------
  * COMPONENTES UI INTERNOS
  * ----------------------- */
-const RowItem = ({ label, value, icon, isLast }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      alignItems: 'center',
-      py: 0.75,
-      borderBottom: isLast ? 'none' : '1px solid',
-      borderColor: 'divider',
-      '&:hover': { bgcolor: 'action.hover' },
-    }}
-  >
-    <Typography
-      variant="body2"
-      color="text.secondary"
-      sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}
-    >
-      {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
-      {label}
-    </Typography>
+const RowItem = ({ label, value, icon, isLast }) => {
+  const theme = useTheme()
+  const displayValue = (value == null || value === '' || value === 0) ? '-' : value; 
 
-    <Box sx={{ width: '60%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Box sx={{ flexGrow: 1 }}>
-        {typeof value === 'string' || typeof value === 'number' ? (
-          <Typography variant="body1" sx={{ fontWeight: 600 }}>
-            {value}
-          </Typography>
-        ) : (
-          value
-        )}
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        py: 0.75,
+        borderBottom: isLast ? 'none' : '1px solid',
+        borderColor: theme.palette.divider,
+        '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.5) },
+      }}
+    >
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}
+      >
+        {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+        {label}
+      </Typography>
+
+      <Box sx={{ width: '60%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ flexGrow: 1 }}>
+          {React.isValidElement(displayValue) ? displayValue : (
+            <Typography variant="body1" sx={{ fontWeight: 600 }}>
+              {displayValue}
+            </Typography>
+          )}
+        </Box>
       </Box>
     </Box>
-  </Box>
-)
+  )
+}
 
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
@@ -133,6 +135,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
       sx={{
         borderRadius: 2,
         borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`,
+        bgcolor: theme.palette.background.paper,
         height: 'auto'
       }}
     >
@@ -151,7 +154,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
 }
 
 /* -----------------------
- * COMPONENTE PRINCIPAL
+ * COMPONENTES PRINCIPAL
  * ----------------------- */
 const Servidor = ({ servidor }) => {
   const theme = useTheme()
@@ -159,26 +162,13 @@ const Servidor = ({ servidor }) => {
 
   const isActivo = servidor.estado === 'ACTIVO'
 
-  // -- Mutation Update (Solo para el Toggle Switch interno) --
-  const [updateServidor, { loading: loadingUpdate }] = useMutation(UPDATE_SERVIDOR_STATE_MUTATION, {
-    onCompleted: (data) => {
-      const nuevoEstado = data.updateServidor.estado
-      toast.success(`Servidor ${nuevoEstado === 'ACTIVO' ? 'restaurado' : 'desactivado'} correctamente`)
-    },
-    onError: (error) => toast.error(error.message),
-  })
-
-  const handleToggleEstadoSwitch = (e) => {
-     const nuevoEstado = e.target.checked ? 'ACTIVO' : 'INACTIVO'
-     updateServidor({ variables: { id: servidor.id, input: { estado: nuevoEstado } } })
-  }
-
-  // -- Memoización de relaciones --
+  // -- RELACIONES --
   const maquinas = servidor?.maquinas || []
   const clusterNodos = servidor?.cluster_nodos || []
   const despliegues = servidor?.despliegue || []
-  const eventos = servidor?.infra_afectada || []
+  const infraAfectada = servidor?.infra_afectada || []
 
+  // --- LOGICA CLUSTER ---
   const clusterInfo = useMemo(() => {
     if (!clusterNodos.length) return []
     return clusterNodos.map((n) => ({
@@ -190,18 +180,47 @@ const Servidor = ({ servidor }) => {
     }))
   }, [clusterNodos])
 
+  // --- LOGICA SISTEMAS (TAB 2) ---
+  const sistemasUnicos = useMemo(() => {
+    const sistemasMap = new Map();
+    despliegues.forEach(d => {
+        const sis = d.componentes?.sistemas;
+        if (sis && !sistemasMap.has(sis.id)) {
+            sistemasMap.set(sis.id, sis);
+        }
+    });
+    return Array.from(sistemasMap.values());
+  }, [despliegues]);
+
+  // --- LOGICA EVENTOS (TAB 3) ---
+  const eventosMapeados = useMemo(() => {
+    const todosLosEventos = infraAfectada.flatMap(ia => ia.eventos || [])
+    
+    return todosLosEventos.map(e => ({
+        id: e.id,
+        tipo: e.tipoEventoInfo?.nombre || e.cod_tipo_evento || 'Desconocido',
+        descripcion: e.descripcion || '-',
+        solicitante: e.solicitante || '-',
+        fecha: e.fecha_evento,
+        estado: e.estadoEventoInfo?.nombre || e.estado_evento || 'N/A',
+        estadoCodigo: e.estadoEventoInfo?.codigo || 'DEFAULT'
+    })).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+  }, [infraAfectada])
+
+
   const handleTabChange = (_, v) => setTab(v)
 
   return (
     <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
         
-        {/* TARJETA DE IDENTIDAD (Sin botones, gestionados por Page) */}
+        {/* TARJETA DE IDENTIDAD */}
         <Card
             elevation={0}
             sx={{
             border: `1px solid ${theme.palette.divider}`,
-            borderRadius: '0 0 12px 12px',
+            borderRadius: 2,
             mb: 3,
+            bgcolor: theme.palette.background.paper,
             }}
         >
             <Box sx={{ px: 5, py: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -217,7 +236,7 @@ const Servidor = ({ servidor }) => {
                 </Avatar>
 
                 <Box>
-                    <Typography variant="h4" fontWeight={800} sx={{ lineHeight: 1.2 }}>
+                    <Typography variant="h5" fontWeight={800} sx={{ lineHeight: 1.2 }}>
                         {servidor.nombre}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -231,17 +250,17 @@ const Servidor = ({ servidor }) => {
                     
                     {/* --- COLUMNA IZQUIERDA --- */}
                     <Stack spacing={3}>
-                        <SectionCard icon={<GeneralIcon />} title="Información General">
-                            <RowItem label="Tipo Servidor" value={servidor.tipoServidorInfo?.nombre || servidor.cod_tipo_servidor || '-'} />
-                            <RowItem label="Cod. Inventario" value={servidor.cod_inventario_agetic || '-'} />
+                        <SectionCard icon={<GeneralIcon />} title="Información General" bgcolor={theme.palette.primary.main}>
+                            <RowItem label="Tipo Servidor" value={servidor.tipoServidorInfo?.nombre || servidor.cod_tipo_servidor} />
+                            <RowItem label="Cod. Inventario" value={servidor.cod_inventario_agetic} />
                             <RowItem
                                 label="Marca / Modelo"
-                                value={`${servidor.marca || ''} ${servidor.modelo || ''}`}
+                                value={`${servidor.marca || ''} ${servidor.modelo || ''}`.trim()}
                                 icon={<HardwareIcon />}
                             />
                             <RowItem label="Serie" value={servidor.serie} />
                             <RowItem label="Sistema Operativo" value={servidor.sistema_operativo} icon={<OSIcon />} />
-                            <RowItem label="Dirección IP" value={servidor.ip_primaria || 'No asignada'} />
+                            <RowItem label="Dirección IP" value={servidor.ip_primaria} />
                             <RowItem
                                 label="Estado Operativo"
                                 isLast
@@ -249,7 +268,7 @@ const Servidor = ({ servidor }) => {
                                     <Chip
                                         label={servidor.estadoOperativoInfo?.nombre || servidor.estado_operativo || 'N/A'}
                                         size="small"
-                                        color={getEstadoOperativoColor(servidor.estadoOperativoInfo?.codigo || servidor.estado_operativo)}
+                                        color={getStatusColor(servidor.estadoOperativoInfo?.codigo || servidor.estado_operativo)}
                                         sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem' }}
                                     />
                                 }
@@ -257,8 +276,8 @@ const Servidor = ({ servidor }) => {
                         </SectionCard>
 
                         <SectionCard icon={<MemoryIcon />} title="Hardware y Recursos" bgcolor={theme.palette.success.main}>
-                            <RowItem label="Memoria RAM" value={`${servidor.ram || 0} GB`} />
-                            <RowItem label="Almacenamiento Total" value={`${servidor.almacenamiento || 0} GB`} isLast />
+                            <RowItem label="Memoria RAM" value={servidor.ram ? `${servidor.ram} GB` : ''} />
+                            <RowItem label="Almacenamiento Total" value={servidor.almacenamiento ? `${servidor.almacenamiento} GB` : ''} isLast />
                         </SectionCard>
                     </Stack>
 
@@ -276,7 +295,7 @@ const Servidor = ({ servidor }) => {
                                         <RowItem
                                             label={ci.tipo === 'HOST' ? 'Host de Cluster' : 'Nodo de Cluster'}
                                             value={
-                                                <Link to={ci.link} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
+                                                <Link to={routes.cluster({ id: ci.link ? ci.id : 0 })} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
                                                     {ci.nombre}
                                                 </Link>
                                             }
@@ -290,7 +309,7 @@ const Servidor = ({ servidor }) => {
                             )}
                             <RowItem
                                 label="Servidor Padre"
-                                value={servidor.servidores_padre?.nombre || 'N/A (Físico)'}
+                                value={servidor.servidores_padre?.nombre}
                                 isLast
                             />
                         </SectionCard>
@@ -299,13 +318,11 @@ const Servidor = ({ servidor }) => {
                             <RowItem
                                 label="Estado Registro"
                                 value={
-                                    <Stack direction="row" alignItems="center" spacing={1}>
-                                        <Chip
-                                            label={servidor.estado}
-                                            size="small"
-                                            color={isActivo ? 'success' : 'error'}
-                                        />
-                                    </Stack>
+                                    <Chip
+                                        label={servidor.estado}
+                                        size="small"
+                                        color={getStatusColor(servidor.estado)}
+                                    />
                                 }
                             />
                             <RowItem label="Fecha Creación" value={fmtDate(servidor.fecha_creacion)} />
@@ -319,7 +336,7 @@ const Servidor = ({ servidor }) => {
         </Card>
 
         {/* TABS DE DETALLE */}
-        <Card sx={{ borderRadius: 2 }}>
+        <Card sx={{ borderRadius: 2, mt: 3, bgcolor: theme.palette.background.paper }}>
             <Tabs
                 value={tab}
                 onChange={handleTabChange}
@@ -329,38 +346,41 @@ const Servidor = ({ servidor }) => {
             >
                 <Tab label={<Stack direction="row" spacing={1}><MachineIcon fontSize="small"/><span>Máquinas Virtuales</span><Chip label={maquinas.length} size="small"/></Stack>} />
                 <Tab label={<Stack direction="row" spacing={1}><DeploymentIcon fontSize="small"/><span>Despliegues</span><Chip label={despliegues.length} size="small"/></Stack>} />
-                <Tab label={<Stack direction="row" spacing={1}><EventIcon fontSize="small"/><span>Eventos</span><Chip label={eventos.length} size="small"/></Stack>} />
+                <Tab label={<Stack direction="row" spacing={1}><SystemIcon fontSize="small"/><span>Sistemas</span><Chip label={sistemasUnicos.length} size="small"/></Stack>} />
+                <Tab label={<Stack direction="row" spacing={1}><EventIcon fontSize="small"/><span>Eventos</span><Chip label={eventosMapeados.length} size="small"/></Stack>} />
             </Tabs>
 
             <CardContent>
                 {/* TAB 0: MÁQUINAS VIRTUALES */}
                 {tab === 0 && (
                     maquinas.length ? (
-                        <TableContainer component={Paper}>
+                        <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
                             <Table size="small">
-                                <TableHead>
+                                <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                                     <TableRow>
                                         <TableCell>VMID</TableCell>
                                         <TableCell>Nombre</TableCell>
                                         <TableCell>IP</TableCell>
                                         <TableCell>S.O.</TableCell>
-                                        <TableCell>Recursos</TableCell>
+                                        <TableCell>CPU</TableCell> 
+                                        <TableCell>RAM</TableCell> 
                                         <TableCell>Estado</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {maquinas.map((vm) => (
                                         <TableRow key={vm.id} hover>
-                                            <TableCell sx={{ fontFamily: 'monospace' }}>{vm.proxmox_vmid}</TableCell>
+                                            <TableCell sx={{ fontFamily: 'monospace' }}>{vm.proxmox_vmid || ''}</TableCell>
                                             <TableCell><Link to={routes.maquina({ id: vm.id })} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>{vm.nombre}</Link></TableCell>
-                                            <TableCell>{vm.ip}</TableCell>
+                                            <TableCell>{vm.ip || ''}</TableCell>
                                             <TableCell>{vm.so || '-'}</TableCell>
-                                            <TableCell>{vm.cpu} CPU / {vm.ram} GB</TableCell>
+                                            <TableCell>{vm.cpu ? `${vm.cpu} Core(s)` : ''}</TableCell>
+                                            <TableCell>{vm.ram ? `${vm.ram} GB` : ''}</TableCell>
                                             <TableCell>
                                                 <Chip 
                                                     label={vm.estadoOperativoInfo?.nombre || 'N/A'} 
                                                     size="small" 
-                                                    color={getEstadoOperativoColor(vm.estadoOperativoInfo?.codigo)} 
+                                                    color={getStatusColor(vm.estadoOperativoInfo?.codigo)} 
                                                     sx={{ height: 20, fontSize: '0.7rem' }}
                                                 />
                                             </TableCell>
@@ -372,14 +392,15 @@ const Servidor = ({ servidor }) => {
                     ) : <Typography variant="body2" color="text.secondary" align="center" sx={{p:2}}>No hay máquinas virtuales.</Typography>
                 )}
 
-                {/* TAB 1: DESPLIEGUES */}
+                {/* TAB 1: DESPLIEGUES (CORREGIDO) */}
                 {tab === 1 && (
                     despliegues.length ? (
-                        <TableContainer component={Paper}>
+                        <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
                             <Table size="small">
-                                <TableHead>
+                                <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                                     <TableRow>
                                         <TableCell>Componente</TableCell>
+                                        <TableCell>Sistema</TableCell>
                                         <TableCell>Tipo Respaldo</TableCell>
                                         <TableCell>Fecha</TableCell>
                                         <TableCell>Estado</TableCell>
@@ -388,11 +409,17 @@ const Servidor = ({ servidor }) => {
                                 <TableBody>
                                     {despliegues.map((d) => (
                                         <TableRow key={d.id}>
-                                            <TableCell>{d.componentes?.nombre}</TableCell>
+                                            <TableCell>{d.componentes?.nombre || '-'}</TableCell>
+                                            <TableCell>{d.componentes?.sistemas?.nombre || '-'}</TableCell>
                                             <TableCell>{d.tipoRespaldoInfo?.nombre || '-'}</TableCell>
                                             <TableCell>{fmtDate(d.fecha_despliegue)}</TableCell>
                                             <TableCell>
-                                                <Chip label={d.estadoDespliegueInfo?.nombre || 'N/A'} size="small" />
+                                                <Chip 
+                                                    // AQUÍ ESTABA EL ERROR: Usamos estadoDespliegueInfo
+                                                    label={d.estadoDespliegueInfo?.nombre || 'N/A'} 
+                                                    size="small"
+                                                    color={getStatusColor(d.estadoDespliegueInfo?.codigo)} 
+                                                />
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -402,43 +429,77 @@ const Servidor = ({ servidor }) => {
                     ) : <Typography variant="body2" color="text.secondary" align="center" sx={{p:2}}>No hay despliegues.</Typography>
                 )}
 
-                {/* TAB 2: EVENTOS */}
+                {/* TAB 2: SISTEMAS */}
                 {tab === 2 && (
-                    eventos.length ? (
-                        <TableContainer component={Paper}>
+                    sistemasUnicos.length ? (
+                        <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
                             <Table size="small">
-                                <TableHead>
+                                <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                                     <TableRow>
-                                        <TableCell>Tipo</TableCell>
-                                        <TableCell>Descripción</TableCell>
-                                        <TableCell>Estado Evento</TableCell>
-                                        <TableCell>Fecha</TableCell>
-                                        <TableCell>Solicitante</TableCell>
+                                        <TableCell sx={{ width: '15%' }}><CodeIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} /> Código/Sigla</TableCell>
+                                        <TableCell sx={{ width: '30%' }}>Nombre</TableCell>
+                                        <TableCell>Entidad</TableCell>
+                                        <TableCell>Estado</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {eventos.map((ev) => { 
-                                        const e = ev.eventos?.[0] || {}; 
-                                        return (
-                                            <TableRow key={ev.id}>
-                                                <TableCell sx={{fontWeight: 600}}>{e.tipoEvento?.nombre || '-'}</TableCell>
-                                                <TableCell>{e.descripcion}</TableCell>
-                                                <TableCell>
-                                                    <Chip 
-                                                        label={e.estadoEventoInfo?.nombre || '-'} 
-                                                        size="small" 
-                                                        variant="outlined"
-                                                    />
-                                                </TableCell>
-                                                <TableCell>{fmtDate(e.fecha_evento)}</TableCell>
-                                                <TableCell>{e.solicitante}</TableCell>
-                                            </TableRow>
-                                        ) 
-                                    })}
+                                    {sistemasUnicos.map((s) => (
+                                        <TableRow key={s.id}>
+                                            <TableCell sx={{ fontWeight: 600 }}>{s.codigo || s.sigla || '-'}</TableCell>
+                                            <TableCell>{s.nombre}</TableCell>
+                                            <TableCell>
+                                                {s.entidades ? (
+                                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                        <EntityIcon fontSize="inherit" sx={{ mr: 0.5, color: 'text.secondary' }} />
+                                                        {s.entidades.sigla || s.entidades.nombre}
+                                                    </Box>
+                                                ) : '-'}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Chip label={s.estado} size="small" color={getStatusColor(s.estado)} />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
                                 </TableBody>
                             </Table>
                         </TableContainer>
-                    ) : <Typography variant="body2" color="text.secondary" align="center" sx={{p:2}}>No hay eventos.</Typography>
+                    ) : <Typography variant="body2" color="text.secondary" align="center" sx={{p:2}}>No hay sistemas asociados.</Typography>
+                )}
+
+                {/* TAB 3: EVENTOS */}
+                {tab === 3 && (
+                    eventosMapeados.length ? (
+                        <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
+                            <Table size="small">
+                                <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                                    <TableRow>
+                                        <TableCell>Tipo Evento</TableCell>
+                                        <TableCell>Descripción</TableCell>
+                                        <TableCell>Solicitante</TableCell>
+                                        <TableCell>Fecha</TableCell>
+                                        <TableCell>Estado Final</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {eventosMapeados.map((e) => (
+                                        <TableRow key={e.id}>
+                                            <TableCell sx={{fontWeight: 600}}>{e.tipo}</TableCell>
+                                            <TableCell>{e.descripcion}</TableCell>
+                                            <TableCell>{e.solicitante}</TableCell>
+                                            <TableCell>{fmtDate(e.fecha)}</TableCell>
+                                            <TableCell>
+                                                <Chip 
+                                                    label={e.estado} 
+                                                    size="small" 
+                                                    color={getStatusColor(e.estadoCodigo)} 
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
+                    ) : <Typography variant="body2" color="text.secondary" align="center" sx={{p:2}}>No hay eventos registrados.</Typography>
                 )}
             </CardContent>
         </Card>

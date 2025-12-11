@@ -13,27 +13,23 @@ export const QUERY = gql`
       descripcion
       fecha_ultima_sync
       estado
-      
-      # --- RELACIONES ---
-      clusters {
-        id
-        nombre
-      }
-
       # --- AUDITORÍA ---
       fecha_creacion
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
-    }
-
-    # --- LOOKUPS ---
-    # Traemos usuarios para mapear auditoría
-    usuarios {
-      id
-      nombres
-      primer_apellido
-      segundo_apellido
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+        segundo_apellido
+      }  
     }
   }
 `

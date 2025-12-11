@@ -49,7 +49,7 @@ const GET_PARAMETROS = gql`
 `
 
 /* ---------------------------------------------
- * 2. COMPONENTE HELPER: SectionCard
+ * 2. COMPONENTE HELPER: SectionCard (Estandarizado)
  * --------------------------------------------- */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
@@ -62,7 +62,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
         display: 'flex',
         flexDirection: 'column',
         borderTop: `3px solid ${activeColor}`,
-        bgcolor: 'background.paper',
+        bgcolor: 'background.paper', // Soporte Dark Mode
         height: '100%',
         boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
       }}
@@ -88,12 +88,11 @@ const RoleForm = (props) => {
   const theme = useTheme()
   const isEdit = Boolean(props.role?.id)
 
-  // Carga de datos (LEGACY: si no vienen del cell)
+  // Carga de datos
   const { data: parametrosData, loading: parametrosLoading } = useQuery(GET_PARAMETROS, {
     skip: Boolean(props.parametros)
   })
 
-  // Usar datos del cell si existen, si no usar del query
   const allParametros = props.parametros || parametrosData?.parametros || []
 
   // Opciones de Tipo de Rol
@@ -140,20 +139,19 @@ const RoleForm = (props) => {
           border: `1px solid ${theme.palette.divider}`,
           borderTop: 'none',
           borderRadius: 2,
-          borderTopLeftRadius: '0 !important',
-          borderTopRightRadius: '0 !important',
           mb: 3,
-          bgcolor: theme.palette.background.paper,
+          bgcolor: theme.palette.background.paper, // Soporte Dark Mode
         }}
       >
         
-        {/* HEADER */}
+        {/* HEADER (Estilo Estandarizado) */}
         <Box sx={{ 
-            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, 
+            bgcolor: theme.palette.background.paper, // Soporte Dark Mode
             borderTopLeftRadius: 16, borderTopRightRadius: 16,
           }}>
             <Avatar sx={{
-                  width: 38, height: 38,
+                  width: 48, height: 48, // Estandarizado a 48px
                   background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
                 }}>
               {isEdit ? <EditIcon /> : <AddIcon />}
@@ -162,6 +160,7 @@ const RoleForm = (props) => {
             <Box>
               <Typography variant="h5" fontWeight={800} sx={{
                   lineHeight: 1.2,
+                  // GRADIENTE EN TEXTO
                   background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                 }}>
@@ -174,14 +173,14 @@ const RoleForm = (props) => {
         </Box>
 
         {/* CONTENIDO */}
-        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+        <Box sx={{ px: 5, pb: 5, pt: 0 }}>
           
           <form onSubmit={handleSubmit(onSubmit)}>
             
-            {/* Mensaje de Error */}
+            {/* Mensaje de Error (Dark Mode Friendly) */}
             {props.error && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
-                <ErrorOutlineIcon color="error" />
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#fff4f4', borderColor: 'error.main', color: 'error.main', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+                <ErrorIcon color="error" />
                 <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
               </Paper>
             )}
@@ -194,7 +193,7 @@ const RoleForm = (props) => {
               alignItems: 'start'
             }}>
               
-              {/* --- CARD 1: IDENTIFICACIÓN --- */}
+              {/* --- CARD 1: IDENTIFICACIÓN (AZUL PRIMARIO) --- */}
               <SectionCard 
                 icon={<RoleIcon sx={{ fontSize: 20 }} />} 
                 title="Identificación del Rol"
@@ -260,7 +259,7 @@ const RoleForm = (props) => {
                 </Stack>
               </SectionCard>
 
-              {/* --- CARD 2: DETALLES --- */}
+              {/* --- CARD 2: DETALLES (CYAN/SECUNDARIO) --- */}
               <SectionCard 
                 icon={<DescriptionIcon sx={{ fontSize: 20 }} />} 
                 title="Descripción"
@@ -293,12 +292,25 @@ const RoleForm = (props) => {
 
             </Box>
 
-            {/* BOTONES */}
+            {/* BOTONES (Pill Shape + Colores Estandarizados) */}
             <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <Button
-                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                variant="outlined" 
+                startIcon={<CancelIcon />}
                 onClick={() => navigate(routes.roles())} // Asumiendo ruta
-                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+                sx={{ 
+                  minWidth: 140, 
+                  borderRadius: 50, // Pill Shape
+                  textTransform: 'none', 
+                  // COLOR VIOLETA
+                  borderColor: '#7B1FA2', 
+                  color: '#7B1FA2',
+                  '&:hover': {
+                    borderColor: '#4A148C',
+                    color: '#4A148C',
+                    bgcolor: 'rgba(123, 31, 162, 0.04)'
+                  }
+                }}
               >
                 Cancelar
               </Button>
@@ -309,11 +321,12 @@ const RoleForm = (props) => {
                 loading={props.loading}
                 startIcon={<SaveIcon />}
                 sx={{ 
+                  // GRADIENTE
                   background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
                   boxShadow: 4, 
                   px: 4, 
                   minWidth: 160, 
-                  borderRadius: 2, 
+                  borderRadius: 50, // Pill Shape
                   textTransform: 'none', 
                   fontWeight: 700 
                 }}

@@ -45,7 +45,8 @@ import {
   CalendarMonth as DateIcon,
   Description as DetailsIcon,
   Storage as ServerIcon,
-  Cloud as VirtualIcon
+  Cloud as VirtualIcon,
+  Save as SaveIcon // Agregado para consistencia
 } from '@mui/icons-material'
 
 /* ---------------------------------------------
@@ -85,7 +86,7 @@ const GET_DATA_FORM = gql`
 `
 
 /* ---------------------------------------------
- * 2. COMPONENTE VISUAL: SectionCard
+ * 2. COMPONENTE VISUAL: SectionCard (Estilo Estandarizado)
  * --------------------------------------------- */
 const SectionCard = ({ icon, title, children, color }) => {
   const theme = useTheme()
@@ -100,7 +101,6 @@ const SectionCard = ({ icon, title, children, color }) => {
         flexDirection: 'column',
         borderTop: `3px solid ${activeColor}`,
         bgcolor: 'background.paper',
-        // CORRECCIÓN: Quitamos height: '100%' para evitar espacios vacíos innecesarios
         height: 'auto', 
         boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
       }}
@@ -170,7 +170,7 @@ const DespliegueForm = (props) => {
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
     defaultValues: {
       id_componente: props.despliegue?.id_componente || null,
-      tipo_infra: props.despliegue?.id_servidor ? 'FISICO' : 'VIRTUAL',
+      tipo_infra: props.despliegue?.id_servidor ? 'FISICO' : (props.despliegue?.id_maquina ? 'VIRTUAL' : 'VIRTUAL'),
       id_maquina: props.despliegue?.id_maquina || null,
       id_servidor: props.despliegue?.id_servidor || null,
       
@@ -201,11 +201,10 @@ const DespliegueForm = (props) => {
   const onSubmit = (formData) => {
     const payload = {
       ...formData,
-      // Se asegura que las fechas se envíen como ISO string para el backend
       fecha_despliegue: formData.fecha_despliegue ? formData.fecha_despliegue.toISOString() : null,
       fecha_solicitud: formData.fecha_solicitud ? formData.fecha_solicitud.toISOString() : null,
       estado: 'ACTIVO',
-      tipo_infra: undefined // No se envía al backend
+      tipo_infra: undefined
     } 
 
     props.onSave(payload, props?.despliegue?.id)
@@ -228,17 +227,18 @@ const DespliegueForm = (props) => {
             borderTopLeftRadius: '0 !important',
             borderTopRightRadius: '0 !important',
             mb: 3,
-            bgcolor: theme.palette.background.paper,
+            bgcolor: theme.palette.background.paper, // Soporte Dark Mode
           }}
         >
-          {/* HEADER */}
+          {/* HEADER (Estilo Estandarizado) */}
           <Box sx={{ 
-              px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+              px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2,
+              bgcolor: theme.palette.background.paper, // Soporte Dark Mode
               borderTopLeftRadius: 16, borderTopRightRadius: 16,
             }}>
               <Avatar
                 sx={{
-                    width: 38, height: 38,
+                    width: 48, height: 48, // Ajustado a 48px para consistencia
                     background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
                     color: 'white', boxShadow: 3
                   }}
@@ -246,7 +246,12 @@ const DespliegueForm = (props) => {
                 {isEdit ? <EditIcon /> : <AddIcon />}
               </Avatar>
               <Box>
-                <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2, color: '#000', mb: 0.5 }}>
+                <Typography variant="h5" fontWeight={800} sx={{ 
+                    lineHeight: 1.2, mb: 0.5,
+                    // GRADIENTE
+                    background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                  }}>
                   {isEdit ? 'Editar Despliegue' : 'Registrar Nuevo Despliegue'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -256,10 +261,10 @@ const DespliegueForm = (props) => {
           </Box>
 
           {/* CONTENIDO PRINCIPAL */}
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, pt: 0 }}>
             
             {props.error && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#fff4f4', borderColor: 'error.main', color: 'error.main', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
                 <ErrorIcon color="error" />
                 <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
               </Paper>
@@ -273,7 +278,7 @@ const DespliegueForm = (props) => {
               alignItems: 'start'
             }}>
 
-              {/* --- COLUMNA 1: INFRAESTRUCTURA --- */}
+              {/* --- COLUMNA 1: INFRAESTRUCTURA (AZUL PRIMARIO) --- */}
               <SectionCard 
                 title="Componente e Infraestructura" 
                 icon={<InfraIcon />} 
@@ -460,7 +465,7 @@ const DespliegueForm = (props) => {
                 </Stack>
               </SectionCard>
 
-              {/* --- COLUMNA 2: DATOS SOLICITUD --- */}
+              {/* --- COLUMNA 2: DATOS SOLICITUD (CYAN/SECUNDARIO) --- */}
               <SectionCard 
                 title="Datos de la Solicitud" 
                 icon={<DateIcon />} 
@@ -503,7 +508,7 @@ const DespliegueForm = (props) => {
                     />
                   </FormControl>
 
-                  {/* Fechas (CORREGIDO PARA CAMBIAR EL VALOR Y EL FORMATO) */}
+                  {/* Fechas */}
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                     
                     {/* Fecha Solicitud */}
@@ -512,11 +517,11 @@ const DespliegueForm = (props) => {
                       <Controller
                         name="fecha_solicitud"
                         control={control}
-                        render={({ field: { onChange, value } }) => ( // <- CORRECCIÓN: Desestructuramos onChange y value
+                        render={({ field: { onChange, value } }) => (
                           <DateTimePicker 
-                            value={value} // <- CORRECCIÓN: Usamos el value de RHF
-                            onChange={onChange} // <- CORRECCIÓN: Pasamos el Dayjs object a RHF
-                            format="DD/MM/YYYY HH:mm" // <- CAMBIO: Aplicamos el nuevo formato
+                            value={value}
+                            onChange={onChange}
+                            format="DD/MM/YYYY HH:mm"
                             slotProps={{ textField: { size: 'small' } }} 
                           />
                         )}
@@ -529,11 +534,11 @@ const DespliegueForm = (props) => {
                       <Controller
                         name="fecha_despliegue"
                         control={control}
-                        render={({ field: { onChange, value } }) => ( // <- CORRECCIÓN: Desestructuramos onChange y value
+                        render={({ field: { onChange, value } }) => (
                           <DateTimePicker 
-                            value={value} // <- CORRECCIÓN: Usamos el value de RHF
-                            onChange={onChange} // <- CORRECCIÓN: Pasamos el Dayjs object a RHF
-                            format="DD/MM/YYYY HH:mm" // <- CAMBIO: Aplicamos el nuevo formato
+                            value={value}
+                            onChange={onChange}
+                            format="DD/MM/YYYY HH:mm"
                             slotProps={{ textField: { size: 'small' } }} 
                           />
                         )}
@@ -544,7 +549,7 @@ const DespliegueForm = (props) => {
                 </Stack>
               </SectionCard>
 
-              {/* --- COLUMNA 3: ESTADO Y RESPALDO --- */}
+              {/* --- COLUMNA 3: ESTADO Y RESPALDO (VERDE) --- */}
               <SectionCard 
                 title="Respaldo y Estado" 
                 icon={<DetailsIcon />} 
@@ -626,14 +631,25 @@ const DespliegueForm = (props) => {
 
             </Box>
 
-            {/* BOTONES DE ACCIÓN */}
+            {/* BOTONES DE ACCIÓN (Estilo Pill + Colores) */}
             <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <Button
                 variant="outlined"
-                color="inherit"
                 startIcon={<CancelIcon />}
                 onClick={() => navigate(routes.despliegues())}
-                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+                sx={{ 
+                  minWidth: 140, 
+                  borderRadius: 50, // Pill Shape
+                  textTransform: 'none', 
+                  // COLOR VIOLETA
+                  borderColor: '#7B1FA2', 
+                  color: '#7B1FA2',
+                  '&:hover': {
+                    borderColor: '#4A148C',
+                    color: '#4A148C',
+                    bgcolor: 'rgba(123, 31, 162, 0.04)'
+                  }
+                }}
               >
                 Cancelar
               </Button>
@@ -644,8 +660,11 @@ const DespliegueForm = (props) => {
                 loading={props.loading}
                 startIcon={<DeployIcon />}
                 sx={{ 
+                  // GRADIENTE
                   background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
-                  boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
+                  boxShadow: 4, px: 4, minWidth: 160, 
+                  borderRadius: 50, // Pill Shape
+                  textTransform: 'none', fontWeight: 700
                 }}
               >
                 {isEdit ? 'Guardar Cambios' : 'Registrar Despliegue'}

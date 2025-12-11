@@ -159,11 +159,11 @@ const Parametros = ({ parametros, usuarios }) => {
   // --- COLUMNAS ---
   const columns = useMemo(() => [
     { accessorKey: 'id', header: 'ID', size: 60 },
-    { accessorKey: 'codigo', header: 'Código', size: 100 },
+    { accessorKey: 'codigo', header: 'Código', size: 120 },
     { 
         accessorKey: 'nombre', 
         header: 'Nombre', 
-        size: 200,
+        size: 150,
         Cell: ({ row }) => (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <ParamIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />

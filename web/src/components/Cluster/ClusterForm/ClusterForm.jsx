@@ -136,20 +136,44 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
     [listaParametros]
   )
 
+  // --- ESTILOS REACT-SELECT (CORREGIDO PARA DARK MODE) ---
   const customSelectStyles = {
     control: (base, state) => ({
       ...base,
-      borderRadius: 8, // Coincide con MUI size="small" aprox
+      backgroundColor: theme.palette.background.paper, // Fondo dinámico
+      borderRadius: 8,
       minHeight: 40,
       borderColor: state.isFocused
         ? theme.palette.primary.main
-        : 'rgba(0, 0, 0, 0.23)', // Borde estándar de MUI
+        : theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.23)' : 'rgba(0, 0, 0, 0.23)',
       boxShadow: state.isFocused
         ? `0 0 0 1px ${theme.palette.primary.main}`
         : 'none',
       '&:hover': { borderColor: theme.palette.text.primary },
     }),
-    menu: (base) => ({ ...base, zIndex: 999999 }),
+    menu: (base) => ({ 
+      ...base, 
+      zIndex: 999999,
+      backgroundColor: theme.palette.background.paper // Menú con fondo correcto
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isSelected 
+        ? theme.palette.action.selected 
+        : state.isFocused 
+          ? theme.palette.action.hover 
+          : 'transparent',
+      color: theme.palette.text.primary,
+      cursor: 'pointer'
+    }),
+    singleValue: (base) => ({
+      ...base,
+      color: theme.palette.text.primary // Texto seleccionado visible
+    }),
+    input: (base) => ({
+      ...base,
+      color: theme.palette.text.primary // Input de búsqueda visible
+    }),
     valueContainer: (base) => ({...base, padding: '2px 8px'}),
   }
 
@@ -172,7 +196,7 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
       nombre: form.nombre,
       descripcion: form.descripcion,
       cod_tipo_cluster: selectedTipoCluster?.value || null,
-      id_proxmox_endpoint: null, // Campos ocultos/future
+      id_proxmox_endpoint: null,
       id_k8s_endpoint: null,
       estado: 'ACTIVO',
     }
@@ -192,7 +216,7 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
   }, [form.identity_key])
 
   return (
-    // CARD PRINCIPAL: Ancho completo según Layout
+    // CARD PRINCIPAL
     <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
       <Card
         elevation={0}
@@ -203,16 +227,17 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
           borderTopLeftRadius: '0 !important',
           borderTopRightRadius: '0 !important',
           mb: 3,
-          bgcolor: theme.palette.background.paper,
+          bgcolor: 'background.paper', // CORREGIDO: Usar theme en lugar de #fff
         }}
       >
         
         {/* HEADER */}
         <Box sx={{
-          px: 5, py: 4, bgcolor: '#fff',
+          px: 5, py: 4, 
+          bgcolor: 'background.paper', // CORREGIDO
           borderTopLeftRadius: 16, borderTopRightRadius: 16,
         }}>
-          {/* Wrapper centrado para alinear con el formulario */}
+          {/* Wrapper centrado */}
           <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
             <Avatar
               sx={{
@@ -224,7 +249,18 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
               {isEdit ? <EditIcon /> : <AddIcon />}
             </Avatar>
             <Box>
-              <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2, color: '#000', mb: 0.5 }}>
+              <Typography 
+                variant="h6" 
+                fontWeight={800} 
+                sx={{ 
+                  lineHeight: 1.2, 
+                  // CORREGIDO: Gradiente en texto en lugar de color #000
+                  background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                  WebkitBackgroundClip: 'text', 
+                  WebkitTextFillColor: 'transparent',
+                  mb: 0.5 
+                }}
+              >
                 {isEdit ? 'Editar Cluster' : 'Crear Cluster'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -235,14 +271,18 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
         </Box>
 
         {/* CONTENIDO DEL FORMULARIO */}
-        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ 
+            px: 5, pb: 5, 
+            bgcolor: 'background.paper', // CORREGIDO
+            borderBottomLeftRadius: 16, borderBottomRightRadius: 16 
+        }}>
           
-          {/* WRAPPER CENTRADO: Limita el ancho a 800px */}
+          {/* WRAPPER CENTRADO */}
           <Box sx={{ maxWidth: 800, mx: 'auto', width: '100%' }}>
 
             {/* Mensaje de Error */}
             {error && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#fff4f4', borderColor: 'error.main', color: 'error.main', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
                 <ErrorIcon color="error" />
                 <Typography variant="body2" fontWeight={600}>{String(error)}</Typography>
               </Paper>
@@ -272,7 +312,7 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
                   />
                 </FormControl>
 
-                {/* FILA 2: TIPO CLUSTER + IDENTIFICADOR (Lado a lado) */}
+                {/* FILA 2: TIPO CLUSTER + IDENTIFICADOR */}
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 3 }}>
                     
                     {/* COL 1: TIPO DE CLUSTER */}
@@ -306,10 +346,13 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
                                 readOnly: true,
                                 startAdornment: (
                                     <InputAdornment position="start">
-                                        {isIdentityLocked ? <LockIcon fontSize="small" /> : <KeyIcon fontSize="small" />}
+                                        {isIdentityLocked ? <LockIcon fontSize="small" color="disabled" /> : <KeyIcon fontSize="small" color="disabled" />}
                                     </InputAdornment>
                                 ),
-                                style: { backgroundColor: theme.palette.action.hover, color: theme.palette.text.secondary, fontSize: '0.85rem' }
+                            }}
+                            sx={{ 
+                              bgcolor: 'action.hover', // Fondo sutil para disabled
+                              '& .MuiInputBase-input': { color: 'text.secondary' }
                             }}
                         />
                     </FormControl>
@@ -339,27 +382,39 @@ const ClusterForm = ({ cluster = null, onSave, loading, error }) => {
               </Stack>
             </SectionCard>
 
-            {/* BOTONES */}
+            {/* BOTONES (CORREGIDO: Estilo Pill y Colores) */}
             <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
                 <Button
-                variant="outlined"
-                color="inherit"
-                startIcon={<CancelIcon />}
-                onClick={() => navigate(routes.clusters())}
-                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+                    variant="outlined"
+                    startIcon={<CancelIcon />}
+                    onClick={() => navigate(routes.clusters())}
+                    sx={{ 
+                        minWidth: 140, 
+                        borderRadius: 50, // Pill Shape
+                        textTransform: 'none', 
+                        borderColor: '#7B1FA2', // Violeta
+                        color: '#7B1FA2',
+                        '&:hover': {
+                            borderColor: '#4A148C',
+                            color: '#4A148C',
+                            bgcolor: 'rgba(123, 31, 162, 0.04)'
+                        }
+                    }}
                 >
                 Cancelar
                 </Button>
 
                 <LoadingButton
-                type="submit"
-                variant="contained"
-                loading={loading || submitting}
-                startIcon={<SaveIcon />}
-                sx={{
-                    background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
-                    boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
-                }}
+                    type="submit"
+                    variant="contained"
+                    loading={loading || submitting}
+                    startIcon={<SaveIcon />}
+                    sx={{
+                        background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
+                        boxShadow: 4, px: 4, minWidth: 160, 
+                        borderRadius: 50, // Pill Shape
+                        textTransform: 'none', fontWeight: 700
+                    }}
                 >
                 {isEdit ? 'Guardar Cambios' : 'Registrar Cluster'}
                 </LoadingButton>

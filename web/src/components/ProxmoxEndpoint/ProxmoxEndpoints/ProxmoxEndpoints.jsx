@@ -230,6 +230,8 @@ const ProxmoxEndpoints = ({ proxmoxEndpoints, usuarios }) => {
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
+        dominio: false,
+        descripcion: false,
         fecha_creacion: false, 
         usuario_creacion: false, 
         fecha_modificacion: false, 

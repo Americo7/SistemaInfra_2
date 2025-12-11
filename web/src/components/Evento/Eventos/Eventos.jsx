@@ -9,7 +9,6 @@ import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  EventNote as EventIcon,
   GridOn as ExcelIcon,
   PictureAsPdf as PdfIcon,
   TextSnippet as CsvIcon,
@@ -29,7 +28,6 @@ import {
   ListItemIcon,
   Typography,
   Divider,
-  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
   Dialog,
   DialogTitle,
   DialogContent,
@@ -95,26 +93,22 @@ const Eventos = ({ eventos }) => {
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
   
-  // --- ESTADOS PARA EL DIÁLOGO ---
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
-  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
+  const [rowsToDelete, setRowsToDelete] = useState([]) 
 
   const [updateEvento] = useMutation(UPDATE_EVENTO_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteEvento] = useMutation(DELETE_EVENTO_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  // --- EXPORT HELPERS ---
   const exportHelpers = {
     getUsuarioNombre: (val) => formatUser(val),
     formatDate: (val) => formatDateTime(val),
-    // Usamos la info anidada para exportar nombres, no códigos
     getTipoEvento: (val, row) => row.tipoEventoInfo?.nombre || row.cod_tipo_evento,
     getEstadoEvento: (val, row) => row.estadoEventoInfo?.nombre || row.estado_evento,
   }
@@ -124,7 +118,6 @@ const Eventos = ({ eventos }) => {
     setBulkMenuAnchorEl(null)
   }
 
-  // --- HANDLERS ---
   const handleSoftDelete = (rows) => {
     rows.forEach((row) => {
       const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
@@ -138,32 +131,24 @@ const Eventos = ({ eventos }) => {
     closeAllDialogs()
   }
 
-  // MODIFICACIÓN: Abre el diálogo en lugar de window.confirm
   const handleHardDelete = (rows) => {
     const dataObjects = rows.map((r) => r.original)
     setRowsToDelete(dataObjects)
     setOpenDeleteDialog(true)
   }
 
-  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
   const confirmHardDelete = () => {
     setOpenDeleteDialog(false)
-    
     if (rowsToDelete.length === 0) return
-
     rowsToDelete.forEach((row) => {
       deleteEvento({ variables: { id: row.id } })
     })
-    
-    // Muestra el toast de éxito UNA SOLA VEZ
     toast.success(`${rowsToDelete.length} evento(s) eliminado(s) permanentemente.`) 
-    
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
     setRowsToDelete([]) 
   }
 
-  // --- FILTRADO ---
   const filteredData = useMemo(() => {
     if (!eventos) return []
     return eventos.filter((e) =>
@@ -174,13 +159,13 @@ const Eventos = ({ eventos }) => {
   // --- COLUMNAS ---
   const columns = useMemo(() => [
     { accessorKey: 'id', header: 'ID', size: 60 },
-    { accessorKey: 'cod_evento', header: 'Código', size: 100 },
+    { accessorKey: 'cod_evento', header: 'Código', size: 200 },
     
-    // TIPO EVENTO (Usando Info Object)
+    // TIPO EVENTO 
     { 
         id: 'tipo_evento', 
         header: 'Tipo', 
-        size: 150,
+        size: 180, 
         accessorFn: (row) => row.tipoEventoInfo?.nombre || row.cod_tipo_evento,
         Cell: ({ row }) => (
            <Chip 
@@ -191,44 +176,19 @@ const Eventos = ({ eventos }) => {
         )
     },
     
-    { 
-        accessorKey: 'descripcion', 
-        header: 'Descripción', 
-        size: 250,
-        Cell: ({ row }) => (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <EventIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
-              <Typography variant="body2" noWrap title={row.original.descripcion} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
-                {row.original.descripcion}
-              </Typography>
-            </Box>
-        ),
-    },
-    
+    // FECHA EVENTO (LETRAS PEQUEÑAS)
     { 
         accessorKey: 'fecha_evento', 
         header: 'Fecha Evento', 
-        size: 150, 
-        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+        size: 140, 
+        Cell: ({ cell }) => (
+          <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+            {formatDateTime(cell.getValue())}
+          </Typography>
+        )
     },
     
-    // RESPONSABLES (Dato crudo o formateado simple, ya que no hay lista de usuarios para cruzar)
-    {
-        accessorKey: 'responsables',
-        header: 'Responsables',
-        size: 150,
-        Cell: ({ cell }) => {
-            const val = cell.getValue();
-            // Intento básico de mostrar array si viene como JSON
-            let display = val;
-            if (typeof val === 'string' && val.startsWith('[')) {
-                 try { display = JSON.parse(val).join(', ') } catch {}
-            }
-            return <Typography variant="caption" sx={{ display: 'block' }}>{display || '-'}</Typography>
-        }
-    },
-
-    // ESTADO EVENTO (Usando Info Object)
+    // ESTADO EVENTO
     {
       id: 'estado_evento',
       header: 'Estado Evento',
@@ -238,7 +198,6 @@ const Eventos = ({ eventos }) => {
         const nombre = row.original.estadoEventoInfo?.nombre || row.original.estado_evento
         const codigo = row.original.estadoEventoInfo?.codigo || nombre
         
-        // Lógica de color basada en código o nombre
         let color = 'info'
         if (['CERRADO', 'SOLUCIONADO', 'FINALIZADO'].includes(codigo)) color = 'success'
         if (['EN_PROCESO', 'PENDIENTE'].includes(codigo)) color = 'warning'
@@ -255,30 +214,20 @@ const Eventos = ({ eventos }) => {
         )
       }
     },
-    {
-      accessorKey: 'estado',
-      header: 'Estado Reg.',
-      size: 100,
-      Cell: ({ cell }) => (
-        <Chip 
-            label={cell.getValue()} 
-            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
-            size="small" 
-            variant="outlined" 
-            sx={{ fontSize: '0.7rem' }}
-        />
-      ),
-    },
-    { accessorKey: 'cite', header: 'CITE', size: 100 },
-    { accessorKey: 'solicitante', header: 'Solicitante', size: 150 },
+    { accessorKey: 'cite', header: 'CITE', size: 180 },
+    { accessorKey: 'solicitante', header: 'Solicitante', size: 200 },
     
-    // AUDITORÍA
+    // AUDITORÍA (LETRAS PEQUEÑAS)
     { 
         id: 'fecha_creacion',
         header: 'F. Creación', 
-        size: 150, 
+        size: 140, 
         accessorFn: (row) => row.fecha_creacion,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+        Cell: ({ cell }) => (
+          <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+            {formatDateTime(cell.getValue())}
+          </Typography>
+        )
     },
     { 
         id: 'creadoPor',
@@ -289,15 +238,33 @@ const Eventos = ({ eventos }) => {
     { 
         id: 'fecha_modificacion',
         header: 'F. Modif.', 
-        size: 150, 
+        size: 140, 
         accessorFn: (row) => row.fecha_modificacion,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+        Cell: ({ cell }) => (
+          <Typography variant="caption" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+            {formatDateTime(cell.getValue())}
+          </Typography>
+        )
     },
     { 
         id: 'modificadoPor',
         header: 'Modif. por', 
         size: 160, 
         accessorFn: (row) => formatUser(row.modificadoPor)
+    },
+    {
+      accessorKey: 'estado',
+      header: 'Estado Reg.',
+      size: 80,
+      Cell: ({ cell }) => (
+        <Chip 
+            label={cell.getValue()} 
+            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
+            size="small" 
+            variant="outlined" 
+            sx={{ fontSize: '0.7rem' }}
+        />
+      ),
     },
   ], [theme])
 
@@ -317,9 +284,8 @@ const Eventos = ({ eventos }) => {
         id: false, 
         cite: false,
         solicitante: false,
-        // Auditoría visible por defecto
-        fecha_creacion: true, 
-        creadoPor: true, 
+        fecha_creacion: false, 
+        creadoPor: false, 
         fecha_modificacion: true, 
         modificadoPor: true 
       },
@@ -472,9 +438,8 @@ const Eventos = ({ eventos }) => {
     }
   }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
 
-  // Lógica segura para obtener el nombre(s) en el diálogo
   const namesToDelete = rowsToDelete.length === 1 
-    ? rowsToDelete[0]?.descripcion || rowsToDelete[0]?.cod_evento || `el evento ID ${rowsToDelete[0]?.id}` 
+    ? rowsToDelete[0]?.cod_evento || `el evento ID ${rowsToDelete[0]?.id}` 
     : `${rowsToDelete.length} registros`
 
   return (
@@ -488,7 +453,6 @@ const Eventos = ({ eventos }) => {
     >
       <MaterialReactTable table={table} />
 
-      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
       <Dialog
         open={openDeleteDialog}
         onClose={() => setOpenDeleteDialog(false)}
@@ -527,7 +491,6 @@ const Eventos = ({ eventos }) => {
           </Button>
         </DialogActions>
       </Dialog>
-      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

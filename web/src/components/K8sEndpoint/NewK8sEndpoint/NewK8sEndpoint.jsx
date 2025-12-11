@@ -17,7 +17,11 @@ const NewK8sEndpoint = () => {
     {
       onCompleted: () => {
         toast.success('Endpoint Kubernetes creado')
-        navigate(routes.k8SEndpoints())
+        // 2. Esperar 1 segundo para leer, cerrar y navegar
+        setTimeout(() => {
+          navigate(routes.k8SEndpoints())
+        }, 1000)
+
       },
       onError: (error) => {
         toast.error(error.message)

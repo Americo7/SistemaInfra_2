@@ -47,7 +47,7 @@ export const Success = ({ usuarioRol }) => {
     UPDATE_USUARIO_ROL_MUTATION,
     {
       onCompleted: () => {
-        toast.success('UsuarioRol updated')
+        toast.success('Asignación de rol actualizada correctamente')
         navigate(routes.usuarioRols())
       },
       onError: (error) => {

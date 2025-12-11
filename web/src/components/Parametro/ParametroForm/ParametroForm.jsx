@@ -47,7 +47,7 @@ const PARAMETROS_QUERY = gql`
 `
 
 /* ---------------------------------------------
- * 2. COMPONENTE HELPER: SectionCard
+ * 2. COMPONENTE HELPER: SectionCard (Estandarizado)
  * --------------------------------------------- */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
@@ -60,7 +60,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
         display: 'flex',
         flexDirection: 'column',
         borderTop: `3px solid ${activeColor}`,
-        bgcolor: 'background.paper',
+        bgcolor: 'background.paper', // Soporte Dark Mode
         height: '100%',
         boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
       }}
@@ -120,17 +120,14 @@ const ParametroForm = (props) => {
   }
 
   /* -----------------------------------------------------------------------
-   * FUNCIÓN PARA EXTRAER EL ERROR REAL DE GRAPHQL/PRISMA
+   * FUNCIÓN PARA EXTRAER EL ERROR REAL DE GRAPHQL/PRISMA (Mejorado para Dark Mode)
    * ----------------------------------------------------------------------- */
   const getErrorMessage = (error) => {
     if (!error) return null
 
-    // 1. Buscamos errores dentro de graphQLErrors (donde Prisma esconde los detalles)
     if (error.graphQLErrors && error.graphQLErrors.length > 0) {
       for (let graphQLError of error.graphQLErrors) {
-        // Verificar mensaje directo o mensaje original de la base de datos
         const message = graphQLError.message || ''
-        // A veces el error viene anidado en extensions.originalError.message
         const originalMessage = graphQLError.extensions?.originalError?.message || '' 
 
         if (message.includes('Unique constraint') || originalMessage.includes('Unique constraint')) {
@@ -139,7 +136,6 @@ const ParametroForm = (props) => {
       }
     }
 
-    // 2. Si no es constraint, devolvemos el mensaje genérico pero quitando el prefijo "GraphQLError: " si existe
     return error.message?.replace('GraphQLError: ', '') || 'Ocurrió un error inesperado.'
   }
 
@@ -162,17 +158,18 @@ const ParametroForm = (props) => {
           borderTopLeftRadius: '0 !important',
           borderTopRightRadius: '0 !important',
           mb: 3,
-          bgcolor: theme.palette.background.paper,
+          bgcolor: theme.palette.background.paper, // Soporte Dark Mode
         }}
       >
         
-        {/* HEADER */}
+        {/* HEADER (Estilo Estandarizado) */}
         <Box sx={{ 
-            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, 
+            bgcolor: theme.palette.background.paper, // Soporte Dark Mode
             borderTopLeftRadius: 16, borderTopRightRadius: 16,
           }}>
             <Avatar sx={{
-                  width: 38, height: 38,
+                  width: 48, height: 48, // Ajustado a 48px
                   background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
                 }}>
               {isEdit ? <EditIcon /> : <AddIcon />}
@@ -181,6 +178,7 @@ const ParametroForm = (props) => {
             <Box>
               <Typography variant="h5" fontWeight={800} sx={{
                   lineHeight: 1.2,
+                  // GRADIENTE EN TEXTO
                   background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                 }}>
@@ -193,18 +191,19 @@ const ParametroForm = (props) => {
         </Box>
 
         {/* CONTENIDO */}
-        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+        <Box sx={{ px: 5, pb: 5, pt: 0 }}>
           
           <form onSubmit={handleSubmit(onSubmit)}>
             
-            {/* --- BLOQUE DE ERROR MEJORADO --- */}
+            {/* --- BLOQUE DE ERROR MEJORADO (Soporte Dark Mode) --- */}
             {errorMessage && (
               <Paper variant="outlined" sx={{ 
                 p: 2, 
                 mb: 4, 
-                bgcolor: '#fff4f4', 
-                borderColor: '#ffcdd2', 
-                color: '#c62828', 
+                // Color de fondo adaptado
+                bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#fff4f4', 
+                borderColor: 'error.main', 
+                color: 'error.main', 
                 display: 'flex', 
                 gap: 1.5, 
                 alignItems: 'center', 
@@ -226,7 +225,7 @@ const ParametroForm = (props) => {
               alignItems: 'start'
             }}>
               
-              {/* --- CARD 1: IDENTIFICACIÓN Y GRUPO --- */}
+              {/* --- CARD 1: IDENTIFICACIÓN Y GRUPO (AZUL PRIMARIO) --- */}
               <SectionCard 
                 icon={<ParamIcon sx={{ fontSize: 20 }} />} 
                 title="Identificación y Clasificación"
@@ -299,7 +298,7 @@ const ParametroForm = (props) => {
                 </Stack>
               </SectionCard>
 
-              {/* --- CARD 2: DETALLES --- */}
+              {/* --- CARD 2: DETALLES (CYAN/SECUNDARIO) --- */}
               <SectionCard 
                 icon={<DescIcon sx={{ fontSize: 20 }} />} 
                 title="Detalles del Parámetro"
@@ -351,12 +350,25 @@ const ParametroForm = (props) => {
 
             </Box>
 
-            {/* BOTONES */}
+            {/* BOTONES (Pill Shape + Colores Estandarizados) */}
             <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <Button
-                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                variant="outlined" 
+                startIcon={<CancelIcon />}
                 onClick={() => navigate(routes.parametros())}
-                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+                sx={{ 
+                  minWidth: 140, 
+                  borderRadius: 50, // Pill Shape
+                  textTransform: 'none', 
+                  // COLOR VIOLETA
+                  borderColor: '#7B1FA2', 
+                  color: '#7B1FA2',
+                  '&:hover': {
+                    borderColor: '#4A148C',
+                    color: '#4A148C',
+                    bgcolor: 'rgba(123, 31, 162, 0.04)'
+                  }
+                }}
               >
                 Cancelar
               </Button>
@@ -367,11 +379,12 @@ const ParametroForm = (props) => {
                 loading={props.loading}
                 startIcon={<SaveIcon />}
                 sx={{ 
+                  // GRADIENTE
                   background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
                   boxShadow: 4, 
                   px: 4, 
                   minWidth: 160, 
-                  borderRadius: 2, 
+                  borderRadius: 50, // Pill Shape
                   textTransform: 'none', 
                   fontWeight: 700 
                 }}

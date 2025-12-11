@@ -6,6 +6,7 @@ import { useTheme } from '@mui/material/styles'
 
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
 
+// Iconos
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
@@ -21,6 +22,7 @@ import {
   Domain as DcIcon,
 } from '@mui/icons-material'
 
+// Componentes MUI
 import {
   Box,
   Chip,
@@ -32,7 +34,6 @@ import {
   ListItemIcon,
   Typography,
   Divider,
-  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
   Dialog,
   DialogTitle,
   DialogContent,
@@ -92,35 +93,38 @@ const formatUser = (userObj) => {
   return fullName || '-'
 }
 
+// --- COMPONENTE PRINCIPAL ---
 const InfraAfectadas = ({ infraAfectadas }) => {
   const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
+  
+  // Estados de Menús
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
-  // --- ESTADOS PARA EL DIÁLOGO ---
+  // Estados de Diálogo (Eliminación dura)
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
-  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
+  const [rowsToDelete, setRowsToDelete] = useState([]) 
 
-
+  // --- MUTACIONES ---
   const [updateInfraAfectada] = useMutation(UPDATE_INFRA_AFECTADA_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteInfraAfectada] = useMutation(DELETE_INFRA_AFECTADA_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  // Helpers para exportación (extraen datos de los objetos anidados)
+  // Helpers para exportación (CORREGIDOS PARA COINCIDIR CON EL QUERY)
   const exportHelpers = {
     getUsuarioNombre: (val) => formatUser(val),
     getEvento: (val, row) => row.eventos?.cod_evento || row.id_evento,
-    getDataCenter: (val, row) => row.dataCenter?.nombre || '-',
-    getServidor: (val, row) => row.servidor?.nombre || '-',
-    getMaquina: (val, row) => row.maquina?.nombre || '-',
+    // CORRECCIÓN AQUÍ: Usar nombres del Query (data_centers, servidores, maquinas)
+    getDataCenter: (val, row) => row.data_centers?.nombre || '-',
+    getServidor: (val, row) => row.servidores?.nombre || '-',
+    getMaquina: (val, row) => row.maquinas?.nombre || '-',
   }
 
   const closeAllDialogs = () => {
@@ -128,47 +132,52 @@ const InfraAfectadas = ({ infraAfectadas }) => {
     setBulkMenuAnchorEl(null)
   }
 
-  // --- HANDLERS ---
-  const handleSoftDelete = (rows) => {
-    rows.forEach((row) => {
-      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
-      // Se inyecta usuario_modificacion: 1 por defecto si no hay contexto
-      updateInfraAfectada({
-        variables: { id: row.id, input: { estado: newState, usuario_modificacion: 1 } },
-      })
-    })
-    
-    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
-    table.toggleAllRowsSelected(false)
-    closeAllDialogs()
+  // --- HANDLERS (Async/Await) ---
+  const handleSoftDelete = async (rows) => {
+    const toastId = toast.loading('Procesando cambios...')
+    try {
+      await Promise.all(
+        rows.map((row) => {
+          const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+          return updateInfraAfectada({
+            variables: { id: row.id, input: { estado: newState, usuario_modificacion: 1 } },
+          })
+        })
+      )
+      toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`, { id: toastId })
+      table.toggleAllRowsSelected(false)
+      closeAllDialogs()
+    } catch (error) {
+      toast.error('Error al procesar los registros', { id: toastId })
+    }
   }
 
-  // MODIFICACIÓN: Abre el diálogo en lugar de window.confirm
-  const handleHardDelete = (rows) => {
-    const dataObjects = rows.map((r) => r.original)
+  const handleHardDelete = (mrtRows) => {
+    const dataObjects = mrtRows.map((r) => r.original)
     setRowsToDelete(dataObjects)
     setOpenDeleteDialog(true)
   }
 
-  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
-  const confirmHardDelete = () => {
+  const confirmHardDelete = async () => {
     setOpenDeleteDialog(false)
-    
     if (rowsToDelete.length === 0) return
-
-    rowsToDelete.forEach((row) => {
-      deleteInfraAfectada({ variables: { id: row.id } })
-    })
-    
-    // Muestra el toast de éxito UNA SOLA VEZ
-    toast.success(`${rowsToDelete.length} registro(s) de infraestructura afectada eliminado(s) permanentemente.`) 
-    
-    table.toggleAllRowsSelected(false)
-    closeAllDialogs()
-    setRowsToDelete([]) 
+    const toastId = toast.loading('Eliminando registros permanentemente...')
+    try {
+      await Promise.all(
+        rowsToDelete.map((row) => 
+          deleteInfraAfectada({ variables: { id: row.id } })
+        )
+      )
+      toast.success(`${rowsToDelete.length} registro(s) eliminado(s) correctamente.`, { id: toastId })
+      table.toggleAllRowsSelected(false)
+      closeAllDialogs()
+      setRowsToDelete([]) 
+    } catch (error) {
+      toast.error('Error al eliminar los registros', { id: toastId })
+    }
   }
 
-  // --- FILTRADO ---
+  // --- FILTRADO DE DATOS ---
   const filteredData = useMemo(() => {
     if (!infraAfectadas) return []
     return infraAfectadas.filter((item) =>
@@ -176,7 +185,7 @@ const InfraAfectadas = ({ infraAfectadas }) => {
     )
   }, [infraAfectadas, showDeleted])
 
-  // --- COLUMNAS ---
+  // --- DEFINICIÓN DE COLUMNAS (CORREGIDAS) ---
   const columns = useMemo(() => [
     { accessorKey: 'id', header: 'ID', size: 60 },
     
@@ -184,7 +193,7 @@ const InfraAfectadas = ({ infraAfectadas }) => {
     {
       id: 'evento',
       header: 'Evento Relacionado',
-      size: 200,
+      size: 220,
       accessorFn: (row) => row.eventos?.cod_evento || row.id_evento,
       Cell: ({ row }) => {
         const evt = row.original.eventos
@@ -206,12 +215,13 @@ const InfraAfectadas = ({ infraAfectadas }) => {
       }
     },
 
-    // INFRAESTRUCTURA (Columnas separadas pero limpias)
+    // --- CORRECCIÓN EN ESTAS 3 COLUMNAS ---
+    // Usamos los nombres exactos que vienen del Cell (data_centers, servidores, maquinas)
     { 
         id: 'dataCenter',
         header: 'Data Center', 
         size: 150,
-        accessorFn: (row) => row.dataCenter?.nombre,
+        accessorFn: (row) => row.data_centers?.nombre, // <-- CORREGIDO
         Cell: ({ cell }) => cell.getValue() ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
                 <DcIcon fontSize="small" /> {cell.getValue()}
@@ -222,7 +232,7 @@ const InfraAfectadas = ({ infraAfectadas }) => {
         id: 'servidor',
         header: 'Servidor', 
         size: 180,
-        accessorFn: (row) => row.servidor?.nombre,
+        accessorFn: (row) => row.servidores?.nombre, // <-- CORREGIDO
         Cell: ({ cell }) => cell.getValue() ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
                 <ServerIcon fontSize="small" /> {cell.getValue()}
@@ -233,7 +243,7 @@ const InfraAfectadas = ({ infraAfectadas }) => {
         id: 'maquina',
         header: 'Máquina (VM)', 
         size: 180,
-        accessorFn: (row) => row.maquina?.nombre,
+        accessorFn: (row) => row.maquinas?.nombre, // <-- CORREGIDO
         Cell: ({ cell }) => cell.getValue() ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'primary.main', fontWeight: 500 }}>
                 <VmIcon fontSize="small" /> {cell.getValue()}
@@ -241,6 +251,7 @@ const InfraAfectadas = ({ infraAfectadas }) => {
         ) : '-'
     },
 
+    // ESTADO
     {
       accessorKey: 'estado',
       header: 'Estado',
@@ -299,9 +310,8 @@ const InfraAfectadas = ({ infraAfectadas }) => {
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
-        // Auditoría visible
-        fecha_creacion: true, 
-        creadoPor: true, 
+        fecha_creacion: false, 
+        creadoPor: false, 
         fecha_modificacion: true, 
         modificadoPor: true 
       },
@@ -375,7 +385,7 @@ const InfraAfectadas = ({ infraAfectadas }) => {
     ),
   })
 
-  // --- EXPORTACIÓN ---
+  // --- LÓGICA DE EXPORTACIÓN ---
   const handleExport = (scope, suffix, format) => {
     let rowsToExport = []
     if (scope === 'page') {
@@ -401,7 +411,7 @@ const InfraAfectadas = ({ infraAfectadas }) => {
     closeAllDialogs()
   }
 
-  // --- SCAFFOLD CONFIG ---
+  // --- SCAFFOLD ---
   const listActionsConfig = useMemo(() => {
     const selectedRowCount = table.getSelectedRowModel().rows.length
     
@@ -427,7 +437,7 @@ const InfraAfectadas = ({ infraAfectadas }) => {
           <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
           {showDeleted ? 'Restaurar' : 'Desactivar'}
         </MenuItem>
-        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
+        <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
           <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon> Eliminar BD
         </MenuItem>
       </Menu>
@@ -454,9 +464,8 @@ const InfraAfectadas = ({ infraAfectadas }) => {
     }
   }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
 
-  // Lógica segura para obtener el nombre(s) en el diálogo
   const namesToDelete = rowsToDelete.length === 1 
-    ? rowsToDelete[0]?.eventos?.cod_evento || `la infraestructura afectada ID ${rowsToDelete[0]?.id}` 
+    ? rowsToDelete[0]?.eventos?.cod_evento || `la afectación ID ${rowsToDelete[0]?.id}` 
     : `${rowsToDelete.length} registros`
 
   return (
@@ -470,7 +479,6 @@ const InfraAfectadas = ({ infraAfectadas }) => {
     >
       <MaterialReactTable table={table} />
 
-      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
       <Dialog
         open={openDeleteDialog}
         onClose={() => setOpenDeleteDialog(false)}
@@ -509,7 +517,6 @@ const InfraAfectadas = ({ infraAfectadas }) => {
           </Button>
         </DialogActions>
       </Dialog>
-      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

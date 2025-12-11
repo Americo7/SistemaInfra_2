@@ -110,27 +110,42 @@ export const QUERY = gql`
         componentes {
           id
           nombre
+          sistemas{
+            id
+            sigla
+            nombre  
+            codigo
+            estado
+            entidades {
+              id
+              nombre
+              sigla
+            }  
+          }
         }
       }
 
       # Historial de Incidentes
       infra_afectada {
         id
-        estado
         eventos {
           id
-          descripcion
-          fecha_evento
-          solicitante
+          cod_tipo_evento
           tipoEventoInfo {
             id
-            nombre
+            nombre  
+            codigo
           }
           estadoEventoInfo {
             id
             nombre
             codigo
-          }
+          }  
+          descripcion
+          fecha_evento
+          estado_evento
+          fecha_creacion
+          solicitante
         }
       }
     }

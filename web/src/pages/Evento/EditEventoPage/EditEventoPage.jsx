@@ -5,8 +5,10 @@ import EditEventoCell from 'src/components/Evento/EditEventoCell'
 const EditEventoPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Eventos"
+      titleTo="eventos"
+      groupTitle="Eventos"
       breadcrumbItems={[
-        { label: 'Eventos', link: routes.eventos() },
         { label: 'Editar' }
       ]}
     >

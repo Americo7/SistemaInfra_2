@@ -55,7 +55,9 @@ export const Success = ({ k8SEndpoint }) => {
     {
       onCompleted: () => {
         toast.success('Endpoint K8s actualizado')
-        navigate(routes.k8SEndpoints())
+        setTimeout(() => {
+          navigate(routes.k8SEndpoints())
+        }, 1000)
       },
       onError: (error) => toast.error(error.message),
     }

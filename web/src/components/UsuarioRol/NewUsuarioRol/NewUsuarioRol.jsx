@@ -1,6 +1,5 @@
 import { navigate, routes } from '@redwoodjs/router'
 import { useMutation } from '@redwoodjs/web'
-
 import { toast } from '@redwoodjs/web/toast'
 
 import UsuarioRolForm from 'src/components/UsuarioRol/UsuarioRolForm'
@@ -18,11 +17,19 @@ const NewUsuarioRol = () => {
     CREATE_USUARIO_ROL_MUTATION,
     {
       onCompleted: () => {
-        toast.success('UsuarioRol created')
-        navigate(routes.usuarioRols())
+        const toastId = 'usuario-rol-success' // Definimos el ID
+        
+        // 1. Mostrar mensaje
+        toast.success('Rol asignado correctamente', { id: toastId })
+        
+        // 2. Esperar 1 segundo para leer, cerrar y navegar
+        setTimeout(() => {
+          toast.dismiss(toastId) // <--- ESTO ELIMINA EL MENSAJE ANTES DE IRSE
+          navigate(routes.usuarioRols())
+        }, 1000)
       },
       onError: (error) => {
-        toast.error(error.message)
+        toast.error(error.message, { id: 'usuario-rol-error' })
       },
     }
   )

@@ -65,11 +65,6 @@ export const Success = ({ infraAfectada }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Edit InfraAfectada {infraAfectada?.id}
-        </h2>
-      </header>
       <div className="rw-segment-main">
         <InfraAfectadaForm
           infraAfectada={infraAfectada}

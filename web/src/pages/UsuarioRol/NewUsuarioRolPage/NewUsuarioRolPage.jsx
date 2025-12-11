@@ -5,9 +5,11 @@ import NewUsuarioRol from 'src/components/UsuarioRol/NewUsuarioRol'
 const NewUsuarioRolPage = () => {
   return (
     <ScaffoldLayout
+      title="Asignacion de rol"
+      titleTo="usuarioRols"
+      groupTitle="Gestión de Usuarios"
       breadcrumbItems={[
-        { label: 'Usuario Roles', link: routes.usuarioRols() },
-        { label: 'Nuevo UsuarioRol' }
+        { label: 'Nuevo Registro' }
       ]}
     >
       <NewUsuarioRol />

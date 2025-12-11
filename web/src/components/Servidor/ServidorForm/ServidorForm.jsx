@@ -1,29 +1,30 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import { useQuery, gql } from '@redwoodjs/web'
+import { navigate, routes } from '@redwoodjs/router'
+
 import {
   Box,
   Card,
-  CardHeader,
   CardContent,
+  CardHeader,
   Typography,
   TextField,
-  MenuItem,
   FormControl,
   FormLabel,
-  FormHelperText,
-  InputAdornment,
+  Autocomplete,
+  Stack,
   Avatar,
   Button,
-  Stack,
-  Paper,
   useTheme,
+  Paper,
   CircularProgress,
-  Autocomplete,
+  MenuItem,
+  InputAdornment,
+  FormHelperText,
 } from '@mui/material'
 import { LoadingButton } from '@mui/lab'
-import { navigate, routes } from '@redwoodjs/router'
-import { useQuery, gql } from '@redwoodjs/web'
 
-// ICONOS
+// Iconos
 import DnsIcon from '@mui/icons-material/Dns'
 import StorageIcon from '@mui/icons-material/Storage'
 import SettingsEthernetIcon from '@mui/icons-material/SettingsEthernet'
@@ -38,6 +39,9 @@ import MemoryIcon from '@mui/icons-material/Memory'
 import LanIcon from '@mui/icons-material/Lan'
 import ComputerIcon from '@mui/icons-material/Computer'
 import VpnKeyIcon from '@mui/icons-material/VpnKey'
+import LinkIcon from '@mui/icons-material/Link' // Usado en MaquinaForm, se mantiene si es necesario
+import LockIcon from '@mui/icons-material/Lock' // Usado en MaquinaForm, se mantiene si es necesario
+
 
 /* ----------------------------------------------------------
  * DATOS RELACIONADOS (SO -> VERSIONES)
@@ -135,7 +139,7 @@ const getDefaultValues = () => ({
 })
 
 /* ----------------------------------------------------------
- * COMPONENTE VISUAL: SectionCard
+ * COMPONENTE VISUAL: SectionCard (Estandarizado)
  * ---------------------------------------------------------- */
 const SectionCard = ({ title, icon, children, color }) => {
   const theme = useTheme()
@@ -146,8 +150,13 @@ const SectionCard = ({ title, icon, children, color }) => {
       variant="outlined"
       sx={{
         borderRadius: 2,
+        display: 'flex',
+        flexDirection: 'column',
         borderTop: `3px solid ${activeColor}`,
+        // Color de fondo adaptado
+        bgcolor: 'background.paper',
         height: '100%',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
       }}
     >
       <CardHeader
@@ -156,7 +165,8 @@ const SectionCard = ({ title, icon, children, color }) => {
             {icon}
           </Avatar>
         }
-        title={<Typography sx={{ fontWeight: 700 }}>{title}</Typography>}
+        title={<Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>{title}</Typography>}
+        sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
       />
       <CardContent sx={{ p: 2.5 }}>{children}</CardContent>
     </Card>
@@ -203,52 +213,59 @@ export default function ServidorForm({
     (!parametros && paramLoading)
 
   /* --- MAPEO EN EDICIÓN --- */
+  const resetForm = useCallback(() => {
+    setForm(getDefaultValues());
+    // No hay necesidad de manejar OS versión/base aquí si el useEffect maneja la carga
+  }, []);
+  
   useEffect(() => {
-    if (isEdit && servidor) {
-      // Lógica para separar "Ubuntu 22.04"
-      let loadedOsBase = ''
-      let loadedOsVersion = ''
-      const fullOs = servidor.sistema_operativo || ''
-
-      // Intentamos buscar coincidencia exacta con nuestra base de datos primero
-      const knownOS = Object.keys(OS_DATA).find(os => fullOs.startsWith(os));
-      
-      if (knownOS) {
-          loadedOsBase = knownOS;
-          loadedOsVersion = fullOs.replace(knownOS, '').trim();
-      } else {
-          // Si no es conocido, fallback a separar por el último espacio
-          const lastSpace = fullOs.lastIndexOf(' ')
-          if (lastSpace !== -1) {
-            loadedOsBase = fullOs.substring(0, lastSpace)
-            loadedOsVersion = fullOs.substring(lastSpace + 1)
-          } else {
-            loadedOsBase = fullOs
-          }
-      }
-
-      setForm({
-        nombre: servidor.nombre ?? '',
-        cod_inventario_agetic: servidor.cod_inventario_agetic ?? '',
-        serie: servidor.serie ?? '',
-        marca: servidor.marca ?? '',
-        modelo: servidor.modelo ?? '',
-        ip_primaria: servidor.ip_primaria ?? '',
-        os_base: loadedOsBase,
-        os_version: loadedOsVersion,
-        ram: servidor.ram ?? '',
-        almacenamiento: servidor.almacenamiento ?? '',
-        cod_tipo_servidor: servidor.cod_tipo_servidor ?? '',
-        estado_operativo:
-          servidor.estadoOperativoInfo?.codigo ??
-          servidor.estado_operativo ??
-          '',
-        id_data_center: servidor.id_data_center ?? '',
-        id_padre: servidor.id_padre ?? '',
-        estado: servidor.estado ?? 'ACTIVO',
-        identity_key: servidor.identity_key ?? '',
-      })
+    if (!isEdit) {
+      // Usar lógica de inicialización en la práctica si fuera necesario
+      return
     }
+
+    // Lógica de carga de edición
+    let loadedOsBase = ''
+    let loadedOsVersion = ''
+    const fullOs = servidor.sistema_operativo || ''
+
+    const knownOS = Object.keys(OS_DATA).find(os => fullOs.startsWith(os));
+    
+    if (knownOS) {
+        loadedOsBase = knownOS;
+        loadedOsVersion = fullOs.replace(knownOS, '').trim();
+    } else {
+        const lastSpace = fullOs.lastIndexOf(' ')
+        if (lastSpace !== -1) {
+          loadedOsBase = fullOs.substring(0, lastSpace)
+          loadedOsVersion = fullOs.substring(lastSpace + 1)
+        } else {
+          loadedOsBase = fullOs
+        }
+    }
+
+    setForm({
+      nombre: servidor.nombre ?? '',
+      cod_inventario_agetic: servidor.cod_inventario_agetic ?? '',
+      serie: servidor.serie ?? '',
+      marca: servidor.marca ?? '',
+      modelo: servidor.modelo ?? '',
+      ip_primaria: servidor.ip_primaria ?? '',
+      os_base: loadedOsBase,
+      os_version: loadedOsVersion,
+      ram: servidor.ram ?? '',
+      almacenamiento: servidor.almacenamiento ?? '',
+      cod_tipo_servidor: servidor.cod_tipo_servidor ?? '',
+      estado_operativo:
+        servidor.estadoOperativoInfo?.codigo ??
+        servidor.estado_operativo ??
+        '',
+      id_data_center: servidor.id_data_center ?? '',
+      id_padre: servidor.id_padre ?? '',
+      estado: servidor.estado ?? 'ACTIVO',
+      identity_key: servidor.identity_key ?? '',
+    })
+
   }, [servidor, isEdit])
 
   /* --- LISTAS FILTRADAS --- */
@@ -272,7 +289,7 @@ export default function ServidorForm({
   // LÓGICA DE FILTRADO DE VERSIONES
   const currentVersions = useMemo(() => {
     if (!form.os_base) return []
-    return OS_DATA[form.os_base] || [] // Devuelve versiones del SO o array vacío
+    return OS_DATA[form.os_base] || []
   }, [form.os_base])
 
   /* --- HANDLERS --- */
@@ -283,6 +300,11 @@ export default function ServidorForm({
       ...(field === 'id_data_center' ? { id_padre: '' } : {}),
     }))
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }))
+
+    // Lógica de OS: si cambia la base, se limpia la versión.
+    if (field === 'os_base') {
+      setForm((prev) => ({ ...prev, os_version: '' }));
+    }
   }
 
   const validate = () => {
@@ -316,7 +338,7 @@ export default function ServidorForm({
 
     const payload = {
       ...form,
-      id_data_center: parseInt(form.id_data_center),
+      id_data_center: form.id_data_center ? parseInt(form.id_data_center) : null,
       id_padre: form.id_padre ? parseInt(form.id_padre) : null,
       ip_primaria: cleanIp,
       sistema_operativo: form.cod_tipo_servidor === 'CHASIS' ? '' : fullOS,
@@ -328,7 +350,7 @@ export default function ServidorForm({
         form.cod_tipo_servidor === 'CHASIS' || !form.almacenamiento
           ? null
           : parseInt(form.almacenamiento),
-      // Limpieza de campos temporales
+      // Campos a excluir
       identity_key: undefined,
       os_base: undefined,
       os_version: undefined,
@@ -355,7 +377,7 @@ export default function ServidorForm({
   return (
     <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
       <Card
-        elevation={3}
+        elevation={0} // Cambiado de 3 a 0
         sx={{
           border: `1px solid ${theme.palette.divider}`,
           borderTop: 'none',
@@ -363,23 +385,39 @@ export default function ServidorForm({
           borderTopLeftRadius: '0 !important',
           borderTopRightRadius: '0 !important',
           mb: 3,
-          bgcolor: theme.palette.background.paper,
+          bgcolor: theme.palette.background.paper, // Soporte Dark Mode
         }}
       >
-        {/* HEADER */}
-        <Box sx={{ px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+        {/* HEADER (Estilo Estandarizado) */}
+        <Box sx={{ 
+          px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, 
+          bgcolor: theme.palette.background.paper, // Soporte Dark Mode
+          borderTopLeftRadius: 16, borderTopRightRadius: 16,
+        }}>
           <Avatar
             sx={{
-              width: 48,
+              width: 48, // Estandarizado
               height: 48,
               background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
               color: 'white',
+              boxShadow: 3,
             }}
           >
             {isEdit ? <EditIcon /> : <AddCircleOutlineIcon />}
           </Avatar>
           <Box>
-            <Typography variant="h5" fontWeight={800}>
+            <Typography 
+              variant="h5" 
+              fontWeight={800} 
+              sx={{ 
+                lineHeight: 1.2, 
+                // GRADIENTE EN TEXTO
+                background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                WebkitBackgroundClip: 'text', 
+                WebkitTextFillColor: 'transparent',
+                mb: 0.5 
+              }}
+            >
               {isEdit ? 'Editar Servidor' : 'Registrar Servidor'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -388,26 +426,27 @@ export default function ServidorForm({
           </Box>
         </Box>
 
-        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5 }}>
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5, pt: 0 }}>
+          {/* Mensaje de Error (Dark Mode Friendly) */}
           {error && (
             <Paper
               sx={{
-                p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2',
-                color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center',
+                p: 2, mb: 4, bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#fff4f4', borderColor: 'error.main',
+                color: 'error.main', display: 'flex', gap: 1.5, alignItems: 'center',
               }}
             >
-              <ErrorOutlineIcon />
-              <Typography>{error.message}</Typography>
+              <ErrorOutlineIcon color="error" />
+              <Typography variant="body2" fontWeight={600}>{error.message}</Typography>
             </Paper>
           )}
 
           <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
             
-            {/* 1. UBICACIÓN */}
-            <SectionCard title="Ubicación y Jerarquía" icon={<DnsIcon />}>
+            {/* 1. UBICACIÓN (AZUL PRIMARIO) */}
+            <SectionCard title="Ubicación y Jerarquía" icon={<DnsIcon />} color={theme.palette.primary.main}>
               <Stack spacing={2.5}>
                 <FormControl fullWidth error={!!errors.id_data_center}>
-                  <FormLabel>Data Center</FormLabel>
+                  <FormLabel sx={{ fontWeight: 600 }}>Data Center</FormLabel>
                   <TextField
                     select
                     size="small"
@@ -423,7 +462,7 @@ export default function ServidorForm({
                 </FormControl>
 
                 <FormControl fullWidth error={!!errors.nombre}>
-                  <FormLabel>Nombre del Servidor *</FormLabel>
+                  <FormLabel sx={{ fontWeight: 600 }}>Nombre del Servidor *</FormLabel>
                   <TextField
                     size="small"
                     value={form.nombre}
@@ -439,7 +478,7 @@ export default function ServidorForm({
 
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
                   <FormControl fullWidth error={!!errors.cod_tipo_servidor}>
-                    <FormLabel>Tipo</FormLabel>
+                    <FormLabel sx={{ fontWeight: 600 }}>Tipo</FormLabel>
                     <TextField
                       select
                       size="small"
@@ -455,7 +494,7 @@ export default function ServidorForm({
                   </FormControl>
 
                   <FormControl fullWidth>
-                    <FormLabel>Servidor Padre</FormLabel>
+                    <FormLabel sx={{ fontWeight: 600 }}>Servidor Padre</FormLabel>
                     <TextField
                       select
                       size="small"
@@ -473,13 +512,13 @@ export default function ServidorForm({
               </Stack>
             </SectionCard>
 
-            {/* 2. IDENTIFICACIÓN FÍSICA */}
-            <SectionCard title="Identificación Física" icon={<BusinessIcon />}>
+            {/* 2. IDENTIFICACIÓN FÍSICA (CYAN/SECUNDARIO) */}
+            <SectionCard title="Identificación Física" icon={<BusinessIcon />} color={theme.palette.secondary.main}>
               <Stack spacing={2.5}>
                 
                 {isEdit && (
                   <FormControl fullWidth>
-                    <FormLabel sx={{ color: 'text.secondary' }}>Identificador (Generado)</FormLabel>
+                    <FormLabel sx={{ color: 'text.secondary', fontWeight: 600 }}>Identificador (Generado)</FormLabel>
                     <TextField
                       size="small"
                       value={form.identity_key}
@@ -487,15 +526,18 @@ export default function ServidorForm({
                       InputProps={{
                         readOnly: true,
                         startAdornment: <InputAdornment position="start"><VpnKeyIcon fontSize="small" /></InputAdornment>,
+                        sx: { 
+                          bgcolor: theme.palette.action.hover, // Fondo adaptado para disabled
+                          '& .MuiInputBase-input': { color: theme.palette.text.secondary } // Texto más suave
+                        }
                       }}
-                      sx={{ '& .MuiInputBase-root': { bgcolor: '#f0f0f0' } }}
                     />
                   </FormControl>
                 )}
 
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
                   <FormControl fullWidth>
-                    <FormLabel>Marca</FormLabel>
+                    <FormLabel sx={{ fontWeight: 600 }}>Marca</FormLabel>
                     <Autocomplete
                       freeSolo
                       options={COMMON_BRANDS}
@@ -508,7 +550,7 @@ export default function ServidorForm({
                   </FormControl>
 
                   <FormControl fullWidth>
-                    <FormLabel>Modelo</FormLabel>
+                    <FormLabel sx={{ fontWeight: 600 }}>Modelo</FormLabel>
                     <TextField
                       size="small"
                       value={form.modelo}
@@ -518,7 +560,7 @@ export default function ServidorForm({
                 </Box>
 
                 <FormControl fullWidth>
-                  <FormLabel>Nº Serie</FormLabel>
+                  <FormLabel sx={{ fontWeight: 600 }}>Nº Serie</FormLabel>
                   <TextField
                     size="small"
                     value={form.serie}
@@ -531,7 +573,7 @@ export default function ServidorForm({
 
                 <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
                   <FormControl fullWidth>
-                    <FormLabel>Código Inventario</FormLabel>
+                    <FormLabel sx={{ fontWeight: 600 }}>Código Inventario</FormLabel>
                     <TextField
                       size="small"
                       value={form.cod_inventario_agetic}
@@ -540,7 +582,7 @@ export default function ServidorForm({
                   </FormControl>
 
                   <FormControl fullWidth error={!!errors.estado_operativo}>
-                    <FormLabel>Estado Operativo *</FormLabel>
+                    <FormLabel sx={{ fontWeight: 600 }}>Estado Operativo *</FormLabel>
                     <TextField
                       select
                       size="small"
@@ -558,13 +600,13 @@ export default function ServidorForm({
               </Stack>
             </SectionCard>
 
-            {/* 3. RED Y RECURSOS */}
+            {/* 3. RED Y RECURSOS (VERDE) */}
             <SectionCard title="Red y Recursos" icon={<SettingsEthernetIcon />} color="#2e7d32">
               <Stack spacing={2.5}>
                 {form.cod_tipo_servidor !== 'CHASIS' && (
                   <>
                     <FormControl fullWidth error={!!errors.ip_primaria}>
-                      <FormLabel>IP Primaria *</FormLabel>
+                      <FormLabel sx={{ fontWeight: 600 }}>IP Primaria *</FormLabel>
                       <Autocomplete
                         freeSolo
                         options={COMMON_IPS}
@@ -591,7 +633,7 @@ export default function ServidorForm({
                     {/* --- SISTEMA OPERATIVO Y VERSIÓN CON FILTRO DINÁMICO --- */}
                     <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '2fr 1fr' }}>
                       <FormControl fullWidth>
-                        <FormLabel>Sistema Operativo</FormLabel>
+                        <FormLabel sx={{ fontWeight: 600 }}>Sistema Operativo</FormLabel>
                         <Autocomplete
                           freeSolo
                           options={Object.keys(OS_DATA)} // Muestra solo las claves (nombres de SO)
@@ -608,12 +650,10 @@ export default function ServidorForm({
                       </FormControl>
                       
                       <FormControl fullWidth>
-                        <FormLabel>Versión</FormLabel>
+                        <FormLabel sx={{ fontWeight: 600 }}>Versión</FormLabel>
                         <Autocomplete
                           freeSolo
-                          // IMPORTANTE: Las opciones dependen de lo seleccionado arriba
                           options={currentVersions}
-                          // Deshabilita el dropdown si no hay SO o si el SO no tiene versiones definidas
                           disabled={!form.os_base} 
                           value={form.os_version}
                           onInputChange={(_, newVal) => handleChange('os_version', newVal)}
@@ -633,7 +673,7 @@ export default function ServidorForm({
                 {form.cod_tipo_servidor !== 'CHASIS' && (
                   <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
                     <FormControl fullWidth>
-                      <FormLabel>RAM (GB)</FormLabel>
+                      <FormLabel sx={{ fontWeight: 600 }}>RAM (GB)</FormLabel>
                       <TextField
                         type="number"
                         size="small"
@@ -646,7 +686,7 @@ export default function ServidorForm({
                     </FormControl>
 
                     <FormControl fullWidth>
-                      <FormLabel>Storage (GB)</FormLabel>
+                      <FormLabel sx={{ fontWeight: 600 }}>Storage (GB)</FormLabel>
                       <TextField
                         type="number"
                         size="small"
@@ -661,7 +701,7 @@ export default function ServidorForm({
                 )}
 
                 {form.cod_tipo_servidor === 'CHASIS' && (
-                  <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderRadius: 1, textAlign: 'center' }}>
+                  <Box sx={{ p: 2, bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[100], borderRadius: 1, textAlign: 'center' }}>
                     <Typography variant="body2" color="text.secondary">
                       La configuración de red y recursos no aplica para servidores tipo Chasis.
                     </Typography>
@@ -671,11 +711,41 @@ export default function ServidorForm({
             </SectionCard>
           </Box>
 
+          {/* BOTONES ACCIÓN (Estilo Pill + Violeta) */}
           <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
-            <Button variant="outlined" color="inherit" startIcon={<CancelIcon />} onClick={() => navigate(routes.servidors())}>
+            <Button 
+              variant="outlined" 
+              startIcon={<CancelIcon />} 
+              onClick={() => navigate(routes.servidors())}
+              sx={{ 
+                minWidth: 140, 
+                borderRadius: 50, // Pill Shape
+                textTransform: 'none', 
+                // COLOR VIOLETA
+                borderColor: '#7B1FA2', 
+                color: '#7B1FA2',
+                '&:hover': {
+                  borderColor: '#4A148C',
+                  color: '#4A148C',
+                  bgcolor: 'rgba(123, 31, 162, 0.04)'
+                }
+              }}
+            >
               Cancelar
             </Button>
-            <LoadingButton type="submit" variant="contained" loading={loading || submitting} startIcon={<SaveIcon />}>
+            <LoadingButton 
+              type="submit" 
+              variant="contained" 
+              loading={loading || submitting} 
+              startIcon={<SaveIcon />}
+              sx={{ 
+                // GRADIENTE
+                background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
+                boxShadow: 4, px: 4, minWidth: 160, 
+                borderRadius: 50, // Pill Shape
+                textTransform: 'none', fontWeight: 700
+              }}
+            >
               {isEdit ? 'Guardar Cambios' : 'Guardar Servidor'}
             </LoadingButton>
           </Box>

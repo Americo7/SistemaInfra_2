@@ -51,13 +51,6 @@ export const QUERY = gql`
   }
 `
 
-export const Loading = () => <div>Cargando registros de infraestructura afectada...</div>
-
-// --- FIX: FORZAR RENDERIZADO ---
-// Se anula el componente Empty para forzar la carga de Success,
-// manteniendo la estructura visual de la tabla.
-export const isEmpty = () => false
-
 export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )

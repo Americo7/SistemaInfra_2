@@ -138,25 +138,28 @@ const HomeLayout = ({ children }) => {
     palette: {
       mode,
       primary: {
-        main: mode === 'dark' ? '#5E35B1' : '#3949AB',
-        light: mode === 'dark' ? '#7C4DFF' : '#5C6BC0',
-        dark: mode === 'dark' ? '#4527A0' : '#303F9F',
-        contrastText: '#FFFFFF'
+        // Light: Tu azul original.
+        // Dark: "Azul Eléctrico Intenso" (#2979FF). Vibrante y profundo.
+        main: mode === 'dark' ? '#2979FF' : '#3949AB', 
+        light: mode === 'dark' ? '#82B1FF' : '#5C6BC0',
+        dark: mode === 'dark' ? '#2962FF' : '#303F9F',
+        contrastText: mode === 'dark' ? '#FFFFFF' : '#FFFFFF' 
       },
       secondary: {
-        main: mode === 'dark' ? '#00BCD4' : '#00ACC1',
-        light: mode === 'dark' ? '#26C6DA' : '#26C6DA',
-        dark: mode === 'dark' ? '#0097A7' : '#00838F',
-        contrastText: '#FFFFFF'
+        main: mode === 'dark' ? '#69F0AE' : '#00ACC1', // Un verde menta neón de contraste
+        light: mode === 'dark' ? '#B9F6CA' : '#26C6DA',
+        dark: mode === 'dark' ? '#00C853' : '#00838F',
+        contrastText: mode === 'dark' ? '#000000' : '#FFFFFF'
       },
       background: {
-        default: mode === 'dark' ? '#121212' : '#F9FAFC',
-        paper: mode === 'dark' ? '#1E1E1E' : '#FFFFFF'
+        default: mode === 'dark' ? '#0B0F19' : '#F4F6F8',
+        paper: mode === 'dark' ? '#111827' : '#FFFFFF'
       },
-      success: { main: '#4CAF50' },
-      error: { main: '#F44336' },
-      warning: { main: '#FF9800' },
-      info: { main: '#2196F3' }
+      success: { main: mode === 'dark' ? '#00C853' : '#2E7D32' },
+      error: { main: mode === 'dark' ? '#FF1744' : '#D32F2F' },
+      warning: { main: mode === 'dark' ? '#FF9100' : '#ED6C02' },
+      info: { main: mode === 'dark' ? '#00B0FF' : '#0288D1' },
+      divider: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
     },
     typography: {
       fontFamily: '"Inter", "Roboto", "Segoe UI", sans-serif',
@@ -609,7 +612,7 @@ const HomeLayout = ({ children }) => {
         {!sidebarCollapsed && (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Avatar
-              src="./images/agetic-logo.png"
+              src="/agetic-logo.png"
               alt="AGETIC"
               variant="rounded"
               sx={{

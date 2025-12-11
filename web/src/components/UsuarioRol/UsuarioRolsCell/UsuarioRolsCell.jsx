@@ -12,10 +12,13 @@ export const QUERY = gql`
       id_maquina
       id_sistema
       estado
+      fecha_creacion
+      fecha_modificacion
       usuarios {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       roles {
         id

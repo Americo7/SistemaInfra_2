@@ -21,6 +21,7 @@ import {
   useTheme,
   IconButton,
   Tooltip,
+  alpha,
 } from '@mui/material'
 
 import {
@@ -37,6 +38,9 @@ import {
   History as AuditIcon,
   Info as GeneralIcon,
   ArrowBack as BackIcon,
+  Fingerprint as CodeIcon, // Icono para el código en sistemas
+  CalendarMonth as DateIcon, // Icono para la fecha
+  Person as PersonIcon // Icono para solicitante
 } from '@mui/icons-material'
 
 /* -----------------------
@@ -88,6 +92,8 @@ const getStatusColor = (codigo) => {
     OPERATIVO: 'success',
     FUERA_SERVICIO: 'error',
     MANTENIMIENTO: 'warning',
+    ACTIVO: 'success',
+    INACTIVO: 'default',
     UNKNOWN: 'default'
   }
   return map[codigo] || 'default'
@@ -96,34 +102,37 @@ const getStatusColor = (codigo) => {
 /* -----------------------
  * SUB-COMPONENTES
  * ----------------------- */
-const RowItem = ({ label, value, icon, isLast }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      alignItems: 'center',
-      py: 0.75,
-      borderBottom: isLast ? 'none' : '1px solid',
-      borderColor: 'divider',
-      '&:hover': { bgcolor: 'action.hover' },
-    }}
-  >
-    <Typography
-      variant="body2"
-      color="text.secondary"
-      sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}
+const RowItem = ({ label, value, icon, isLast }) => {
+  const theme = useTheme()
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        py: 0.75,
+        borderBottom: isLast ? 'none' : '1px solid',
+        borderColor: theme.palette.divider, 
+        '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.5) },
+      }}
     >
-      {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
-      {label}
-    </Typography>
-    <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
-      {React.isValidElement(value) ? value : (
-        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-          {value}
-        </Typography>
-      )}
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}
+      >
+        {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+        {label}
+      </Typography>
+      <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
+        {React.isValidElement(value) ? value : (
+          <Typography variant="body1" sx={{ fontWeight: 600 }}>
+            {value}
+          </Typography>
+        )}
+      </Box>
     </Box>
-  </Box>
-)
+  )
+}
 
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
@@ -132,6 +141,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
       sx={{
         borderRadius: 2,
         borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`,
+        bgcolor: theme.palette.background.paper,
       }}
     >
       <CardHeader
@@ -210,6 +220,26 @@ const Maquina = ({ maquina }) => {
 
   const handleTabChange = (_, v) => setTab(v)
 
+  // --- DATOS PARA LAS NUEVAS TABLAS ---
+  const sistemasUnicos = useMemo(() => {
+    return uniqueById(despliegues.flatMap(d => d.componentes?.sistemas ? [d.componentes.sistemas] : []));
+  }, [despliegues])
+
+  const eventosInfra = useMemo(() => {
+    return infraAfectada.map(ia => {
+        const eList = ia.eventos
+        const e = Array.isArray(eList) ? eList[0] : eList
+        return {
+            id: ia.id,
+            tipo: e?.tipoEventoInfo?.nombre || e?.cod_tipo_evento || 'Desconocido',
+            solicitante: e?.solicitante || 'N/A',
+            fecha: e?.fecha_evento,
+            estado: e?.estadoEventoInfo?.nombre || e?.estado_evento || 'N/A',
+        }
+    }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+  }, [infraAfectada])
+
+
   return (
     <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
       {/* HEADER CARD */}
@@ -217,8 +247,9 @@ const Maquina = ({ maquina }) => {
         elevation={0}
         sx={{
           border: `1px solid ${theme.palette.divider}`,
-          borderRadius: '0 0 12px 12px',
+          borderRadius: 2,
           mb: 3,
+          bgcolor: theme.palette.background.paper, 
         }}
       >
         <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -226,8 +257,12 @@ const Maquina = ({ maquina }) => {
             <IconButton
               onClick={() => navigate(routes.maquinas())}
               sx={{
-                bgcolor: 'rgba(63,81,181,0.15)',
-                border: '1px solid rgba(63,81,181,0.3)',
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                color: theme.palette.primary.main,
+                '&:hover': {
+                    bgcolor: alpha(theme.palette.primary.main, 0.2),
+                }
               }}
             >
               <BackIcon fontSize="small" />
@@ -238,7 +273,7 @@ const Maquina = ({ maquina }) => {
             sx={{
               width: 42,
               height: 42,
-              background: 'linear-gradient(135deg, #0097a7, #26c6da)',
+              background: 'linear-gradient(135deg, #00ACC1, #26C6DA)',
             }}
           >
             <MachineIcon />
@@ -254,13 +289,13 @@ const Maquina = ({ maquina }) => {
           </Box>
         </Box>
 
-        <CardContent sx={{ px: 5 }}>
+        <CardContent sx={{ px: 5, pb: 4 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             
             {/* --- COLUMNA IZQUIERDA --- */}
             <Stack spacing={2}>
-              {/* 1. INFORMACIÓN GENERAL */}
-              <SectionCard icon={<GeneralIcon />} title="Información General">
+              {/* 1. INFORMACIÓN GENERAL (AZUL PRIMARIO) */}
+              <SectionCard icon={<GeneralIcon />} title="Información General" bgcolor={theme.palette.primary.main}>
                 <RowItem label="VMID" value={maquina.proxmox_vmid} icon={<ProxmoxIcon />} />
                 <RowItem label="Identificador" value={maquina.identity_key} icon={<MacIcon />} />
                 <RowItem label="Dirección IP" value={maquina.ip} />
@@ -288,7 +323,7 @@ const Maquina = ({ maquina }) => {
                 />
               </SectionCard>
 
-              {/* 2. AUDITORÍA DEL REGISTRO */}
+              {/* 2. AUDITORÍA DEL REGISTRO (AMARILLO/WARNING) */}
               <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
                 <RowItem
                   label="Estado Registro"
@@ -296,7 +331,7 @@ const Maquina = ({ maquina }) => {
                     <Chip
                       label={maquina.estado}
                       size="small"
-                      color={maquina.estado === 'ACTIVO' ? 'success' : 'error'}
+                      color={getStatusColor(maquina.estado)}
                     />
                   }
                 />
@@ -309,13 +344,13 @@ const Maquina = ({ maquina }) => {
 
             {/* --- COLUMNA DERECHA --- */}
             <Stack spacing={2}>
-              {/* 1. INFRAESTRUCTURA Y ORQUESTACIÓN */}
+              {/* 1. INFRAESTRUCTURA Y ORQUESTACIÓN (AZUL INFO) */}
               <SectionCard icon={<ClusterIcon />} title="Infraestructura y Orquestación" bgcolor={theme.palette.info.main}>
                 {clusterInfo.length === 0 ? (
                   <Typography variant="body2" color="text.secondary">No vinculada a ningún host ni cluster.</Typography>
                 ) : (
                   clusterInfo.map((info, idx) => (
-                    // MODIFICACIÓN: Se elimina el borderBottom y se quita el margen inferior al último elemento
+                    // Se elimina el borderBottom y se quita el margen inferior al último elemento
                     <Box key={idx} sx={{ mb: idx < clusterInfo.length - 1 ? 2 : 0 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                         <Typography variant="caption" sx={{ fontWeight: 700, mr: 1 }}>
@@ -364,7 +399,7 @@ const Maquina = ({ maquina }) => {
                 )}
               </SectionCard>
 
-              {/* 2. RECURSOS ASIGNADOS */}
+              {/* 2. RECURSOS ASIGNADOS (VERDE/SUCCESS) */}
               <SectionCard icon={<MemoryIcon />} title="Recursos Asignados" bgcolor={theme.palette.success.main}>
                 <RowItem label="vCPUs" value={`${maquina.cpu} Core(s)`} />
                 <RowItem label="RAM" value={`${maquina.ram} GB`} />
@@ -379,8 +414,8 @@ const Maquina = ({ maquina }) => {
                             key={i}
                             size="small"
                             variant="outlined"
+                            sx={{ borderColor: theme.palette.divider }}
                             label={`D${d.Disco}: ${d.Valor} GB`}
-                            sx={{ height: 20 }}
                           />
                         ))}
                       </Stack>
@@ -395,7 +430,7 @@ const Maquina = ({ maquina }) => {
       </Card>
 
       {/* --------- TABS INFERIORES --------- */}
-      <Card sx={{ borderRadius: 2 }}>
+      <Card sx={{ borderRadius: 2, mt: 3, bgcolor: theme.palette.background.paper }}>
         <Tabs
           value={tab}
           onChange={handleTabChange}
@@ -405,7 +440,7 @@ const Maquina = ({ maquina }) => {
         >
           <Tab label={<Stack direction="row" spacing={1}><UsersIcon fontSize="small" />Usuarios<Chip label={usuarioRoles.length} size="small" /></Stack>} />
           <Tab label={<Stack direction="row" spacing={1}><DeploymentIcon fontSize="small" />Despliegues<Chip label={despliegues.length} size="small" /></Stack>} />
-          <Tab label={<Stack direction="row" spacing={1}><SystemIcon fontSize="small" />Sistemas<Chip label={uniqueById(despliegues.map(d => d.componentes?.sistemas)).length} size="small" /></Stack>} />
+          <Tab label={<Stack direction="row" spacing={1}><SystemIcon fontSize="small" />Sistemas<Chip label={sistemasUnicos.length} size="small" /></Stack>} />
           <Tab label={<Stack direction="row" spacing={1}><InfraIcon fontSize="small" />Eventos<Chip label={infraAfectada.length} size="small" /></Stack>} />
         </Tabs>
 
@@ -413,9 +448,9 @@ const Maquina = ({ maquina }) => {
           {/* TAB 0: USUARIOS */}
           {tab === 0 && (
             usuarioRoles.length ? (
-              <TableContainer component={Paper} elevation={0} sx={{border: '1px solid #eee'}}>
+              <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
                 <Table size="small">
-                  <TableHead sx={{ bgcolor: 'grey.50' }}>
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                     <TableRow>
                       <TableCell>Usuario</TableCell>
                       <TableCell>Rol</TableCell>
@@ -437,23 +472,23 @@ const Maquina = ({ maquina }) => {
           {/* TAB 1: DESPLIEGUES */}
           {tab === 1 && (
             despliegues.length ? (
-              <TableContainer component={Paper} elevation={0} sx={{border: '1px solid #eee'}}>
+              <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
                 <Table size="small">
-                  <TableHead sx={{ bgcolor: 'grey.50' }}>
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                     <TableRow>
                       <TableCell>Componente</TableCell>
                       <TableCell>Sistema</TableCell>
-                      <TableCell>Fecha</TableCell>
+                      <TableCell>Fecha Despliegue</TableCell>
                       <TableCell>Estado</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {despliegues.map((d) => (
                       <TableRow key={d.id}>
-                        <TableCell>{d.componentes?.nombre}</TableCell>
+                        <TableCell sx={{ fontWeight: 500 }}>{d.componentes?.nombre}</TableCell>
                         <TableCell>{d.componentes?.sistemas?.nombre}</TableCell>
                         <TableCell>{fmtDate(d.fecha_despliegue)}</TableCell>
-                        <TableCell><Chip label={d.estado_despliegue} size="small" /></TableCell>
+                        <TableCell><Chip label={d.estado_despliegue} size="small" color={getStatusColor(d.estado_despliegue)} /></TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -462,48 +497,60 @@ const Maquina = ({ maquina }) => {
             ) : <Typography variant="body2" color="text.secondary">No hay despliegues registrados.</Typography>
           )}
 
-          {/* TAB 2: SISTEMAS */}
-          {tab === 2 && (() => {
-             const sistemasUnicos = uniqueById(despliegues.flatMap(d => d.componentes?.sistemas ? [d.componentes.sistemas] : []));
-             return sistemasUnicos.length ? (
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))', gap: 2 }}>
-                {sistemasUnicos.map((s) => (
-                  <Paper key={s.id} sx={{ p: 2, border: '1px solid #eee' }} elevation={0}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>{s.nombre}</Typography>
-                    <Typography variant="caption" display="block" sx={{mb:1}}>{s.sigla}</Typography>
-                    <Typography variant="body2" color="text.secondary">{s.descripcion}</Typography>
-                  </Paper>
-                ))}
-              </Box>
-            ) : <Typography variant="body2" color="text.secondary">No hay sistemas asociados.</Typography>
-          })()}
-
-          {/* TAB 3: EVENTOS INFRA */}
-          {tab === 3 && (
-            infraAfectada.length ? (
-              <TableContainer component={Paper} elevation={0} sx={{border: '1px solid #eee'}}>
+          {/* TAB 2: SISTEMAS (MEJORADO A TABLA) */}
+          {tab === 2 && (
+             sistemasUnicos.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
                 <Table size="small">
-                  <TableHead sx={{ bgcolor: 'grey.50' }}>
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                     <TableRow>
-                      <TableCell>Tipo Evento</TableCell>
-                      <TableCell>Descripción</TableCell>
-                      <TableCell>Fecha</TableCell>
+                      <TableCell sx={{ width: '15%' }}><CodeIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} /> Sigla</TableCell>
+                      <TableCell sx={{ width: '25%' }}>Nombre</TableCell>
+                      <TableCell sx={{ width: '40%' }}>Descripción</TableCell>
                       <TableCell>Estado</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {infraAfectada.map((ia) => {
-                      const eList = ia.eventos
-                      const e = Array.isArray(eList) ? eList[0] : eList
-                      return (
-                        <TableRow key={ia.id}>
-                          <TableCell sx={{ fontWeight: 600 }}>{e?.cod_tipo_evento}</TableCell>
-                          <TableCell>{e?.descripcion}</TableCell>
-                          <TableCell>{fmtDate(e?.fecha_evento)}</TableCell>
-                          <TableCell><Chip label={ia.estado} size="small" variant="outlined" /></TableCell>
-                        </TableRow>
-                      )
-                    })}
+                    {sistemasUnicos.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell sx={{ fontWeight: 600 }}>{s.sigla}</TableCell>
+                        <TableCell>{s.nombre}</TableCell>
+                        <TableCell>{s.descripcion}</TableCell>
+                        <TableCell>
+                          <Chip label={s.estado} size="small" color={getStatusColor(s.estado)} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary">No hay sistemas asociados mediante despliegues.</Typography>
+          )}
+
+          {/* TAB 3: EVENTOS INFRA (MEJORADO A TABLA) */}
+          {tab === 3 && (
+            eventosInfra.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell sx={{ width: '20%' }}>Tipo Evento</TableCell>
+                      <TableCell sx={{ width: '20%' }}><PersonIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} /> Solicitante</TableCell>
+                      <TableCell sx={{ width: '20%' }}><DateIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} /> Fecha Evento</TableCell>
+                      <TableCell>Estado Final</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {eventosInfra.map((e) => (
+                      <TableRow key={e.id}>
+                        <TableCell sx={{ fontWeight: 600 }}>{e.tipo}</TableCell>
+                        <TableCell>{e.solicitante}</TableCell>
+                        <TableCell>{fmtDate(e.fecha)}</TableCell>
+                        <TableCell>
+                          <Chip label={e.estado} size="small" color={getStatusColor(e.estado)} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </TableContainer>

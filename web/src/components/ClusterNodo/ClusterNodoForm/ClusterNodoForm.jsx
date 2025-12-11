@@ -154,7 +154,7 @@ const ClusterNodoForm = (props) => {
   return (
     <Box sx={{  width: '100%', maxWidth: 1500, mx: 'auto'  }}>
       
-      <Card elevation={3} 
+      <Card elevation={0} 
         sx={{
           border: `1px solid ${theme.palette.divider}`,
           borderTop: 'none',
@@ -169,8 +169,7 @@ const ClusterNodoForm = (props) => {
         
         {/* --- HEADER --- */}
         <Box sx={{ 
-            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
-            borderTopLeftRadius: 16, borderTopRightRadius: 16,
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2
           }}>
             <Avatar sx={{
                   width: 48, height: 48,
@@ -196,7 +195,7 @@ const ClusterNodoForm = (props) => {
         </Box>
 
         {/* --- CONTENIDO DEL FORMULARIO --- */}
-        <Box sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+        <Box sx={{ px: 5, pb: 5}}>
           <Form formMethods={formMethods} onSubmit={onSubmit} error={props.error}>
             
             <FormError error={props.error} wrapperClassName="rw-form-error-wrapper" titleClassName="rw-form-error-title" listClassName="rw-form-error-list" />
@@ -420,9 +419,24 @@ const ClusterNodoForm = (props) => {
 
             <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <Button
-                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                variant="outlined" 
+                startIcon={<CancelIcon />}
                 onClick={() => navigate(routes.clusterNodos())}
-                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+                sx={{ 
+                  minWidth: 140, 
+                  borderRadius: 50, // Estilo 'Pill'
+                  textTransform: 'none', 
+                  
+                  // COLOR: Púrpura/Violeta (Coincide con el final del gradiente de 'Guardar')
+                  borderColor: '#7B1FA2', 
+                  color: '#7B1FA2',
+                  
+                  '&:hover': {
+                    borderColor: '#4A148C',
+                    color: '#4A148C',
+                    bgcolor: 'rgba(123, 31, 162, 0.04)' // Fondo púrpura muy suave
+                  }
+                }}
               >
                 Cancelar
               </Button>

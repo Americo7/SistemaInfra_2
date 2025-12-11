@@ -31,7 +31,6 @@ import {
   ListItemIcon,
   Typography,
   Divider,
-  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
   Dialog,
   DialogTitle,
   DialogContent,
@@ -49,6 +48,7 @@ const UPDATE_USUARIO_ROL_MUTATION = gql`
     updateUsuarioRol(id: $id, input: $input) {
       id
       estado
+      fecha_modificacion # CORREGIDO
     }
   }
 `
@@ -61,11 +61,14 @@ const DELETE_USUARIO_ROL_MUTATION = gql`
   }
 `
 
+// CORREGIDO: Usamos los nombres reales de tu base de datos
 const QUERY_REFETCH = gql`
   query FindUsuarioRolsRefetch {
     usuarioRols {
       id
       estado
+      fecha_creacion
+      fecha_modificacion
     }
   }
 `
@@ -99,14 +102,13 @@ const UsuarioRols = ({ usuarioRols }) => {
   
   // --- ESTADOS PARA EL DIÁLOGO ---
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
-  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
+  const [rowsToDelete, setRowsToDelete] = useState([]) 
 
   const [updateUsuarioRol] = useMutation(UPDATE_USUARIO_ROL_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteUsuarioRol] = useMutation(DELETE_USUARIO_ROL_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
@@ -115,8 +117,10 @@ const UsuarioRols = ({ usuarioRols }) => {
   // Helpers para el exportador
   const exportHelpers = {
     getUsuarioNombre: (val) => formatUser(val),
-    // Helper para exportar el recurso calculado
-    getRecurso: (val, row) => row.maquinas?.nombre ? `VM: ${row.maquinas.nombre}` : (row.sistemas?.nombre ? `SIS: ${row.sistemas.nombre}` : '-')
+    getRecurso: (val, row) => row.maquinas?.nombre ? `VM: ${row.maquinas.nombre}` : (row.sistemas?.nombre ? `SIS: ${row.sistemas.nombre}` : '-'),
+    // CORREGIDO: Helpers para las fechas
+    getCreatedAt: (val) => formatDateTime(val),
+    getUpdatedAt: (val) => formatDateTime(val),
   }
 
   const closeAllDialogs = () => {
@@ -138,14 +142,12 @@ const UsuarioRols = ({ usuarioRols }) => {
     closeAllDialogs()
   }
 
-  // MODIFICACIÓN: Abre el diálogo y guarda las filas
   const handleHardDelete = (rows) => {
     const dataObjects = rows.map((r) => r.original)
     setRowsToDelete(dataObjects)
     setOpenDeleteDialog(true)
   }
 
-  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
   const confirmHardDelete = () => {
     setOpenDeleteDialog(false)
     
@@ -155,7 +157,6 @@ const UsuarioRols = ({ usuarioRols }) => {
       deleteUsuarioRol({ variables: { id: row.id } })
     })
     
-    // Muestra el toast de éxito UNA SOLA VEZ
     toast.success(`${rowsToDelete.length} asignación(es) eliminada(s) permanentemente.`) 
 
     table.toggleAllRowsSelected(false)
@@ -179,13 +180,13 @@ const UsuarioRols = ({ usuarioRols }) => {
     {
       id: 'usuario',
       header: 'Usuario',
-      size: 200,
-      accessorFn: (row) => row.usuarios ? `${row.usuarios.nombres} ${row.usuarios.primer_apellido}` : `ID: ${row.id_usuario}`,
+      size: 150,
+      accessorFn: (row) => row.usuarios ? `${row.usuarios.nombres} ${row.usuarios.primer_apellido} ${row.usuarios.segundo_apellido}` : `ID: ${row.id_usuario}`,
       Cell: ({ row }) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <UserRolIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
           <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
-            {row.original.usuarios ? `${row.original.usuarios.nombres} ${row.original.usuarios.primer_apellido}` : '-'}
+            {row.original.usuarios ? `${row.original.usuarios.nombres} ${row.original.usuarios.primer_apellido} ${row.original.usuarios.segundo_apellido}` : '-'}
           </Typography>
         </Box>
       ),
@@ -212,7 +213,6 @@ const UsuarioRols = ({ usuarioRols }) => {
         id: 'recurso',
         header: 'Recurso (VM / Sis)',
         size: 200,
-        // AccessorFn para que el buscador global y sorting funcionen con el texto
         accessorFn: (row) => row.maquinas?.nombre || row.sistemas?.nombre || '-',
         Cell: ({ row }) => {
             const maq = row.original.maquinas
@@ -254,7 +254,30 @@ const UsuarioRols = ({ usuarioRols }) => {
       ),
     },
 
-    // AUDITORÍA (Opcional, visible por defecto si se desea)
+    // --- NUEVAS COLUMNAS DE FECHAS (CORREGIDAS) ---
+    {
+        accessorKey: 'fecha_creacion', // Nombre exacto del Cell
+        header: 'Fecha Creación',
+        size: 140,
+        Cell: ({ cell }) => (
+            <Typography variant="caption" color="text.secondary">
+                {formatDateTime(cell.getValue())}
+            </Typography>
+        ),
+    },
+    {
+        accessorKey: 'fecha_modificacion', // Nombre exacto del Cell
+        header: 'Fecha Modif.',
+        size: 140,
+        Cell: ({ cell }) => (
+            <Typography variant="caption" color="text.secondary">
+                {formatDateTime(cell.getValue())}
+            </Typography>
+        ),
+    },
+    // ---------------------------------
+
+    // AUDITORÍA
     { 
         id: 'creadoPor',
         header: 'Creado por', 
@@ -283,8 +306,10 @@ const UsuarioRols = ({ usuarioRols }) => {
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
-        creadoPor: true, // Visible
-        modificadoPor: true // Visible
+        fecha_creacion: false, // Visible por defecto
+        fecha_modificacion: true, // Visible por defecto
+        creadoPor: false, 
+        modificadoPor: true 
       },
     },
     muiTablePaperProps: {
@@ -435,7 +460,6 @@ const UsuarioRols = ({ usuarioRols }) => {
     }
   }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
 
-  // Lógica segura para obtener el nombre(s) en el diálogo
   const namesToDelete = rowsToDelete.length === 1 
     ? rowsToDelete[0]?.usuarios?.nombre || rowsToDelete[0]?.roles?.nombre || `la asignación ID ${rowsToDelete[0]?.id}` 
     : `${rowsToDelete.length} registros`
@@ -451,7 +475,6 @@ const UsuarioRols = ({ usuarioRols }) => {
     >
       <MaterialReactTable table={table} />
 
-      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
       <Dialog
         open={openDeleteDialog}
         onClose={() => setOpenDeleteDialog(false)}
@@ -490,7 +513,6 @@ const UsuarioRols = ({ usuarioRols }) => {
           </Button>
         </DialogActions>
       </Dialog>
-      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

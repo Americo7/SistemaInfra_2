@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useQuery, gql } from '@redwoodjs/web'
 import { navigate, routes } from '@redwoodjs/router'
 
@@ -6,7 +6,6 @@ import {
   Box,
   Card,
   CardHeader,
-// ... (otras importaciones de MUI)
   Typography,
   TextField,
   Select,
@@ -41,7 +40,6 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
 import SaveIcon from '@mui/icons-material/Save'
 import CancelIcon from '@mui/icons-material/Cancel'
 import LinkIcon from '@mui/icons-material/Link'
-import LinkOffIcon from '@mui/icons-material/LinkOff'
 import EditIcon from '@mui/icons-material/Edit'
 import StorageIcon from '@mui/icons-material/Storage'
 import LockIcon from '@mui/icons-material/Lock'
@@ -78,7 +76,7 @@ const SectionCard = ({ icon, title, children, color }) => {
         display: 'flex',
         flexDirection: 'column',
         borderTop: `3px solid ${activeColor}`,
-        bgcolor: 'background.paper',
+        bgcolor: 'background.paper', // Soporte Dark Mode
         height: '100%',
         boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
       }}
@@ -96,7 +94,7 @@ const SectionCard = ({ icon, title, children, color }) => {
         }
         sx={{ py: 1.5, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
       />
-      <CardContent sx={{ p: 2.5 }}>{children}</CardContent>
+      <CardContent sx={{ p: 2.5, flexGrow: 1 }}>{children}</CardContent>
     </Card>
   )
 }
@@ -106,7 +104,8 @@ const DiscosEditor = ({ discos, onAdd, onDelete, onUpdate, error }) => {
   const sanitizeInput = (v) => (v === '' ? '' : String(Number(String(v).replace(/\D/g, ''))))
 
   return (
-    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: '#f8f9fa' }}>
+    // Estilos adaptados para Dark Mode
+    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? theme.palette.action.hover : '#f8f9fa' }}>
       <Stack spacing={1.5}>
         {discos.map((d, i) => (
           <Box key={i} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -117,7 +116,8 @@ const DiscosEditor = ({ discos, onAdd, onDelete, onUpdate, error }) => {
               sx={{ 
                 minWidth: 60, 
                 fontWeight: 700, 
-                bgcolor: theme.palette.text.secondary, 
+                // Color fijo para que resalte
+                bgcolor: theme.palette.primary.dark, 
                 color: 'white' 
               }}
             />
@@ -132,7 +132,8 @@ const DiscosEditor = ({ discos, onAdd, onDelete, onUpdate, error }) => {
               InputProps={{
                 endAdornment: <InputAdornment position="end"><Typography variant="caption" sx={{ fontWeight: 'bold' }}>GB</Typography></InputAdornment>,
               }}
-              sx={{ bgcolor: '#fff' }}
+              // Fondo adaptado para inputs internos
+              sx={{ '& .MuiInputBase-root': { bgcolor: theme.palette.background.paper } }}
             />
 
             {discos.length > 1 && (
@@ -288,12 +289,10 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
   }
 
   const handleFieldChange = (field, value) => {
-    // Si la clave no es identity_key, se permite actualizar el estado
     if (field !== 'identity_key') {
         setFormValues((prev) => ({ ...prev, [field]: value }))
     }
     
-    // Lógica de errores
     if (field === 'ip') setErrors((prev) => ({ ...prev, ip: validateIP(value) }))
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }))
   }
@@ -303,12 +302,6 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
   const eliminarDisco = (idx) => setDiscos((prev) => prev.filter((_, i) => i !== idx).map((d, i) => ({ ...d, Disco: i + 1 })))
   const actualizarDisco = (idx, val) => setDiscos((prev) => prev.map((d, i) => (i === idx ? { ...d, Valor: val } : d)))
 
-  /**
-   * CORRECCIÓN PRINCIPAL
-   * - El backend captura automáticamente currentUser del contexto GraphQL
-   * - No enviamos usuario_creacion ni usuario_modificacion manualmente
-   * - El identity_key se genera automáticamente en el backend (si es manual:)
-   */
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validateForm()) return
@@ -325,7 +318,6 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
             almacenamiento,
             id_servidor: formValues.id_servidor ? Number(formValues.id_servidor) : null,
             proxmox_vmid: formValues.proxmox_vmid ? Number(formValues.proxmox_vmid) : null,
-            // El backend captura usuario_creacion y usuario_modificacion automáticamente
         }
         
         await onSave(payload, isEditMode ? maquina.id : undefined)
@@ -343,20 +335,19 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
           border: `1px solid ${theme.palette.divider}`,
           borderTop: 'none',
           borderRadius:2,
-          borderTopLeftRadius: '0 !important',
-          borderTopRightRadius: '0 !important',
           mb: 3,
-          bgcolor: theme.palette.background.paper,
+          bgcolor: theme.palette.background.paper, // Soporte Dark Mode
         }}
       >
-        {/* HEADER */}
+        {/* HEADER (Estilo Estandarizado) */}
         <Box sx={{ 
-            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, 
+            bgcolor: theme.palette.background.paper, // Soporte Dark Mode
             borderTopLeftRadius: 16, borderTopRightRadius: 16,
           }}>
             <Avatar
               sx={{
-                  width: 38, height: 38,
+                  width: 48, height: 48, // Estandarizado a 48px
                   background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
                   color: 'white', boxShadow: 3
                 }}
@@ -364,7 +355,12 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
               {isEditMode ? <EditIcon /> : <AddCircleOutlineIcon />}
             </Avatar>
             <Box>
-              <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.2, color: '#000', mb: 0.5 }}>
+              <Typography variant="h5" fontWeight={800} sx={{ 
+                lineHeight: 1.2, mb: 0.5,
+                // GRADIENTE EN TEXTO
+                background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              }}>
                 {isEditMode ? 'Editar Máquina Virtual' : 'Crear Máquina Virtual'}
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -374,10 +370,10 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
         </Box>
 
         {/* CONTENIDO PRINCIPAL */}
-        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ px: 5, pb: 5, pt: 0 }}>
 
           {(errorSave) && (
-            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#fff4f4', borderColor: 'error.main', color: 'error.main', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
               <ErrorOutlineIcon color="error" />
               <Typography variant="body2" fontWeight={600}>{String(errorSave)}</Typography>
             </Paper>
@@ -391,7 +387,7 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
             alignItems: 'start'
           }}>
 
-            {/* --- CARD 1: IDENTIFICACIÓN --- */}
+            {/* --- CARD 1: IDENTIFICACIÓN (AZUL PRIMARIO) --- */}
             <SectionCard title="Identificación y Host" icon={<FingerprintIcon />} color={theme.palette.primary.main}>
               <Stack spacing={2.5}>
                 
@@ -413,7 +409,6 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
                         <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Servidor Host</FormLabel>
                         <Autocomplete
                             disablePortal
-                            id="combo-box-servidores"
                             options={listaServidores}
                             getOptionLabel={(option) => option.nombre || ''}
                             loading={loadingData}
@@ -460,7 +455,6 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
                     <TextField 
                       size="small" 
                       value={formValues.identity_key || (isEditMode ? 'No disponible' : 'Se generará al guardar...')} 
-                      // Se desactiva y se pone en modo solo lectura
                       disabled={true} 
                       InputProps={{ 
                         readOnly: true,
@@ -469,8 +463,10 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
                                 {isIdentityLocked ? <LockIcon fontSize="small" color="disabled" /> : <LinkIcon fontSize="small" color="disabled" />}
                             </InputAdornment>
                         ),
-                        // Estilo visual de solo lectura
-                        style: { backgroundColor: '#f5f5f5', color: '#777' }
+                        sx: { 
+                          bgcolor: theme.palette.action.hover, // Fondo adaptado para disabled
+                          '& .MuiInputBase-input': { color: theme.palette.text.secondary } // Texto más suave
+                        }
                       }} 
                       helperText={
                         isEditMode 
@@ -483,7 +479,7 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
               </Stack>
             </SectionCard>
 
-            {/* --- CARD 2: SISTEMA Y RED --- */}
+            {/* --- CARD 2: SISTEMA Y RED (CYAN/SECUNDARIO) --- */}
             <SectionCard title="Sistema y Red" icon={<SettingsEthernetIcon />} color={theme.palette.secondary.main}>
               <Stack spacing={2.5}>
                 
@@ -564,7 +560,7 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
               </Stack>
             </SectionCard>
 
-            {/* --- CARD 3: HARDWARE --- */}
+            {/* --- CARD 3: HARDWARE (VERDE) --- */}
             <SectionCard title="Hardware y Storage" icon={<MemoryIcon />} color="#2e7d32">
               <Stack spacing={2.5}>
 
@@ -605,14 +601,25 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
 
           </Box>
 
-          {/* BOTONES ACCIÓN */}
+          {/* BOTONES ACCIÓN (Estilo Pill + Violeta) */}
           <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
             <Button
               variant="outlined"
-              color="inherit"
               startIcon={<CancelIcon />}
               onClick={() => navigate(routes.maquinas())}
-              sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+              sx={{ 
+                minWidth: 140, 
+                borderRadius: 50, // Pill Shape
+                textTransform: 'none', 
+                // COLOR VIOLETA
+                borderColor: '#7B1FA2', 
+                color: '#7B1FA2',
+                '&:hover': {
+                  borderColor: '#4A148C',
+                  color: '#4A148C',
+                  bgcolor: 'rgba(123, 31, 162, 0.04)'
+                }
+              }}
             >
               Cancelar
             </Button>
@@ -623,8 +630,11 @@ const MaquinaForm = ({ maquina, onSave, loading: loadingSave, error: errorSave }
               loading={loadingSave || isSubmitting}
               startIcon={<SaveIcon />}
               sx={{ 
+                // GRADIENTE
                 background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
-                boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
+                boxShadow: 4, px: 4, minWidth: 160, 
+                borderRadius: 50, // Pill Shape
+                textTransform: 'none', fontWeight: 700
               }}
             >
               {isEditMode ? 'Guardar Cambios' : 'Registrar Máquina'}

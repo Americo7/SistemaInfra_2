@@ -1,6 +1,5 @@
 import { navigate, routes } from '@redwoodjs/router'
-import { useMutation } from '@redwoodjs/web'
-
+import { useMutation, gql } from '@redwoodjs/web' // Asegúrate de importar gql también
 import { toast } from '@redwoodjs/web/toast'
 
 import InfraAfectadaForm from 'src/components/InfraAfectada/InfraAfectadaForm'
@@ -18,7 +17,11 @@ const NewInfraAfectada = () => {
     CREATE_INFRA_AFECTADA_MUTATION,
     {
       onCompleted: () => {
-        toast.success('InfraAfectada created')
+        // CORRECCIÓN FINAL:
+        // Usamos el mismo patrón que en "Sistema".
+        // Navegamos inmediatamente. El Toast se mantendrá visible 
+        // automáticamente durante la transición a la tabla.
+        toast.success('Afectación registrada exitosamente')
         navigate(routes.infraAfectadas())
       },
       onError: (error) => {

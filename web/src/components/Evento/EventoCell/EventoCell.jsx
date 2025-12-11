@@ -20,6 +20,7 @@ export const QUERY = gql`
       tipoEventoInfo {
         id
         nombre  
+        codigo
       }
       estadoEventoInfo {
         id

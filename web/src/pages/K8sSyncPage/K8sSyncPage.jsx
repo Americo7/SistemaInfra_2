@@ -3,16 +3,16 @@ import { useQuery, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 // Iconos
-import StorageIcon from '@mui/icons-material/Storage' // Nodos Físicos
-import CloudIcon from '@mui/icons-material/Cloud' // VMs (Nodos Virtuales)
+import StorageIcon from '@mui/icons-material/Storage'
+import CloudIcon from '@mui/icons-material/Cloud'
 import SyncIcon from '@mui/icons-material/Sync'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorIcon from '@mui/icons-material/Error'
 import DnsIcon from '@mui/icons-material/Dns'
-import LanguageIcon from '@mui/icons-material/Language' // API URL
+import LanguageIcon from '@mui/icons-material/Language'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
-import HubIcon from '@mui/icons-material/Hub' // Total Nodos
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty' // Icono para ocupado
+import HubIcon from '@mui/icons-material/Hub'
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
 
 import {
   Box,
@@ -51,19 +51,26 @@ export default function K8sSyncPage() {
   const [sincronizandoTodo, setSincronizandoTodo] = useState(false)
   
   const [estadoSincronizacion, setEstadoSincronizacion] = useState({})
-  const [apiError, setApiError] = useState(null) // <-- [1] Nuevo Estado Global de Error
+  const [apiError, setApiError] = useState(null)
 
   const API_URL = process.env.API_URL || 'http://localhost:8911'
   const URL_SYNC = `${API_URL}/k8sSync`
-  const API_HEALTH_CHECK_PATH = '/status'; // Usamos el path de la función global de salud
+  const API_HEALTH_CHECK_PATH = '/status'
 
+  // --- HELPER: Asegurar que los contadores sean números ---
+  const normalizarDesglose = (datos) => {
+    // Busca en varias ubicaciones posibles de la respuesta
+    const raw = datos.detalles?.desglose || datos.desglose || {}
+    
+    return {
+      // Convierte a número y usa 0 si falla. Soporta 'Virtual', 'virtual', etc.
+      virtual: Number(raw.virtuales || raw.Virtual || raw.vms || 0),
+      fisico: Number(raw.fisicos || raw.Fisico || raw.physical || 0)
+    }
+  }
 
-  /* --------------------------------------------------
-     [2] FUNCIÓN: Verificar la salud del API (con AbortController)
-  -------------------------------------------------- */
   const verificarApiActiva = async () => {
     const controller = new AbortController();
-    // 💡 5 segundos de timeout
     const id = setTimeout(() => controller.abort(), 5000); 
 
     try {
@@ -71,56 +78,36 @@ export default function K8sSyncPage() {
         method: 'GET',
         signal: controller.signal, 
       })
-
       clearTimeout(id); 
-
-      if (!respuesta.ok) {
-        throw new Error(`Servidor API respondió con Status ${respuesta.status}`)
-      }
-      
+      if (!respuesta.ok) throw new Error(`Status ${respuesta.status}`)
       setApiError(null)
-
     } catch (error) {
       clearTimeout(id); 
-
-      let mensaje;
-
-      if (error.name === 'AbortError') {
-         mensaje = `Tiempo de espera excedido (5s). El servidor API no respondió.`
-      } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        mensaje = `Fallo de conexión. No se pudo contactar el servidor API en ${API_URL}. Revise la URL y el puerto de ejecución.`
-      } else {
-        mensaje = `Error al verificar la salud del API: ${error.message}`
-      }
-      
-      console.error('API Health Check Error:', mensaje)
+      let mensaje = error.name === 'AbortError' 
+        ? 'Tiempo de espera excedido (API).' 
+        : `Error de conexión API: ${error.message}`;
+      console.error(mensaje)
       setApiError(mensaje)
     }
   }
 
-  // 1. AUTO-VERIFICACIÓN AL CARGAR (Ahora incluye la verificación de la API)
   useEffect(() => {
-    // Verificar el estado del API
     verificarApiActiva() 
-
-    // Solo procede con el auto-verify si la API está sana y hay endpoints
     if (apiError === null && data?.k8SEndpoints?.length > 0) {
       data.k8SEndpoints.forEach((ep) => {
-        // Solo verificamos si no tenemos un estado previo
         if (!estadoSincronizacion[ep.id]) {
             conectarBackend(ep.id, 'verify', true)
         }
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, apiError]) // Dependencia en apiError para reintentar la verificación de endpoints
+  }, [data, apiError])
 
-  // 2. CONEXIÓN AL BACKEND (Con manejo de Lock/Bloqueo)
+  // 2. CONEXIÓN AL BACKEND (Modificado para devolver resultado)
   const conectarBackend = async (endpointId, accion, silencioso = false) => {
-    // 💡 [3] BLOQUEAR la ejecución si el API está caído
     if (apiError) {
-      if (!silencioso) toast.error("Imposible iniciar: El servidor API no responde.")
-      return
+      if (!silencioso) toast.error("API no disponible")
+      return { success: false }
     }
 
     if (!silencioso) {
@@ -128,9 +115,9 @@ export default function K8sSyncPage() {
         setTipoProceso(accion)
     }
 
+    // Actualizamos estado visual a "Cargando"
     setEstadoSincronizacion((prev) => ({
       ...prev,
-      // Si el API está caído, el estado local ya es 'error' (aunque se comprueba arriba)
       [endpointId]: { ...prev[endpointId], tipo: 'cargando', accion },
     }))
 
@@ -138,30 +125,21 @@ export default function K8sSyncPage() {
       const respuesta = await fetch(URL_SYNC, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpointId,
-          soloVerificar: accion === 'verify',
-        }),
+        body: JSON.stringify({ endpointId, soloVerificar: accion === 'verify' }),
       })
 
-      // Manejo de JSON y Errores (sin el chequeo de Failed to fetch)
       const datos = await respuesta.json()
 
-      // 🟢 DETECCIÓN DE BLOQUEO (Valkey Lock)
-      if (respuesta.status === 409 || datos.esBloqueo) {
-        throw new Error('BLOQUEADO: Sincronización ya en curso')
-      }
-
-      // ERROR HTTP o ERROR LÓGICO
-      if (!respuesta.ok) throw new Error(datos.error || 'Error de servidor')
-      if (datos.success === false) {
-         throw new Error(datos.message || 'Fallo en la operación')
-      }
+      if (respuesta.status === 409 || datos.esBloqueo) throw new Error('BLOQUEADO')
+      if (!respuesta.ok) throw new Error(datos.error || 'Error servidor')
+      if (datos.success === false) throw new Error(datos.message || 'Fallo operación')
 
       // --- ÉXITO ---
-      const mensaje = datos.message || (accion === 'verify' ? 'Conexión OK' : 'Sincronización OK')
-      const nodosTotal = datos.procesados || 0
-      const desglose = datos.detalles?.desglose || datos.desglose || { virtual: 0, fisico: 0 }
+      const mensaje = datos.message || (accion === 'verify' ? 'Conexión OK' : 'Sync OK')
+      const nodosTotal = Number(datos.procesados || 0)
+      
+      // USAMOS EL HELPER AQUÍ PARA CORREGIR LOS 0s
+      const desglose = normalizarDesglose(datos)
 
       setEstadoSincronizacion((prev) => ({
         ...prev,
@@ -174,31 +152,28 @@ export default function K8sSyncPage() {
         },
       }))
 
+      // Solo mostramos toast si NO es silencioso (Manual)
       if (!silencioso) toast.success(mensaje)
       if (accion === 'sync') await refetch()
+      
+      return { success: true }
 
     } catch (err) {
-      console.error(err)
+      const esBloqueo = err.message.includes('BLOQUEADO')
       
-      // 🟢 MANEJO VISUAL DEL BLOQUEO (No necesitamos chequear Failed to fetch aquí)
-      const esBloqueo = err.message.includes('BLOQUEADO') || err.message.includes('ya está en ejecución')
-
       setEstadoSincronizacion((prev) => ({
         ...prev,
         [endpointId]: {
           tipo: esBloqueo ? 'warning' : 'error',
-          mensaje: esBloqueo ? 'Omitido: Ya en progreso' : (err.message || 'Error de conexión'),
+          mensaje: esBloqueo ? 'En progreso...' : (err.message || 'Error'),
           accion
         },
       }))
       
       if (!silencioso) {
-        if (esBloqueo) {
-            toast('Sync en progreso... (omitido)', { icon: '⚠️', duration: 3000 })
-        } else {
-            toast.error(err.message)
-        }
+        esBloqueo ? toast('Sync en progreso (omitido)', { icon: '⚠️' }) : toast.error(err.message)
       }
+      return { success: false, esBloqueo }
     } finally {
       if (!silencioso) {
         setIdEnProceso(null)
@@ -207,26 +182,37 @@ export default function K8sSyncPage() {
     }
   }
 
-  // 3. SINCRONIZACIÓN MASIVA
+  // 3. SINCRONIZACIÓN MASIVA (MEJORADA: Reporte Final)
   const ejecutarSincronizacionMasiva = async () => {
-    // 💡 [3] BLOQUEAR si el API está caído
-    if (apiError) {
-      toast.error("Imposible iniciar: El servidor API no responde.")
-      return
-    }
+    if (apiError) return toast.error("API no disponible")
     
     const lista = data?.k8SEndpoints || []
     if (!lista.length) return
 
     setSincronizandoTodo(true)
-    toast.loading('Iniciando sincronización masiva...', { id: 'k8s-masivo' })
+    // Toast de carga único con ID para poder actualizarlo o cerrarlo luego
+    const toastId = toast.loading(`Sincronizando ${lista.length} clusters...`)
 
+    let exitosos = 0
+    let errores = 0
+
+    // Ejecutamos en serie (uno tras otro) para no saturar, pero en modo silencioso
     for (const ep of lista) {
-      await conectarBackend(ep.id, 'sync', false)
+      // Pasamos 'true' como tercer argumento para que sea SILENCIOSO
+      const resultado = await conectarBackend(ep.id, 'sync', true)
+      if (resultado.success) exitosos++
+      else errores++
     }
 
-    toast.dismiss('k8s-masivo')
-    toast.success('Proceso masivo completado')
+    // Cerramos el loading y mostramos UN SOLO mensaje final
+    toast.dismiss(toastId)
+    
+    if (errores === 0) {
+        toast.success(`¡Todo listo! ${exitosos} clusters sincronizados.`)
+    } else {
+        toast.error(`Finalizado: ${exitosos} OK, ${errores} fallidos.`)
+    }
+
     setSincronizandoTodo(false)
   }
 
@@ -236,7 +222,6 @@ export default function K8sSyncPage() {
 
   return (
     <Box p={3} maxWidth={1600} mx="auto">
-      {/* HEADER */}
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" mb={4} sx={{ borderBottom: '1px solid #e0e0e0', pb: 2 }}>
         <Box>
           <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: '#1565c0' }}>
@@ -249,13 +234,12 @@ export default function K8sSyncPage() {
           size="large"
           startIcon={sincronizandoTodo ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />}
           onClick={ejecutarSincronizacionMasiva}
-          disabled={sincronizandoTodo || endpoints.length === 0 || apiError} // 💡 Deshabilitar
+          disabled={sincronizandoTodo || endpoints.length === 0 || apiError}
         >
           {sincronizandoTodo ? 'Procesando...' : 'Sincronizar Todo'}
         </Button>
       </Stack>
       
-      {/* 🚨 [4] MENSAJE DE ERROR CRÍTICO DEL API */}
       {apiError && (
         <Alert severity="error" sx={{ mb: 3 }}>
           <Typography fontWeight="bold">Error Crítico del Sistema API:</Typography>
@@ -263,7 +247,6 @@ export default function K8sSyncPage() {
         </Alert>
       )}
 
-      {/* LISTA */}
       {endpoints.length === 0 ? (
         <Alert severity="info">No hay endpoints registrados.</Alert>
       ) : (
@@ -274,8 +257,9 @@ export default function K8sSyncPage() {
             const cargando = resultado.tipo === 'cargando'
             const exitoSync = resultado.tipo === 'exito' && resultado.accion === 'sync'
             const esError = resultado.tipo === 'error'
-            const esWarning = resultado.tipo === 'warning' // Estado de bloqueo
+            const esWarning = resultado.tipo === 'warning'
             
+            // Usamos los valores seguros (si es undefined, será 0 gracias al helper)
             const vms = resultado.desglose?.virtual || 0
             const fisicos = resultado.desglose?.fisico || 0
 
@@ -292,12 +276,8 @@ export default function K8sSyncPage() {
 
                   <CardContent>
                     <Stack spacing={2}>
-                      
-                      {/* ESTADO GENERAL */}
                       <Box display="flex" justifyContent="space-between" alignItems="center">
                         <Typography variant="body2" fontWeight="600">Estado:</Typography>
-                        
-                        {/* 💡 [5] CORRECCIÓN CHIP: Priorizar el error global del API */}
                         {apiError ? ( 
                             <Chip label="API Caído" color="error" icon={<DnsIcon />} />
                         ) : cargando ? (
@@ -305,7 +285,6 @@ export default function K8sSyncPage() {
                         ) : esError ? (
                            <Chip label="Error Conexión" color="error" icon={<ErrorIcon />} />
                         ) : esWarning ? (
-                           /* 🟢 CHIP AMARILLO: CUANDO ESTÁ BLOQUEADO POR VALKEY */
                            <Chip label="Ocupado" sx={{ bgcolor: '#fff3e0', color: '#e65100', border: '1px solid #ffe0b2' }} icon={<HourglassEmptyIcon style={{ color: '#e65100' }} />} />
                         ) : resultado.tipo === 'exito' ? (
                            <Chip label={resultado.accion === 'sync' ? "Sincronizado" : "Online"} color="success" icon={<CheckCircleIcon />} />
@@ -314,7 +293,6 @@ export default function K8sSyncPage() {
                         )}
                       </Box>
 
-                      {/* BARRA DE ESTADÍSTICAS (Solo si fue exitosa una sync) */}
                       {exitoSync && (
                         <Box sx={{ bgcolor: '#e3f2fd', p: 1.5, borderRadius: 2, border: '1px solid #bbdefb' }}>
                             <Typography variant="caption" color="primary" fontWeight="bold" gutterBottom display="block">
@@ -324,24 +302,22 @@ export default function K8sSyncPage() {
                                 <Tooltip title="Total Nodos">
                                     <Chip size="small" icon={<HubIcon sx={{ fontSize: 16 }} />} label={`${resultado.cantidadNodos} Total`} sx={{ bgcolor: 'white', fontWeight: 'bold' }} />
                                 </Tooltip>
-                                <Tooltip title="Máquinas Virtuales (VMs) - Nodos virtuales">
+                                <Tooltip title="Nodos Virtuales (VMs)">
                                     <Chip size="small" icon={<CloudIcon sx={{ fontSize: 16, color: '#1976d2 !important' }} />} label={`${vms} VMs`} sx={{ bgcolor: 'white', color: '#1565c0', borderColor: '#bbdefb', border: '1px solid' }} />
                                 </Tooltip>
-                                <Tooltip title="Servidores Físicos (Bare Metal) - Nodos físicos">
+                                <Tooltip title="Nodos Físicos">
                                     <Chip size="small" icon={<StorageIcon sx={{ fontSize: 16, color: '#e65100 !important' }} />} label={`${fisicos} Fis.`} sx={{ bgcolor: 'white', color: '#e65100', borderColor: '#ffe0b2', border: '1px solid' }} />
                                 </Tooltip>
                             </Stack>
                         </Box>
                       )}
 
-                      {/* MENSAJE DE ERROR O WARNING */}
-                      {((esError || esWarning) && !apiError) && ( // 💡 No mostrar error local si el global falla
+                      {((esError || esWarning) && !apiError) && (
                           <Alert severity={esWarning ? "warning" : "error"} sx={{ fontSize: '0.75rem', alignItems: 'center' }}>
                             {resultado.mensaje}
                           </Alert>
                       )}
                       
-                      {/* INFO FECHA */}
                       {!exitoSync && !esError && !esWarning && !apiError && (
                         <Box sx={{ bgcolor: '#f5f7fa', p: 1.5, borderRadius: 2 }}>
                             <Typography variant="caption" color="text.secondary">Última sync:</Typography>
@@ -351,17 +327,16 @@ export default function K8sSyncPage() {
                         </Box>
                       )}
 
-                      {/* BOTONES */}
                       <Stack direction="row" spacing={1}>
                         <Button 
                             variant="outlined" color={esError ? "error" : "info"} fullWidth size="small" startIcon={<FactCheckIcon />}
-                            onClick={() => conectarBackend(endpoint.id, 'verify')} disabled={cargando || sincronizandoTodo || apiError} // 💡 Deshabilitar
+                            onClick={() => conectarBackend(endpoint.id, 'verify')} disabled={cargando || sincronizandoTodo || apiError}
                         >
                           Verificar
                         </Button>
                         <Button 
                             variant="contained" color="primary" fullWidth size="small" startIcon={<SyncIcon />}
-                            onClick={() => conectarBackend(endpoint.id, 'sync')} disabled={cargando || sincronizandoTodo || esError || apiError} // 💡 Deshabilitar
+                            onClick={() => conectarBackend(endpoint.id, 'sync')} disabled={cargando || sincronizandoTodo || esError || apiError}
                         >
                           Sincronizar
                         </Button>

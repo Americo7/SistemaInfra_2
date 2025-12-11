@@ -59,7 +59,7 @@ export const Success = ({ evento, usuarios, parametros }) => {
     UPDATE_EVENTO_MUTATION,
     {
       onCompleted: () => {
-        toast.success('Evento updated')
+        toast.success('Evento actualizado correctamente')
         navigate(routes.eventos())
       },
       onError: (error) => {
@@ -74,11 +74,6 @@ export const Success = ({ evento, usuarios, parametros }) => {
 
   return (
     <div className="rw-segment">
-      <header className="rw-segment-header">
-        <h2 className="rw-heading rw-heading-secondary">
-          Edit Evento {evento?.id}
-        </h2>
-      </header>
       <div className="rw-segment-main">
         <EventoForm
           evento={evento}

@@ -6,19 +6,21 @@ import { useTheme } from '@mui/material/styles'
 
 import ScaffoldLayout from 'src/layouts/ScaffoldLayout/ScaffoldLayout'
 
+// Iconos
 import {
   Visibility as VisibilityIcon,
   Edit as EditIcon,
-  Cloud as CloudIcon,
-  Dns as ClusterIcon,
+  CloudQueue as K8sIcon, // Icono para Kubernetes
   GridOn as ExcelIcon,
   PictureAsPdf as PdfIcon,
   TextSnippet as CsvIcon,
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
-  RestoreFromTrash as RestoreIcon, // Importado para Soft Delete/Restore
+  RestoreFromTrash as RestoreIcon,
+  Link as LinkIcon
 } from '@mui/icons-material'
 
+// Componentes MUI
 import {
   Box,
   Chip,
@@ -30,7 +32,6 @@ import {
   ListItemIcon,
   Typography,
   Divider,
-  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
   Dialog,
   DialogTitle,
   DialogContent,
@@ -40,12 +41,13 @@ import {
 } from '@mui/material'
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
-import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/k8sEndpointsExporter'
+// Asegúrate de tener este exportador o ajusta la ruta si usas uno genérico
+import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/k8sEndpointsExporter' 
 
 // --- GRAPHQL ---
 const UPDATE_K8S_ENDPOINT_MUTATION = gql`
-  mutation UpdateK8sEndpoint($id: Int!, $input: UpdateK8sEndpointInput!) {
-    updateK8sEndpoint(id: $id, input: $input) {
+  mutation UpdateK8sEndpointMutation($id: Int!, $input: UpdateK8SEndpointInput!) {
+    updateK8SEndpoint(id: $id, input: $input) {
       id
       estado
     }
@@ -53,8 +55,8 @@ const UPDATE_K8S_ENDPOINT_MUTATION = gql`
 `
 
 const DELETE_K8S_ENDPOINT_MUTATION = gql`
-  mutation DeleteK8sEndpoint($id: Int!) {
-    deleteK8sEndpoint(id: $id) {
+  mutation DeleteK8sEndpointMutation($id: Int!) {
+    deleteK8SEndpoint(id: $id) {
       id
     }
   }
@@ -69,145 +71,173 @@ const QUERY_REFETCH = gql`
   }
 `
 
-const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
+// --- HELPERS DE FORMATO ---
+const formatDateTime = (dateString) => {
+  if (!dateString) return '-'
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return '-'
+    return date.toLocaleString('es-BO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    })
+  } catch { return '-' }
+}
+
+// Helper para concatenar nombres del objeto usuario
+const formatUser = (userObj) => {
+  if (!userObj) return '-'
+  const fullName = [userObj.nombres, userObj.primer_apellido, userObj.segundo_apellido]
+    .filter(Boolean)
+    .join(' ')
+  return fullName || '-'
+}
+
+// --- COMPONENTE PRINCIPAL ---
+const K8sEndpoints = ({ k8SEndpoints }) => {
   const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
+  
+  // Estados de Menús
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
-  // --- ESTADOS PARA EL DIÁLOGO ---
+  // Estados de Diálogo (Eliminación dura)
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
-  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
+  const [rowsToDelete, setRowsToDelete] = useState([]) 
 
-  const [updateK8sEndpoint] = useMutation(UPDATE_K8S_ENDPOINT_MUTATION, {
+  // --- MUTACIONES ---
+  const [updateK8SEndpoint] = useMutation(UPDATE_K8S_ENDPOINT_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
-  const [deleteK8sEndpoint] = useMutation(DELETE_K8S_ENDPOINT_MUTATION, {
+  const [deleteK8SEndpoint] = useMutation(DELETE_K8S_ENDPOINT_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
+
+  // Helpers para exportación (pasan los datos formateados al excel/pdf)
+  const exportHelpers = {
+    getUsuarioNombre: (val) => formatUser(val), // Se usa para creadoPor y modificadoPor
+    // Puedes agregar más helpers específicos si lo necesitas
+  }
 
   const closeAllDialogs = () => {
     setExportMenuAnchorEl(null)
     setBulkMenuAnchorEl(null)
   }
 
-  // --- HANDLERS ---
-  const handleSoftDelete = (rows) => {
-    rows.forEach((row) => {
-      const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
-      updateK8sEndpoint({
-        variables: { id: row.id, input: { estado: newState, usuario_modificacion: 1 } },
-      })
-    })
-    
-    toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
-    table.toggleAllRowsSelected(false)
-    closeAllDialogs()
+  // --- HANDLERS (Async/Await) ---
+  
+  // 1. Soft Delete / Restaurar
+  const handleSoftDelete = async (rows) => {
+    const toastId = toast.loading('Procesando cambios...')
+    try {
+      await Promise.all(
+        rows.map((row) => {
+          const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
+          // Se asume usuario_modificacion: 1 por defecto (System/Admin)
+          return updateK8SEndpoint({
+            variables: { id: row.id, input: { estado: newState, usuario_modificacion: 1 } },
+          })
+        })
+      )
+      toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`, { id: toastId })
+      table.toggleAllRowsSelected(false)
+      closeAllDialogs()
+    } catch (error) {
+      toast.error('Error al procesar los registros', { id: toastId })
+    }
   }
 
-  // MODIFICACIÓN: Abre el diálogo y guarda las filas
-  const handleHardDelete = (rows) => {
-    const dataObjects = rows.map((r) => r.original)
+  // 2. Hard Delete - Confirmación
+  const handleHardDelete = (mrtRows) => {
+    const dataObjects = mrtRows.map((r) => r.original)
     setRowsToDelete(dataObjects)
     setOpenDeleteDialog(true)
   }
 
-  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
-  const confirmHardDelete = () => {
+  // 3. Hard Delete - Ejecución
+  const confirmHardDelete = async () => {
     setOpenDeleteDialog(false)
-    
     if (rowsToDelete.length === 0) return
 
-    rowsToDelete.forEach((row) => {
-      deleteK8sEndpoint({ variables: { id: row.id } })
-    })
-    
-    // Muestra el toast de éxito UNA SOLA VEZ
-    toast.success(`${rowsToDelete.length} endpoint(s) eliminado(s) permanentemente.`) 
-
-    table.toggleAllRowsSelected(false)
-    closeAllDialogs()
-    setRowsToDelete([])
-  }
-
-  // --- MAPEOS Y HELPERS ---
-  const usuariosMap = useMemo(() => {
-    return (usuarios || []).reduce((a, u) => { a[u.id] = `${u.nombres} ${u.primer_apellido}`; return a }, {})
-  }, [usuarios])
-
-  const helpers = {
-    getUserName: (id) => usuariosMap[id] || `ID: ${id}`,
-    formatDate: (d) => {
-        if (!d) return '-'
-        try {
-          return new Date(d).toLocaleString('es-BO', {
-            day: '2-digit', month: '2-digit', year: 'numeric',
-            hour: '2-digit', minute: '2-digit',
-          })
-        } catch { return '-' }
+    const toastId = toast.loading('Eliminando registros permanentemente...')
+    try {
+      await Promise.all(
+        rowsToDelete.map((row) => 
+          deleteK8SEndpoint({ variables: { id: row.id } })
+        )
+      )
+      toast.success(`${rowsToDelete.length} registro(s) eliminado(s) correctamente.`, { id: toastId })
+      table.toggleAllRowsSelected(false)
+      closeAllDialogs()
+      setRowsToDelete([]) 
+    } catch (error) {
+      toast.error('Error al eliminar los registros', { id: toastId })
     }
   }
 
-  // --- DATOS ---
+  // --- FILTRADO DE DATOS ---
   const filteredData = useMemo(() => {
     if (!k8SEndpoints) return []
-    return k8SEndpoints.filter((e) =>
-      showDeleted ? e.estado === 'INACTIVO' : e.estado === 'ACTIVO'
+    return k8SEndpoints.filter((item) =>
+      showDeleted ? item.estado === 'INACTIVO' : item.estado === 'ACTIVO'
     )
   }, [k8SEndpoints, showDeleted])
 
-  // --- COLUMNAS ---
+  // --- DEFINICIÓN DE COLUMNAS ---
   const columns = useMemo(() => [
     { accessorKey: 'id', header: 'ID', size: 60 },
-    { 
-        accessorKey: 'nombre', 
-        header: 'Nombre del Endpoint', 
-        size: 200,
-        Cell: ({ row }) => (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <CloudIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
-              <Typography variant="body2" fontWeight={500} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
-                {row.original.nombre}
-              </Typography>
-            </Box>
-        ),
-    },
-    { 
-        accessorKey: 'url_api', 
-        header: 'URL API', 
-        size: 250,
-        Cell: ({ cell }) => (
-            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
-                {cell.getValue()}
-            </Typography>
-        )
-    },
+    
     {
-        id: 'clusters_count',
-        header: 'Clusters',
-        size: 100,
-        accessorFn: (row) => row.clusters?.length || 0,
-        Cell: ({ cell }) => (
-          <Chip
-            icon={<ClusterIcon fontSize="small" />}
-            label={cell.getValue()}
-            size="small"
-            variant="outlined"
-          />
-        )
+      accessorKey: 'nombre',
+      header: 'Nombre Cluster',
+      size: 150,
+      Cell: ({ row }) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <K8sIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
+          <Typography variant="body2" fontWeight={600} color={row.original.estado === 'INACTIVO' ? 'text.disabled' : 'text.primary'}>
+            {row.original.nombre || '-'}
+          </Typography>
+        </Box>
+      ),
     },
-    { accessorKey: 'fecha_ultima_sync', header: 'Última Sync', size: 160, Cell: ({ cell }) => helpers.formatDate(cell.getValue()) },
+
+    {
+      accessorKey: 'url_api',
+      header: 'URL API',
+      size: 250,
+      Cell: ({ cell }) => cell.getValue() ? (
+         <Stack direction="row" alignItems="center" gap={0.5}>
+            <LinkIcon fontSize="small" color="action" sx={{ fontSize: 16 }} />
+            <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{cell.getValue()}</Typography>
+         </Stack>
+      ) : '-'
+    },
+
+    {
+      accessorKey: 'descripcion',
+      header: 'Descripción',
+      size: 250,
+      Cell: ({ cell }) => cell.getValue() || '-' // Si es null muestra -
+    },
+
+    { 
+        accessorKey: 'fecha_ultima_sync',
+        header: 'Última Sinc.',
+        size: 160,
+        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    },
+
     {
       accessorKey: 'estado',
       header: 'Estado',
       size: 100,
       Cell: ({ cell }) => (
         <Chip 
-            label={cell.getValue()} 
+            label={cell.getValue() || '-'} 
             color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
             size="small" 
             variant="outlined" 
@@ -215,11 +245,36 @@ const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
         />
       ),
     },
-    { accessorKey: 'fecha_creacion', header: 'Creación', size: 150, Cell: ({ cell }) => helpers.formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_creacion', header: 'Creó', size: 150, Cell: ({ cell }) => helpers.getUserName(cell.getValue()) },
-    { accessorKey: 'fecha_modificacion', header: 'Modif.', size: 150, Cell: ({ cell }) => helpers.formatDate(cell.getValue()) },
-    { accessorKey: 'usuario_modificacion', header: 'Modificó', size: 150, Cell: ({ cell }) => helpers.getUserName(cell.getValue()) },
-  ], [usuariosMap])
+
+    // --- AUDITORÍA (Mapeo de Usuarios Corregido) ---
+    { 
+        id: 'fecha_creacion',
+        header: 'F. Creación', 
+        size: 150, 
+        accessorFn: (row) => row.fecha_creacion,
+        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    },
+    { 
+        id: 'creadoPor', // ID único para la columna
+        header: 'Creado por', 
+        size: 150, 
+        accessorFn: (row) => formatUser(row.creadoPor), // Extrae el nombre del objeto
+    },
+    { 
+        id: 'fecha_modificacion',
+        header: 'F. Modif.', 
+        size: 150, 
+        accessorFn: (row) => row.fecha_modificacion,
+        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    },
+    { 
+        id: 'modificadoPor',
+        header: 'Modif. por', 
+        size: 150, 
+        accessorFn: (row) => formatUser(row.modificadoPor), // Extrae el nombre del objeto
+    },
+
+  ], [theme])
 
   // --- CONFIGURACIÓN DE MRT ---
   const table = useMaterialReactTable({
@@ -235,10 +290,11 @@ const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
+        descripcion: false, // Oculto por defecto para limpiar la vista
         fecha_creacion: false, 
-        usuario_creacion: false, 
-        fecha_modificacion: false, 
-        usuario_modificacion: false 
+        creadoPor: false, 
+        fecha_modificacion: true, 
+        modificadoPor: true 
       },
     },
     muiTablePaperProps: {
@@ -246,8 +302,7 @@ const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
       sx: {
         maxWidth: 1500,
         mx: 'auto',
-        px: 2, 
-        py: 1,
+        px: 2, py: 1,
         border: `1px solid ${theme.palette.divider}`,
         borderTop: 'none', 
         borderRadius: 2, 
@@ -260,24 +315,11 @@ const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
     muiTableContainerProps: {
        sx: {
          border: `1px solid ${theme.palette.divider}`,
-         borderRadius: 2, 
-         overflow: 'auto', 
+         borderRadius: 2, overflow: 'auto', 
        }
     },
     muiTopToolbarProps: {
-      sx: {
-        pl: 1, 
-        pr: 1,
-        backgroundColor: 'background.paper',
-        mb: 1, 
-      }
-    },
-    muiBottomToolbarProps: {
-        sx: {
-            backgroundColor: 'background.paper',
-            border: 'none', 
-            boxShadow: 'none',
-        }
+      sx: { pl: 1, pr: 1, mb: 1, backgroundColor: 'background.paper' }
     },
     renderTopToolbarCustomActions: () => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -298,16 +340,10 @@ const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
       }
     },
     muiTableBodyCellProps: {
-        sx: {
-            borderBottom: `1px solid ${theme.palette.divider}`,
-        }
+        sx: { borderBottom: `1px solid ${theme.palette.divider}` }
     },
     muiTableBodyRowProps: ({ row }) => ({
-      sx: {
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
-        },
-      }
+      sx: { '&:hover': { backgroundColor: theme.palette.action.hover } }
     }),
     renderRowActions: ({ row }) => (
       <Stack direction="row" spacing={0.5}>
@@ -325,23 +361,15 @@ const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
     ),
   })
 
-  // --- LOGICA DE EXPORTACIÓN ---
+  // --- LÓGICA DE EXPORTACIÓN ---
   const handleExport = (scope, suffix, format) => {
     let rowsToExport = []
-
     if (scope === 'page') {
-      const allRows = table.getPrePaginationRowModel().rows
       const { pageIndex, pageSize } = table.getState().pagination
-      const startRow = pageIndex * pageSize
-      const endRow = startRow + pageSize
-      rowsToExport = allRows.slice(startRow, endRow)
-    }
-
-    if (scope === 'all') {
+      rowsToExport = table.getPrePaginationRowModel().rows.slice(pageIndex * pageSize, (pageIndex * pageSize) + pageSize)
+    } else if (scope === 'all') {
        rowsToExport = table.getPrePaginationRowModel().rows
-    }
-
-    if (scope === 'selected') {
+    } else if (scope === 'selected') {
       rowsToExport = table.getSelectedRowModel().rows
     }
 
@@ -350,73 +378,43 @@ const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
         return
     }
 
-    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
+    const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'id'].includes(col.id))
     
-    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
-    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
+    if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, exportHelpers, suffix)
+    if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, exportHelpers, suffix)
+    if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, exportHelpers, suffix)
     
     closeAllDialogs()
   }
 
-  // --- CONFIG PARA SCAFFOLD ---
+  // --- SCAFFOLD CONFIG ---
   const listActionsConfig = useMemo(() => {
     const selectedRowCount = table.getSelectedRowModel().rows.length
     
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
-        {/* EXCEL */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-        
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>EXCEL</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        {/* PDF */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>PDF</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        {/* CSV */}
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>CSV</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
       </Menu>
     )
 
     const BulkActionMenu = (
-      <Menu
-        anchorEl={bulkMenuAnchorEl}
-        open={Boolean(bulkMenuAnchorEl)}
-        onClose={closeAllDialogs}
-      >
+      <Menu anchorEl={bulkMenuAnchorEl} open={Boolean(bulkMenuAnchorEl)} onClose={closeAllDialogs}>
         <MenuItem onClick={() => handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))}>
           <ListItemIcon>{showDeleted ? <RestoreIcon fontSize="small" color="success" /> : <SoftDeleteIcon fontSize="small" color="warning" />}</ListItemIcon>
           {showDeleted ? 'Restaurar' : 'Desactivar'}
         </MenuItem>
         <MenuItem onClick={() => handleHardDelete(table.getSelectedRowModel().rows)}>
-          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon>
-          Eliminar de Base de Datos
+          <ListItemIcon><HardDeleteIcon fontSize="small" color="error" /></ListItemIcon> Eliminar BD
         </MenuItem>
       </Menu>
     )
@@ -425,50 +423,39 @@ const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
       showDeleted,
       selectedRowCount,
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
-      
       handleBulkAction: (e) => {
         if (selectedRowCount === 0) {
             toast.error('Debe seleccionar al menos un registro.')
             return;
         }
-
         if (showDeleted) {
-            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
         } else {
-            setBulkMenuAnchorEl(e.currentTarget)
+             setBulkMenuAnchorEl(e.currentTarget)
         }
       },
-      
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
       exportMenu: ExportMenu,
       bulkActionMenu: BulkActionMenu,
     }
-  }, [
-    table, 
-    showDeleted, 
-    exportMenuAnchorEl, 
-    bulkMenuAnchorEl, 
-    table.getState().rowSelection,
-    table.getState().pagination
-  ])
+  }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
 
-  // Lógica segura para obtener el nombre(s) en el diálogo
+  // Nombre para el diálogo de eliminación
   const namesToDelete = rowsToDelete.length === 1 
-    ? rowsToDelete[0]?.nombre || rowsToDelete[0]?.url_api || `el endpoint ID ${rowsToDelete[0]?.id}` 
+    ? rowsToDelete[0]?.nombre || `el endpoint ID ${rowsToDelete[0]?.id}` 
     : `${rowsToDelete.length} registros`
 
   return (
     <ScaffoldLayout
       title="Endpoints K8s"
-      titleTo="k8SEndpoints"
-      groupTitle="Syncronizaciones"
+      titleTo="k8sEndpoints"
+      groupTitle="Infraestructura"
       buttonLabel="Nuevo Endpoint"
       buttonTo="newK8sEndpoint"
       listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
 
-      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
       <Dialog
         open={openDeleteDialog}
         onClose={() => setOpenDeleteDialog(false)}
@@ -507,7 +494,6 @@ const K8sEndpoints = ({ k8SEndpoints, usuarios }) => {
           </Button>
         </DialogActions>
       </Dialog>
-      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

@@ -5,8 +5,10 @@ import EditInfraAfectadaCell from 'src/components/InfraAfectada/EditInfraAfectad
 const EditInfraAfectadaPage = ({ id }) => {
   return (
     <ScaffoldLayout
+      title="Infraestructuras Afectadas"
+      titleTo="infraAfectadas"
+      groupTitle="Eventos"
       breadcrumbItems={[
-        { label: 'Infraestructura Afectada', link: routes.infraAfectadas() },
         { label: 'Editar' }
       ]}
     >

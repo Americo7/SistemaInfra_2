@@ -36,7 +36,7 @@ const getDefaultValues = () => ({
 })
 
 /* ---------------------------------------------
- * 2. COMPONENTE HELPER: SectionCard
+ * 2. COMPONENTE HELPER: SectionCard (Estilo Estandarizado)
  * --------------------------------------------- */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
@@ -125,7 +125,7 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
   }
 
   return (
-    // CARD PRINCIPAL: Ocupa el ancho del Layout (1500px)
+    // CARD PRINCIPAL
     <Box sx={{ width: '100%', maxWidth: 1500, mx: 'auto' }}>
       
       <Card 
@@ -137,28 +137,36 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
           borderTopLeftRadius: '0 !important',
           borderTopRightRadius: '0 !important',
           mb: 3,
-          bgcolor: theme.palette.background.paper,
+          bgcolor: 'background.paper',
         }}
       >
         
-        {/* HEADER: Fondo completo, contenido centrado a 800px */}
+        {/* HEADER (CON GRADIENTE EN TEXTO) */}
         <Box sx={{ 
             px: 5, py: 4, 
-            bgcolor: '#fff',
+            bgcolor: 'background.paper', // Dark Mode
             borderTopLeftRadius: 16, borderTopRightRadius: 16
           }}>
-            {/* WRAPPER CENTRADO DEL HEADER (ALINEADO CON EL FORMULARIO) */}
+            {/* WRAPPER CENTRADO DEL HEADER */}
             <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', alignItems: 'center', gap: 2 }}>
               <Avatar sx={{
-                    width: 38, height: 38,
+                    width: 48, height: 48, // Ajustado a 48px para consistencia visual
                     background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
                   }}>
                 {isEdit ? <EditIcon /> : <AddIcon />}
               </Avatar>
               
               <Box>
-                <Typography variant="h6" fontWeight={800} sx={{
-                    lineHeight: 1.2, color: '#000', mb: 0.5
+                <Typography 
+                  variant="h5" // Ajustado a h5 para consistencia
+                  fontWeight={800} 
+                  sx={{
+                    lineHeight: 1.2,
+                    // GRADIENTE EN TEXTO
+                    background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
+                    WebkitBackgroundClip: 'text', 
+                    WebkitTextFillColor: 'transparent',
+                    mb: 0.5
                   }}>
                   {isEdit ? 'Editar Data Center' : 'Nuevo Data Center'}
                 </Typography>
@@ -169,14 +177,14 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
             </Box>
         </Box>
 
-        {/* CONTENIDO: Fondo completo, formulario centrado a 800px */}
+        {/* CONTENIDO DEL FORMULARIO */}
         <Box 
           component="form" 
           onSubmit={handleSubmit} 
           noValidate 
           sx={{ 
             px: 5, pb: 5, 
-            bgcolor: '#fff', 
+            bgcolor: 'background.paper', // Dark Mode
             borderBottomLeftRadius: 16, borderBottomRightRadius: 16 
           }}
         >
@@ -184,9 +192,9 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
           {/* WRAPPER CENTRADO DEL FORMULARIO */}
           <Box sx={{ maxWidth: 800, mx: 'auto', width: '100%' }}>
 
-            {/* Mensaje de Error */}
+            {/* Mensaje de Error (Dark Mode Friendly) */}
             {error && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#fff4f4', borderColor: 'error.main', color: 'error.main', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
                 <ErrorIcon color="error" />
                 <Typography variant="body2" fontWeight={600}>{error?.message || 'Error al guardar el registro'}</Typography>
               </Paper>
@@ -241,18 +249,24 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
               </Stack>
             </SectionCard>
 
-            {/* BOTONES DE ACCIÓN */}
+            {/* BOTONES DE ACCIÓN (Estilo Pill + Violeta) */}
             <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <Button 
                 variant="outlined" 
-                color="inherit" 
                 startIcon={<CancelIcon />}
                 onClick={() => navigate(routes.dataCenters())}
                 sx={{ 
                   minWidth: 140,
-                  borderRadius: 2,
+                  borderRadius: 50, // PILL SHAPE
                   textTransform: 'none',
-                  borderColor: 'rgba(0, 0, 0, 0.23)'
+                  // COLOR VIOLETA
+                  borderColor: '#7B1FA2', 
+                  color: '#7B1FA2',
+                  '&:hover': {
+                    borderColor: '#4A148C',
+                    color: '#4A148C',
+                    bgcolor: 'rgba(123, 31, 162, 0.04)'
+                  }
                 }}
               >
                 Cancelar
@@ -264,11 +278,12 @@ export default function DataCenterForm({ dataCenter, onSave, loading, error }) {
                 loading={loading || submitting}
                 startIcon={<SaveIcon />}
                 sx={{ 
+                  // GRADIENTE
                   background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
                   boxShadow: 4,
                   px: 4,
                   minWidth: 160,
-                  borderRadius: 2,
+                  borderRadius: 50, // PILL SHAPE
                   textTransform: 'none',
                   fontWeight: 700
                 }}

@@ -31,12 +31,11 @@ import {
   Cloud as CloudIcon,
   Visibility,
   VisibilityOff,
-  RestartAlt as ResetIcon,
   Key as TokenIcon,
 } from '@mui/icons-material'
 
 /* ---------------------------------------------
- * 1. COMPONENTE HELPER: SectionCard
+ * 1. COMPONENTE HELPER: SectionCard (Estandarizado)
  * --------------------------------------------- */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
@@ -49,7 +48,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
         display: 'flex',
         flexDirection: 'column',
         borderTop: `3px solid ${activeColor}`,
-        bgcolor: 'background.paper',
+        bgcolor: 'background.paper', // Soporte Dark Mode
         height: '100%',
         boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
       }}
@@ -104,20 +103,8 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
   const onSubmit = (data) => {
     const formData = {
       ...data,
-      usuario_creacion: isEdit ? undefined : 1, 
-      usuario_modificacion: isEdit ? 1 : undefined,
     }
     onSave(formData, k8SEndpoint?.id)
-  }
-
-  const handleReset = () => {
-    reset({
-      nombre: '',
-      url_api: '',
-      descripcion: '',
-      estado: 'ACTIVO',
-      token_bearer: '',
-    })
   }
 
   return (
@@ -132,17 +119,18 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
           borderTopLeftRadius: '0 !important',
           borderTopRightRadius: '0 !important',
           mb: 3,
-          bgcolor: theme.palette.background.paper,
+          bgcolor: theme.palette.background.paper, // Soporte Dark Mode
         }}
       >
         
-        {/* HEADER */}
+        {/* HEADER (Estilo Estandarizado) */}
         <Box sx={{ 
-            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+            px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, 
+            bgcolor: theme.palette.background.paper, // Soporte Dark Mode
             borderTopLeftRadius: 16, borderTopRightRadius: 16,
           }}>
             <Avatar sx={{
-                  width: 38, height: 38,
+                  width: 48, height: 48, // Ajustado a 48px
                   background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
                 }}>
               {isEdit ? <EditIcon /> : <AddIcon />}
@@ -151,6 +139,7 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
             <Box>
               <Typography variant="h5" fontWeight={800} sx={{
                   lineHeight: 1.2,
+                  // GRADIENTE EN TEXTO
                   background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                 }}>
@@ -163,19 +152,20 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
         </Box>
 
         {/* CONTENIDO */}
-        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+        <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, pt: 0 }}>
           
-          {/* Mensaje de Error */}
+          {/* Mensaje de Error (Dark Mode Friendly) */}
           {error && (
-            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+            <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#fff4f4', borderColor: 'error.main', color: 'error.main', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
               <ErrorOutlineIcon color="error" />
               <Typography variant="body2" fontWeight={600}>{error.message}</Typography>
             </Paper>
           )}
 
+          {/* STACK DE CARDS (Espaciado de 3) */}
           <Stack spacing={3}>
             
-            {/* --- CARD 1: INFORMACIÓN DEL CLUSTER --- */}
+            {/* --- CARD 1: INFORMACIÓN DEL CLUSTER (AZUL PRIMARIO) --- */}
             <SectionCard 
               icon={<CloudIcon sx={{ fontSize: 20 }} />} 
               title="Información del Cluster"
@@ -248,7 +238,7 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
                   </Box>
               </SectionCard>
 
-              {/* --- CARD 2: TOKEN --- */}
+              {/* --- CARD 2: TOKEN (VERDE) --- */}
               <SectionCard 
                 icon={<TokenIcon sx={{ fontSize: 20 }} />} 
                 title="Autenticación (Service Account Token)"
@@ -287,22 +277,27 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
 
             </Stack>
 
-            {/* BOTONES */}
+            {/* BOTONES (Pill Shape + Colores Estandarizados) */}
             <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
               <Button
-                variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                variant="outlined" 
+                startIcon={<CancelIcon />}
                 onClick={() => navigate(routes.k8SEndpoints())}
-                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+                sx={{ 
+                  minWidth: 140, 
+                  borderRadius: 50, // Pill Shape
+                  textTransform: 'none', 
+                  // COLOR VIOLETA
+                  borderColor: '#7B1FA2', 
+                  color: '#7B1FA2',
+                  '&:hover': {
+                    borderColor: '#4A148C',
+                    color: '#4A148C',
+                    bgcolor: 'rgba(123, 31, 162, 0.04)'
+                  }
+                }}
               >
                 Cancelar
-              </Button>
-
-              <Button
-                variant="outlined" color="warning" startIcon={<ResetIcon />}
-                onClick={handleReset}
-                sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none' }}
-              >
-                Reset
               </Button>
 
               <LoadingButton
@@ -311,11 +306,12 @@ const K8sEndpointForm = ({ k8SEndpoint, onSave, loading, error }) => {
                 loading={loading}
                 startIcon={<SaveIcon />}
                 sx={{ 
+                  // GRADIENTE
                   background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
                   boxShadow: 4, 
                   px: 4, 
                   minWidth: 160, 
-                  borderRadius: 2, 
+                  borderRadius: 50, // Pill Shape
                   textTransform: 'none', 
                   fontWeight: 700 
                 }}

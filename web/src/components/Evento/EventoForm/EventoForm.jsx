@@ -63,7 +63,7 @@ const GET_DATA_FORM = gql`
 `
 
 /* ---------------------------------------------
- * 2. COMPONENTE HELPER: SectionCard
+ * 2. COMPONENTE HELPER: SectionCard (Estandarizado)
  * --------------------------------------------- */
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
@@ -76,7 +76,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
         display: 'flex',
         flexDirection: 'column',
         borderTop: `3px solid ${activeColor}`,
-        bgcolor: 'background.paper',
+        bgcolor: 'background.paper', // Soporte Dark Mode
         height: '100%',
         boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
       }}
@@ -102,15 +102,12 @@ const EventoForm = (props) => {
   const theme = useTheme()
   const isEdit = Boolean(props.evento?.id)
   
-  // Estado para el código generado post-creación
   const [codigoGenerado, setCodigoGenerado] = useState(props.evento?.cod_evento || '')
 
-  // Carga de datos (LEGACY: si no vienen del cell)
   const { data, loading: loadingData } = useQuery(GET_DATA_FORM, {
     skip: Boolean(props.usuarios && props.parametros)
   })
 
-  // Usar datos del cell si existen, si no usar del query
   const usuarios = props.usuarios || data?.usuarios || []
   const allParametros = props.parametros || data?.parametros || []
 
@@ -152,14 +149,11 @@ const EventoForm = (props) => {
       ...formData,
       fecha_evento: formData.fecha_evento ? formData.fecha_evento.toISOString() : null,
       estado: 'ACTIVO',
-      usuario_modificacion: 2,
-      usuario_creacion: isEdit ? undefined : 3,
     }
 
     try {
       const resultado = await props.onSave(payload, props?.evento?.id)
       
-      // Si es creación y retorna código, lo mostramos
       if (!isEdit && resultado?.cod_evento) {
         setCodigoGenerado(resultado.cod_evento)
       }
@@ -186,27 +180,34 @@ const EventoForm = (props) => {
             borderTopLeftRadius: '0 !important',
             borderTopRightRadius: '0 !important',
             mb: 3,
-            bgcolor: theme.palette.background.paper,
+            bgcolor: theme.palette.background.paper, // Soporte Dark Mode
           }}
         >
           
-          {/* HEADER */}
+          {/* HEADER (Estilo Estandarizado) */}
           <Box sx={{ 
-              px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, bgcolor: '#fff',
+              px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2, 
+              bgcolor: theme.palette.background.paper, // Soporte Dark Mode
               borderTopLeftRadius: 16, borderTopRightRadius: 16,
             }}>
               <Avatar sx={{
-                    width: 38, height: 38,
+                    width: 48, height: 48, // Ajustado a 48px
                     background: 'linear-gradient(135deg, #1565C0, #7B1FA2)', color: 'white', boxShadow: 3
                   }}>
                 {isEdit ? <EditIcon /> : <AddIcon />}
               </Avatar>
               
               <Box>
-                <Typography variant="h5" fontWeight={800} sx={{
+                <Typography 
+                  variant="h5" 
+                  fontWeight={800} 
+                  sx={{
                     lineHeight: 1.2,
+                    // GRADIENTE EN TEXTO
                     background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
-                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                    WebkitBackgroundClip: 'text', 
+                    WebkitTextFillColor: 'transparent',
+                    mb: 0.5
                   }}>
                   {isEdit ? 'Editar Evento' : 'Nuevo Evento'}
                 </Typography>
@@ -217,10 +218,10 @@ const EventoForm = (props) => {
           </Box>
 
           {/* CONTENIDO */}
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, bgcolor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate sx={{ px: 5, pb: 5, pt: 0 }}>
             
             {props.error && (
-              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: '#fff4f4', borderColor: '#ffcdd2', color: '#c62828', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
+              <Paper variant="outlined" sx={{ p: 2, mb: 4, bgcolor: theme.palette.mode === 'dark' ? 'rgba(244, 67, 54, 0.1)' : '#fff4f4', borderColor: 'error.main', color: 'error.main', display: 'flex', gap: 1.5, alignItems: 'center', borderRadius: 2 }}>
                 <ErrorOutlineIcon color="error" />
                 <Typography variant="body2" fontWeight={600}>{props.error.message}</Typography>
               </Paper>
@@ -243,7 +244,7 @@ const EventoForm = (props) => {
               alignItems: 'start'
             }}>
                 
-                {/* --- CARD 1: IDENTIFICACIÓN --- */}
+                {/* --- CARD 1: IDENTIFICACIÓN (AZUL PRIMARIO) --- */}
                 <SectionCard 
                   icon={<EventIcon sx={{ fontSize: 20 }} />} 
                   title="Identificación del Evento"
@@ -267,7 +268,7 @@ const EventoForm = (props) => {
                             renderInput={(params) => (
                               <TextField {...params} size="small" placeholder="Seleccionar tipo..." error={!!errors.cod_tipo_evento} />
                             )}
-                            disabled={isEdit} // Generalmente el tipo no cambia al editar
+                            disabled={isEdit} 
                           />
                         )}
                       />
@@ -304,7 +305,7 @@ const EventoForm = (props) => {
                   </Stack>
                 </SectionCard>
 
-                {/* --- CARD 2: DETALLES --- */}
+                {/* --- CARD 2: DETALLES (CYAN/SECUNDARIO) --- */}
                 <SectionCard 
                   icon={<DescIcon sx={{ fontSize: 20 }} />} 
                   title="Detalles del Evento"
@@ -347,11 +348,10 @@ const EventoForm = (props) => {
 
                     {/* Descripción */}
                     <FormControl fullWidth error={!!errors.descripcion}>
-                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción *</FormLabel>
+                      <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Descripción</FormLabel>
                       <Controller
                         name="descripcion"
                         control={control}
-                        rules={{ required: 'Requerido' }}
                         render={({ field }) => (
                           <TextField 
                             {...field} 
@@ -368,7 +368,7 @@ const EventoForm = (props) => {
                   </Stack>
                 </SectionCard>
 
-                {/* --- CARD 3: INVOLUCRADOS --- */}
+                {/* --- CARD 3: INVOLUCRADOS (VERDE) --- */}
                 <SectionCard 
                   icon={<PeopleIcon sx={{ fontSize: 20 }} />} 
                   title="Responsables"
@@ -427,20 +427,40 @@ const EventoForm = (props) => {
 
               </Box>
 
-              {/* BOTONES */}
+              {/* BOTONES (Pill Shape + Colores Estandarizados) */}
               <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center', gap: 2 }}>
                 <Button
-                  variant="outlined" color="inherit" startIcon={<CancelIcon />}
+                  variant="outlined"
+                  startIcon={<CancelIcon />}
                   onClick={() => navigate(routes.eventos())}
-                  sx={{ minWidth: 140, borderRadius: 2, textTransform: 'none', borderColor: 'rgba(0, 0, 0, 0.23)' }}
+                  sx={{ 
+                    minWidth: 140, 
+                    borderRadius: 50, // Pill Shape
+                    textTransform: 'none', 
+                    // COLOR VIOLETA
+                    borderColor: '#7B1FA2', 
+                    color: '#7B1FA2',
+                    '&:hover': {
+                      borderColor: '#4A148C',
+                      color: '#4A148C',
+                      bgcolor: 'rgba(123, 31, 162, 0.04)'
+                    }
+                  }}
                 >
                   Cancelar
                 </Button>
 
                 <LoadingButton
-                  type="submit" variant="contained" loading={props.loading} startIcon={<SaveIcon />}
+                  type="submit" 
+                  variant="contained" 
+                  loading={props.loading} 
+                  startIcon={<SaveIcon />}
                   sx={{ 
-                    background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', boxShadow: 4, px: 4, minWidth: 160, borderRadius: 2, textTransform: 'none', fontWeight: 700
+                    // GRADIENTE
+                    background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)', 
+                    boxShadow: 4, px: 4, minWidth: 160, 
+                    borderRadius: 50, // Pill Shape
+                    textTransform: 'none', fontWeight: 700
                   }}
                 >
                   {props.loading ? 'Guardando...' : (isEdit ? 'Guardar Cambios' : 'Guardar Evento')}
