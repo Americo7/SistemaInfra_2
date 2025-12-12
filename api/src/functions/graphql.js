@@ -16,7 +16,7 @@ export const handler = createGraphQLHandler({
   directives,
   sdls,
   services,
-  armorConfig: { maxDepth: { n: 7 } },
+  armorConfig: { maxDepth: { n: 8 } },
   onException: () => {
     db.$disconnect()
   },

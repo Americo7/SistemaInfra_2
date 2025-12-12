@@ -107,10 +107,6 @@ export const updateClusterNodo = async ({ id, input }) => {
     throw new Error(`Nodo con ID ${id} no encontrado.`)
   }
 
-  // ❌ SE ELIMINA LA RESTRICCIÓN DE BLOQUEO
-  // Antes estaba aquí el throw "ACCIÓN DENEGADA"
-
-  // Recalcular identity_key si cambia nombre o cluster
   let nueva_identity_key = nodoExistente.identity_key
 
   const cambioNombre =

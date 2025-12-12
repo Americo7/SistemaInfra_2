@@ -138,15 +138,13 @@ const HomeLayout = ({ children }) => {
     palette: {
       mode,
       primary: {
-        // Light: Tu azul original.
-        // Dark: "Azul Eléctrico Intenso" (#2979FF). Vibrante y profundo.
         main: mode === 'dark' ? '#2979FF' : '#3949AB', 
         light: mode === 'dark' ? '#82B1FF' : '#5C6BC0',
         dark: mode === 'dark' ? '#2962FF' : '#303F9F',
-        contrastText: mode === 'dark' ? '#FFFFFF' : '#FFFFFF' 
+        contrastText: '#FFFFFF' 
       },
       secondary: {
-        main: mode === 'dark' ? '#69F0AE' : '#00ACC1', // Un verde menta neón de contraste
+        main: mode === 'dark' ? '#69F0AE' : '#00ACC1',
         light: mode === 'dark' ? '#B9F6CA' : '#26C6DA',
         dark: mode === 'dark' ? '#00C853' : '#00838F',
         contrastText: mode === 'dark' ? '#000000' : '#FFFFFF'
@@ -155,9 +153,21 @@ const HomeLayout = ({ children }) => {
         default: mode === 'dark' ? '#0B0F19' : '#F4F6F8',
         paper: mode === 'dark' ? '#111827' : '#FFFFFF'
       },
+      // --- AQUÍ ESTÁ LA MAGIA PARA EL HOVER GLOBAL ---
+      action: {
+        // Usamos tu color primario con muy baja opacidad (0.08 para light, 0.12 para dark)
+        // Esto reemplaza el color negro/gris por defecto.
+        hover: mode === 'dark' 
+          ? alpha('#2979FF', 0.12) 
+          : alpha('#3949AB', 0.08),
+        selected: mode === 'dark'
+          ? alpha('#2979FF', 0.20)
+          : alpha('#3949AB', 0.16),
+      },
+      // -----------------------------------------------
       success: { main: mode === 'dark' ? '#00C853' : '#2E7D32' },
       error: { main: mode === 'dark' ? '#FF1744' : '#D32F2F' },
-      warning: { main: mode === 'dark' ? '#FF9100' : '#ED6C02' },
+      warning: { main: mode === 'dark' ? '#ffe600ff' : '#f1a707ff' },
       info: { main: mode === 'dark' ? '#00B0FF' : '#0288D1' },
       divider: mode === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
     },
@@ -184,37 +194,58 @@ const HomeLayout = ({ children }) => {
       },
     },
     components: {
+      // 1. GLOBALIZAR EL ESTILO PARA TODAS LAS TABLAS
+      MuiTableRow: {
+        styleOverrides: {
+          root: {
+            '&:hover': {
+              // Esto asegura que el hover sea del color de action.hover definido arriba
+              backgroundColor: mode === 'dark' 
+                ? alpha('#2979FF', 0.12) 
+                : alpha('#3949AB', 0.08), 
+            },
+            '&.Mui-selected': {
+               backgroundColor: mode === 'dark' 
+                ? alpha('#2979FF', 0.20) 
+                : alpha('#3949AB', 0.16),
+               '&:hover': {
+                 backgroundColor: mode === 'dark' 
+                  ? alpha('#2979FF', 0.24) 
+                  : alpha('#3949AB', 0.20),
+               }
+            }
+          },
+        },
+      },
+      // 2. TUS OTROS COMPONENTES
       MuiListItemButton: {
         styleOverrides: {
           root: {
             borderRadius: 8,
+            // Ahora usa las variables del palette action para consistencia
+            '&:hover': {
+              backgroundColor: mode === 'dark' 
+                ? alpha('#2979FF', 0.12) 
+                : alpha('#3949AB', 0.08),
+            },
             '&.Mui-selected': {
               backgroundColor: mode === 'dark'
-                ? alpha('#5E35B1', 0.16)
-                : alpha('#3949AB', 0.12),
+                ? alpha('#2979FF', 0.20)
+                : alpha('#3949AB', 0.16),
               '&:hover': {
                 backgroundColor: mode === 'dark'
-                  ? alpha('#5E35B1', 0.24)
-                  : alpha('#3949AB', 0.18),
+                  ? alpha('#2979FF', 0.24)
+                  : alpha('#3949AB', 0.20),
               },
-            },
-            '&:hover': {
-              backgroundColor: mode === 'dark'
-                ? alpha('#FFFFFF', 0.05)
-                : alpha('#000000', 0.04),
             },
           },
         },
       },
       MuiPaper: {
-        styleOverrides: {
-          root: { borderRadius: 12 },
-        },
+        styleOverrides: { root: { borderRadius: 12 } },
       },
       MuiAppBar: {
-        styleOverrides: {
-          root: { backgroundImage: 'none', borderRadius: 0, },
-        },
+        styleOverrides: { root: { backgroundImage: 'none', borderRadius: 0 } },
       },
       MuiButton: {
         styleOverrides: {
@@ -227,39 +258,26 @@ const HomeLayout = ({ children }) => {
           },
           contained: {
             boxShadow: 'none',
-            '&:hover': {
-              boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-            },
+            '&:hover': { boxShadow: '2px 2px 4px rgba(114, 112, 112, 0.1)' },
           },
         },
       },
       MuiDrawer: {
         styleOverrides: {
-          paper: {
-            backgroundImage: 'none',
-            borderRight: 'none',
-            borderRadius: 0, 
-          },
+          paper: { backgroundImage: 'none', borderRight: 'none', borderRadius: 0 },
         },
       },
       MuiListItemIcon: {
-        styleOverrides: {
-          root: { minWidth: 40 },
-        },
+        styleOverrides: { root: { minWidth: 40 } },
       },
       MuiIconButton: {
-        styleOverrides: {
-          root: { borderRadius: 8 },
-        },
+        styleOverrides: { root: { borderRadius: 8 } },
       },
       MuiChip: {
-        styleOverrides: {
-          root: { borderRadius: 6 },
-        },
+        styleOverrides: { root: { borderRadius: 6 } },
       },
     },
   }), [mode]);
-
   // Menu structure - Optimized as static structure
   const menuStructure = useMemo(() => [
     {

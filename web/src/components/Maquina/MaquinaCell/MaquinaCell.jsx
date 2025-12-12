@@ -52,6 +52,10 @@ export const QUERY = gql`
           id
           nombre
           nodoTipo
+          rolInfo {
+            id
+            nombre
+          }
           cluster {
             id
             nombre
@@ -71,6 +75,7 @@ export const QUERY = gql`
         rolInfo {
           id
           nombre
+          codigo
         }
         cluster {
           id
@@ -101,6 +106,11 @@ export const QUERY = gql`
         id
         fecha_despliegue
         estado_despliegue
+        estadoDespliegueInfo {
+          id
+          codigo
+          nombre
+        }
         descripcion
         componentes {
           id
@@ -125,6 +135,7 @@ export const QUERY = gql`
         id
         eventos {
           id
+          cod_evento
           cod_tipo_evento
           tipoEventoInfo {
             id

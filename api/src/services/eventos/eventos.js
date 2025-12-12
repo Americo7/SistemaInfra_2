@@ -148,7 +148,7 @@ export const Evento = {
     return db.parametro.findFirst({
       where: {
         codigo: root.estado_evento,
-        grupo: 'ESTADO_EVENTO'
+        grupo: 'E_EVENTO_DESPLIEGUE'
       }
     })
   },

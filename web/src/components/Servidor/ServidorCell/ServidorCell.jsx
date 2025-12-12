@@ -41,8 +41,6 @@ export const QUERY = gql`
         id
         nombre
       }
-
-      # --- 5. AUDITORÍA ---
       fecha_creacion
       fecha_modificacion
       creadoPor {
@@ -58,8 +56,6 @@ export const QUERY = gql`
         segundo_apellido
       }
 
-      # --- 6. RELACIONES HIJAS ---
-
       # Máquinas Virtuales
       maquinas {
         id
@@ -69,6 +65,7 @@ export const QUERY = gql`
         so
         ram
         cpu
+        almacenamiento
         estadoOperativoInfo {
           id
           nombre
@@ -89,7 +86,11 @@ export const QUERY = gql`
         cluster {
           id
           nombre
-          cod_tipo_cluster
+          tipoClusterInfo {
+            id
+            codigo
+            nombre
+          }
         }
       }
 
@@ -115,6 +116,7 @@ export const QUERY = gql`
             sigla
             nombre  
             codigo
+            descripcion
             estado
             entidades {
               id
@@ -130,6 +132,7 @@ export const QUERY = gql`
         id
         eventos {
           id
+          cod_evento
           cod_tipo_evento
           tipoEventoInfo {
             id

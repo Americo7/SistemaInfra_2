@@ -213,7 +213,7 @@ const ClusterNodo = ({ clusterNodo }) => {
 
                 <RowItem
                   label="Rol"
-                  value={clusterNodo.rolInfo?.nombre || 'No definido'}
+                  value={clusterNodo.rolInfo?.nombre || ''}
                   icon={<ConfigIcon />}
                 />
 

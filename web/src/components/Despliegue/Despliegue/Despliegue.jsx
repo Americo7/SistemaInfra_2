@@ -65,6 +65,7 @@ const getStatusColor = (codigo) => {
     FALLIDO: 'error',
     ERROR: 'error',
     EN_PROCESO: 'warning',
+    INICIADO: 'warning',
     PENDIENTE: 'info',
     CANCELADO: 'default',
   }
