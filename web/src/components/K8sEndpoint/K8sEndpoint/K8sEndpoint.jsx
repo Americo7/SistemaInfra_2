@@ -1,326 +1,192 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-import { useMutation, gql } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
-import { timeTag, formatEnum } from 'src/lib/formatters'
-
 import {
   Box,
+  Typography,
   Card,
   CardContent,
   CardHeader,
   Avatar,
-  Typography,
   Chip,
-  useTheme,
+  Paper,
+  Stack,
   Tabs,
   Tab,
-  Button,
   Table,
+  TableBody,
+  TableCell,
+  TableContainer,
   TableHead,
   TableRow,
-  TableCell,
-  TableBody,
-  TableContainer,
+  useTheme,
   IconButton,
   Tooltip,
+  alpha,
 } from '@mui/material'
 
 import {
-  Cloud as CloudIcon,
+  Cloud as K8sIcon,
   Dns as ClusterIcon,
-  Info as InfoIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Visibility as ViewIcon,
+  History as AuditIcon,
+  Info as GeneralIcon,
+  ArrowBack as BackIcon,
+  // Security as SecurityIcon, // No se usa en el código, se puede comentar o quitar
 } from '@mui/icons-material'
 
-/* ---------------------------------------------
- * Mutations
- * --------------------------------------------- */
-const DELETE_K8S_ENDPOINT_MUTATION = gql`
-  mutation DeleteK8sEndpointMutation($id: Int!) {
-    deleteK8sEndpoint(id: $id) {
-      id
-    }
+/* HELPERS GLOBALES */
+const fmtDate = (d) => {
+  if (!d) return '-'
+  try {
+    return new Date(d).toLocaleString('es-BO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return '-'
   }
-`
+}
 
-/* ---------------------------------------------
- * Reusable Item
- * --------------------------------------------- */
-const RowItem = ({ label, value }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      py: 1.5,
-      borderBottom: '1px solid',
-      borderColor: 'divider',
-      '&:last-child': { borderBottom: 'none' },
-    }}
-  >
-    <Typography variant="body2" sx={{ width: '35%', color: 'text.secondary', fontWeight: 500 }}>
-      {label}
-    </Typography>
+const formatUserName = (userObj) => {
+  if (!userObj) return 'Sistema Automático'
+  if (typeof userObj === 'string' || typeof userObj === 'number') return userObj
+  const { nombres, primer_apellido, segundo_apellido } = userObj || {}
+  if (!nombres && !primer_apellido) return '-'
+  return `${nombres || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim()
+}
 
-    <Box sx={{ width: '65%' }}>
-      {typeof value === 'string' || typeof value === 'number' ? (
-        <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-all' }}>
-          {value}
-        </Typography>
-      ) : (
-        value
-      )}
+const getStatusColor = (codigo) => {
+  if (!codigo) return 'default'
+  const c = String(codigo).toUpperCase()
+  const map = {
+    OPERATIVO: 'success', ACTIVO: 'success', EXITOSO: 'success',
+    FUERA_SERVICIO: 'error', INACTIVO: 'error',
+    MANTENIMIENTO: 'warning', PENDIENTE: 'warning',
+  }
+  return map[c] || 'default'
+}
+
+/* SUB-COMPONENTES */
+const RowItem = ({ label, value, icon, isLast }) => {
+  const theme = useTheme()
+  const displayValue = (value === null || value === undefined || value === '') ? '-' : value;
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', py: 0.75, borderBottom: isLast ? 'none' : '1px solid', borderColor: theme.palette.divider, '&:hover': { bgcolor: 'action.hover' } }}>
+      <Typography variant="body2" color="text.secondary" sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}>
+        {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+        {label}
+      </Typography>
+      <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
+        {React.isValidElement(displayValue) ? displayValue : (
+          <Typography variant="body1" sx={{ fontWeight: 600 }}>{displayValue}</Typography>
+        )}
+      </Box>
     </Box>
-  </Box>
-)
+  )
+}
 
-/* ---------------------------------------------
- * Inner Card (hijo)
- * --------------------------------------------- */
-const InnerCard = ({ title, children, icon }) => {
+const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
   return (
-    <Card
-      elevation={0}
-      sx={{
-        borderRadius: 2,
-        border: `1px solid ${theme.palette.divider}`,
-        height: '100%',
-      }}
-    >
-      <CardHeader
-        avatar={icon ? <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.light' }}>{icon}</Avatar> : null}
-        title={
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            {title}
-          </Typography>
-        }
-        sx={{ pb: 1, borderBottom: `1px solid ${theme.palette.divider}`, bgcolor: 'grey.50' }}
-      />
-      <CardContent sx={{ pt: 2 }}>{children}</CardContent>
+    <Card sx={{ borderRadius: 2, borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`, bgcolor: theme.palette.background.paper }}>
+      <CardHeader avatar={<Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main, width: 32, height: 32 }}>{icon}</Avatar>} title={<Typography sx={{ fontWeight: 700 }}>{title}</Typography>} sx={{ py: 1, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }} />
+      <CardContent sx={{ p: 1.5 }}>{children}</CardContent>
     </Card>
   )
 }
 
-/* ---------------------------------------------
- * Tab Panel Helper
- * --------------------------------------------- */
-function CustomTabPanel(props) {
-  const { children, value, index, ...other } = props
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`simple-tabpanel-${index}`}
-      aria-labelledby={`simple-tab-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  )
-}
-
-/* ---------------------------------------------
- * MAIN COMPONENT
- * --------------------------------------------- */
-const K8sEndpoint = ({ k8SEndpoint, usuarios = [] }) => {
+/* COMPONENTE PRINCIPAL */
+const K8sEndpoint = ({ k8SEndpoint }) => {
   const theme = useTheme()
-  const [tabValue, setTabValue] = useState(0)
+  const [tab, setTab] = useState(0)
 
-  // --- Mutation para eliminar ---
-  const [deleteK8sEndpoint] = useMutation(DELETE_K8S_ENDPOINT_MUTATION, {
-    onCompleted: () => {
-      toast.success('Endpoint eliminado correctamente')
-      navigate(routes.k8SEndpoints())
-    },
-    onError: (error) => {
-      toast.error(error.message)
-    },
-  })
-
-  // --- Handlers ---
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue)
+  // --- CORRECCIÓN AQUÍ: Safety Check ---
+  // Si el objeto no existe, retornamos null o un loader para evitar el crash
+  if (!k8SEndpoint) {
+    return null;
   }
 
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Estás seguro de que deseas eliminar el Endpoint "${k8SEndpoint.nombre}"?`)) {
-      deleteK8sEndpoint({ variables: { id } })
-    }
-  }
-
-  const getUserFullName = (id) => {
-    if (!id) return 'Sistema / Desconocido'
-    const u = usuarios.find((x) => x.id === id)
-    if (!u) return `ID ${id}`
-    return [u.nombres, u.primer_apellido, u.segundo_apellido].filter(Boolean).join(' ')
-  }
-
-  const clustersAsociados = k8SEndpoint.clusters || []
+  const clusters = k8SEndpoint?.clusters || []
+  const handleTabChange = (_, v) => setTab(v)
 
   return (
-    <Box sx={{ maxWidth: 1400, mx: 'auto', mt: 2 }}>
-
-      {/* HEADER TABS */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs value={tabValue} onChange={handleTabChange}>
-          <Tab icon={<InfoIcon />} iconPosition="start" label="Detalles Generales" />
-          <Tab
-            icon={<ClusterIcon />}
-            iconPosition="start"
-            label={`Clusters Asociados (${clustersAsociados.length})`}
-          />
-        </Tabs>
-      </Box>
-
-      {/* --- TAB 1: DETALLES --- */}
-      <CustomTabPanel value={tabValue} index={0}>
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-            gap: 3,
-          }}
-        >
-          {/* COLUMNA IZQUIERDA: CONEXIÓN */}
-          <InnerCard title="Datos de Conexión" icon={<CloudIcon sx={{ fontSize: 18 }} />}>
-            <RowItem label="ID Endpoint" value={k8SEndpoint.id} />
-            <RowItem label="Nombre" value={k8SEndpoint.nombre} />
-            <RowItem
-              label="URL API"
-              value={
-                <Typography
-                  component="a"
-                  href={k8SEndpoint.url_api}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="body2"
-                  sx={{ color: 'primary.main', fontWeight: 600, textDecoration: 'none' }}
-                >
-                  {k8SEndpoint.url_api}
-                </Typography>
-              }
-            />
-            <RowItem
-              label="Token Bearer"
-              value={
-                <Tooltip title={k8SEndpoint.token_bearer}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontFamily: 'monospace',
-                      bgcolor: 'grey.100',
-                      p: 0.5,
-                      borderRadius: 1,
-                      display: 'block',
-                      wordBreak: 'break-all',
-                      maxHeight: 100,
-                      overflowY: 'auto',
-                    }}
-                  >
-                    {k8SEndpoint.token_bearer}
-                  </Typography>
-                </Tooltip>
-              }
-            />
-            <RowItem label="Descripción" value={k8SEndpoint.descripcion || 'Sin descripción'} />
-          </InnerCard>
-
-          {/* COLUMNA DERECHA: ESTADO Y AUDITORÍA */}
-          <InnerCard title="Estado y Auditoría" icon={<InfoIcon sx={{ fontSize: 18 }} />}>
-            <RowItem
-              label="Estado"
-              value={
-                <Chip
-                  size="small"
-                  label={formatEnum(k8SEndpoint.estado)}
-                  color={k8SEndpoint.estado === 'ACTIVO' ? 'success' : 'error'}
-                />
-              }
-            />
-            <RowItem
-              label="Última Sincronización"
-              value={timeTag(k8SEndpoint.fecha_ultima_sync) || 'Nunca'}
-            />
-            <RowItem
-              label="Fecha Creación"
-              value={timeTag(k8SEndpoint.fecha_creacion)}
-            />
-            <RowItem
-              label="Creado por"
-              value={getUserFullName(k8SEndpoint.usuario_creacion)}
-            />
-            <RowItem
-              label="Última Modificación"
-              value={timeTag(k8SEndpoint.fecha_modificacion)}
-            />
-            <RowItem
-              label="Modificado por"
-              value={getUserFullName(k8SEndpoint.usuario_modificacion)}
-            />
-          </InnerCard>
+    <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
+      <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '0 0 12px 12px', mb: 3, bgcolor: theme.palette.background.paper }}>
+        <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Tooltip title="Volver">
+            <IconButton onClick={() => navigate(routes.k8sEndpoints())} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`, color: theme.palette.primary.main, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}>
+              <BackIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Avatar sx={{ width: 42, height: 42, background: 'linear-gradient(135deg, #326ce5, #1a47a8)' }}>
+            <K8sIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="h5" fontWeight={800}>{k8SEndpoint.nombre}</Typography>
+            <Typography variant="caption" color="text.secondary">Kubernetes Endpoint</Typography>
+          </Box>
         </Box>
-      </CustomTabPanel>
 
-      {/* --- TAB 2: CLUSTERS ASOCIADOS --- */}
-      <CustomTabPanel value={tabValue} index={1}>
-        <Card sx={{ borderRadius: 2, border: `1px solid ${theme.palette.divider}`, boxShadow: 'none' }}>
-          <TableContainer>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: 'grey.100' }}>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold' }}>ID</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Nombre del Cluster</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Estado</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }} align="right">Acciones</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {clustersAsociados.length > 0 ? (
-                  clustersAsociados.map((cluster) => (
-                    <TableRow key={cluster.id} hover>
-                      <TableCell>{cluster.id}</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>{cluster.nombre}</TableCell>
-                      <TableCell>{cluster.cod_tipo_cluster}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={formatEnum(cluster.estado)}
-                          size="small"
-                          color={cluster.estado === 'ACTIVO' ? 'success' : 'default'}
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="Ver Cluster">
-                          <IconButton
-                            component={Link}
-                            to={routes.cluster({ id: cluster.id })}
-                            color="primary"
-                            size="small"
-                          >
-                            <ViewIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+        <CardContent sx={{ px: 5, pb: 4 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, alignItems: 'start' }}>
+            <Stack spacing={2}>
+              <SectionCard icon={<GeneralIcon />} title="Conexión" bgcolor={theme.palette.primary.main}>
+                <RowItem label="Nombre" value={k8SEndpoint.nombre} />
+                <RowItem label="URL API" value={k8SEndpoint.url_api} />
+                <RowItem label="Descripción" value={k8SEndpoint.descripcion} />
+                <RowItem label="Última Sync" value={fmtDate(k8SEndpoint.fecha_ultima_sync)} isLast />
+              </SectionCard>
+            </Stack>
+
+            <Stack spacing={2}>
+              <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
+                <RowItem label="Estado" value={<Chip label={k8SEndpoint.estado} size="small" color={getStatusColor(k8SEndpoint.estado)} sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem' }} />} />
+                <RowItem label="Fecha Creación" value={fmtDate(k8SEndpoint.fecha_creacion)} />
+                <RowItem label="Creado por" value={formatUserName(k8SEndpoint.creadoPor)} />
+                <RowItem label="Última Modificación" value={fmtDate(k8SEndpoint.fecha_modificacion)} />
+                <RowItem label="Modificado por" value={formatUserName(k8SEndpoint.modificadoPor)} isLast />
+              </SectionCard>
+            </Stack>
+          </Box>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ borderRadius: 2, mt: 3, bgcolor: theme.palette.background.paper }}>
+        <Tabs value={tab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: `1px solid ${theme.palette.divider}`, px: 2 }}>
+          <Tab label={<Stack direction="row" spacing={1}><ClusterIcon fontSize="small" /><span>Clusters</span><Chip label={clusters.length} size="small" /></Stack>} />
+        </Tabs>
+        <CardContent>
+          {tab === 0 && (
+            clusters.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Nombre</TableCell>
+                      <TableCell>Tipo</TableCell>
+                      <TableCell>Estado</TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        No hay clusters asociados a este endpoint.
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Card>
-      </CustomTabPanel>
-
+                  </TableHead>
+                  <TableBody>
+                    {clusters.map((c) => (
+                      <TableRow key={c.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          <Link to={routes.cluster({ id: c.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>{c.nombre}</Link>
+                        </TableCell>
+                        <TableCell>{c.cod_tipo_cluster}</TableCell>
+                        <TableCell><Chip label={c.estado} size="small" color={getStatusColor(c.estado)} /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay clusters asociados.</Typography>
+          )}
+        </CardContent>
+      </Card>
     </Box>
   )
 }

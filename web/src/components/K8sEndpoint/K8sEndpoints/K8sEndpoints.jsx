@@ -42,12 +42,12 @@ import {
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 // Asegúrate de tener este exportador o ajusta la ruta si usas uno genérico
-import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/k8sEndpointsExporter' 
+import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/k8sEndpointsExporter'
 
 // --- GRAPHQL ---
 const UPDATE_K8S_ENDPOINT_MUTATION = gql`
-  mutation UpdateK8sEndpointMutation($id: Int!, $input: UpdateK8SEndpointInput!) {
-    updateK8SEndpoint(id: $id, input: $input) {
+  mutation UpdateK8sEndpointMutation($id: Int!, $input: UpdateK8sEndpointInput!) {
+    updateK8sEndpoint(id: $id, input: $input) {
       id
       estado
     }
@@ -56,7 +56,7 @@ const UPDATE_K8S_ENDPOINT_MUTATION = gql`
 
 const DELETE_K8S_ENDPOINT_MUTATION = gql`
   mutation DeleteK8sEndpointMutation($id: Int!) {
-    deleteK8SEndpoint(id: $id) {
+    deleteK8sEndpoint(id: $id) {
       id
     }
   }
@@ -97,14 +97,14 @@ const formatUser = (userObj) => {
 const K8sEndpoints = ({ k8SEndpoints }) => {
   const theme = useTheme()
   const [showDeleted, setShowDeleted] = useState(false)
-  
+
   // Estados de Menús
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
 
   // Estados de Diálogo (Eliminación dura)
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
-  const [rowsToDelete, setRowsToDelete] = useState([]) 
+  const [rowsToDelete, setRowsToDelete] = useState([])
 
   // --- MUTACIONES ---
   const [updateK8SEndpoint] = useMutation(UPDATE_K8S_ENDPOINT_MUTATION, {
@@ -129,7 +129,7 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
   }
 
   // --- HANDLERS (Async/Await) ---
-  
+
   // 1. Soft Delete / Restaurar
   const handleSoftDelete = async (rows) => {
     const toastId = toast.loading('Procesando cambios...')
@@ -166,14 +166,14 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
     const toastId = toast.loading('Eliminando registros permanentemente...')
     try {
       await Promise.all(
-        rowsToDelete.map((row) => 
+        rowsToDelete.map((row) =>
           deleteK8SEndpoint({ variables: { id: row.id } })
         )
       )
       toast.success(`${rowsToDelete.length} registro(s) eliminado(s) correctamente.`, { id: toastId })
       table.toggleAllRowsSelected(false)
       closeAllDialogs()
-      setRowsToDelete([]) 
+      setRowsToDelete([])
     } catch (error) {
       toast.error('Error al eliminar los registros', { id: toastId })
     }
@@ -190,7 +190,7 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
   // --- DEFINICIÓN DE COLUMNAS ---
   const columns = useMemo(() => [
     { accessorKey: 'id', header: 'ID', size: 60 },
-    
+
     {
       accessorKey: 'nombre',
       header: 'Nombre Cluster',
@@ -210,10 +210,10 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
       header: 'URL API',
       size: 250,
       Cell: ({ cell }) => cell.getValue() ? (
-         <Stack direction="row" alignItems="center" gap={0.5}>
-            <LinkIcon fontSize="small" color="action" sx={{ fontSize: 16 }} />
-            <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{cell.getValue()}</Typography>
-         </Stack>
+        <Stack direction="row" alignItems="center" gap={0.5}>
+          <LinkIcon fontSize="small" color="action" sx={{ fontSize: 16 }} />
+          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{cell.getValue()}</Typography>
+        </Stack>
       ) : '-'
     },
 
@@ -224,11 +224,11 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
       Cell: ({ cell }) => cell.getValue() || '-' // Si es null muestra -
     },
 
-    { 
-        accessorKey: 'fecha_ultima_sync',
-        header: 'Última Sinc.',
-        size: 160,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    {
+      accessorKey: 'fecha_ultima_sync',
+      header: 'Última Sinc.',
+      size: 160,
+      Cell: ({ cell }) => formatDateTime(cell.getValue())
     },
 
     {
@@ -236,42 +236,42 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
       header: 'Estado',
       size: 100,
       Cell: ({ cell }) => (
-        <Chip 
-            label={cell.getValue() || '-'} 
-            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
-            size="small" 
-            variant="outlined" 
-            sx={{ fontSize: '0.7rem' }}
+        <Chip
+          label={cell.getValue() || '-'}
+          color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
+          size="small"
+          variant="outlined"
+          sx={{ fontSize: '0.7rem' }}
         />
       ),
     },
 
     // --- AUDITORÍA (Mapeo de Usuarios Corregido) ---
-    { 
-        id: 'fecha_creacion',
-        header: 'F. Creación', 
-        size: 150, 
-        accessorFn: (row) => row.fecha_creacion,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    {
+      id: 'fecha_creacion',
+      header: 'F. Creación',
+      size: 150,
+      accessorFn: (row) => row.fecha_creacion,
+      Cell: ({ cell }) => formatDateTime(cell.getValue())
     },
-    { 
-        id: 'creadoPor', // ID único para la columna
-        header: 'Creado por', 
-        size: 150, 
-        accessorFn: (row) => formatUser(row.creadoPor), // Extrae el nombre del objeto
+    {
+      id: 'creadoPor', // ID único para la columna
+      header: 'Creado por',
+      size: 150,
+      accessorFn: (row) => formatUser(row.creadoPor), // Extrae el nombre del objeto
     },
-    { 
-        id: 'fecha_modificacion',
-        header: 'F. Modif.', 
-        size: 150, 
-        accessorFn: (row) => row.fecha_modificacion,
-        Cell: ({ cell }) => formatDateTime(cell.getValue()) 
+    {
+      id: 'fecha_modificacion',
+      header: 'F. Modif.',
+      size: 150,
+      accessorFn: (row) => row.fecha_modificacion,
+      Cell: ({ cell }) => formatDateTime(cell.getValue())
     },
-    { 
-        id: 'modificadoPor',
-        header: 'Modif. por', 
-        size: 150, 
-        accessorFn: (row) => formatUser(row.modificadoPor), // Extrae el nombre del objeto
+    {
+      id: 'modificadoPor',
+      header: 'Modif. por',
+      size: 150,
+      accessorFn: (row) => formatUser(row.modificadoPor), // Extrae el nombre del objeto
     },
 
   ], [theme])
@@ -288,13 +288,13 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: { 
-        id: false, 
+      columnVisibility: {
+        id: false,
         descripcion: false, // Oculto por defecto para limpiar la vista
-        fecha_creacion: false, 
-        creadoPor: false, 
-        fecha_modificacion: true, 
-        modificadoPor: true 
+        fecha_creacion: false,
+        creadoPor: false,
+        fecha_modificacion: true,
+        modificadoPor: true
       },
     },
     muiTablePaperProps: {
@@ -304,8 +304,8 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
         mx: 'auto',
         px: 2, py: 1,
         border: `1px solid ${theme.palette.divider}`,
-        borderTop: 'none', 
-        borderRadius: 2, 
+        borderTop: 'none',
+        borderRadius: 2,
         borderTopLeftRadius: '0 !important',
         borderTopRightRadius: '0 !important',
         backgroundColor: 'background.paper',
@@ -313,10 +313,10 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
       },
     },
     muiTableContainerProps: {
-       sx: {
-         border: `1px solid ${theme.palette.divider}`,
-         borderRadius: 2, overflow: 'auto', 
-       }
+      sx: {
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 2, overflow: 'auto',
+      }
     },
     muiTopToolbarProps: {
       sx: { pl: 1, pr: 1, mb: 1, backgroundColor: 'background.paper' }
@@ -334,13 +334,13 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
         color: 'text.primary',
         fontWeight: 'bold',
         fontSize: '0.85rem',
-        borderBottom: `1px solid ${theme.palette.divider}`, 
-        borderRight: `1px solid ${theme.palette.divider}`,  
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        borderRight: `1px solid ${theme.palette.divider}`,
         '&:last-child': { borderRight: 'none' },
       }
     },
     muiTableBodyCellProps: {
-        sx: { borderBottom: `1px solid ${theme.palette.divider}` }
+      sx: { borderBottom: `1px solid ${theme.palette.divider}` }
     },
     muiTableBodyRowProps: ({ row }) => ({
       sx: { '&:hover': { backgroundColor: theme.palette.action.hover } }
@@ -368,29 +368,29 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
       const { pageIndex, pageSize } = table.getState().pagination
       rowsToExport = table.getPrePaginationRowModel().rows.slice(pageIndex * pageSize, (pageIndex * pageSize) + pageSize)
     } else if (scope === 'all') {
-       rowsToExport = table.getPrePaginationRowModel().rows
+      rowsToExport = table.getPrePaginationRowModel().rows
     } else if (scope === 'selected') {
       rowsToExport = table.getSelectedRowModel().rows
     }
 
     if (!rowsToExport || rowsToExport.length === 0) {
-        toast.error('No hay datos para exportar')
-        return
+      toast.error('No hay datos para exportar')
+      return
     }
 
     const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'id'].includes(col.id))
-    
+
     if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, exportHelpers, suffix)
     if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, exportHelpers, suffix)
     if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, exportHelpers, suffix)
-    
+
     closeAllDialogs()
   }
 
   // --- SCAFFOLD CONFIG ---
   const listActionsConfig = useMemo(() => {
     const selectedRowCount = table.getSelectedRowModel().rows.length
-    
+
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" fontWeight={700}>EXCEL</Typography></Box>
@@ -425,13 +425,13 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
       handleBulkAction: (e) => {
         if (selectedRowCount === 0) {
-            toast.error('Debe seleccionar al menos un registro.')
-            return;
+          toast.error('Debe seleccionar al menos un registro.')
+          return;
         }
         if (showDeleted) {
-             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+          handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
         } else {
-             setBulkMenuAnchorEl(e.currentTarget)
+          setBulkMenuAnchorEl(e.currentTarget)
         }
       },
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
@@ -441,8 +441,8 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
   }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection])
 
   // Nombre para el diálogo de eliminación
-  const namesToDelete = rowsToDelete.length === 1 
-    ? rowsToDelete[0]?.nombre || `el endpoint ID ${rowsToDelete[0]?.id}` 
+  const namesToDelete = rowsToDelete.length === 1
+    ? rowsToDelete[0]?.nombre || `el endpoint ID ${rowsToDelete[0]?.id}`
     : `${rowsToDelete.length} registros`
 
   return (
@@ -475,19 +475,19 @@ const K8sEndpoints = ({ k8SEndpoints }) => {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={() => { 
-                setOpenDeleteDialog(false); 
-                setRowsToDelete([]); 
-            }} 
+          <Button
+            onClick={() => {
+              setOpenDeleteDialog(false);
+              setRowsToDelete([]);
+            }}
             color="primary"
           >
             Cancelar
           </Button>
-          <Button 
-            onClick={confirmHardDelete} 
-            color="error" 
-            variant="contained" 
+          <Button
+            onClick={confirmHardDelete}
+            color="error"
+            variant="contained"
             autoFocus
           >
             Eliminar

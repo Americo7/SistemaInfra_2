@@ -15,7 +15,8 @@ import {
   TextSnippet as CsvIcon,
   DeleteForever as HardDeleteIcon,
   PowerOff as SoftDeleteIcon,
-  RestoreFromTrash as RestoreIcon, // Importar RestoreIcon para Soft Delete
+  RestoreFromTrash as RestoreIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material'
 
 import {
@@ -40,6 +41,7 @@ import {
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/clustersExporter'
+import { generatePDF as generateDetailedPDF } from 'src/lib/exporter/clusterDetalleExporter'
 
 // --- GRAPHQL ---
 const UPDATE_CLUSTER_MUTATION = gql`
@@ -124,7 +126,7 @@ const Clusters = ({ clusters }) => {
         variables: { id: cluster.id, input: { estado: newState } },
       })
     })
-    
+
     toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
@@ -140,19 +142,19 @@ const Clusters = ({ clusters }) => {
   // 3. NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo
   const confirmHardDelete = () => {
     setOpenDeleteDialog(false)
-    
+
     if (rowsToDelete.length === 0) return
 
     rowsToDelete.forEach((cluster) => {
       deleteCluster({ variables: { id: cluster.id } })
     })
-    
+
     // Muestra el toast de éxito UNA SOLA VEZ
-    toast.success(`${rowsToDelete.length} registro(s) eliminados permanentemente.`) 
+    toast.success(`${rowsToDelete.length} registro(s) eliminados permanentemente.`)
 
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
-    setRowsToDelete([]) 
+    setRowsToDelete([])
   }
 
   // --- DATOS ---
@@ -178,11 +180,11 @@ const Clusters = ({ clusters }) => {
         </Box>
       ),
     },
-    { 
-      accessorKey: 'cod_tipo_cluster', 
-      header: 'Tipo Cluster', 
-      size: 140, 
-      Cell: ({ row }) => helpers.getNombreTipoCluster(row.original) 
+    {
+      accessorKey: 'cod_tipo_cluster',
+      header: 'Tipo Cluster',
+      size: 140,
+      Cell: ({ row }) => helpers.getNombreTipoCluster(row.original)
     },
     { accessorKey: 'descripcion', header: 'Descripción', size: 200 },
     {
@@ -190,30 +192,30 @@ const Clusters = ({ clusters }) => {
       header: 'Estado',
       size: 100,
       Cell: ({ cell }) => (
-        <Chip 
-            label={cell.getValue()} 
-            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
-            size="small" 
-            variant="outlined" 
-            sx={{ fontSize: '0.7rem' }}
+        <Chip
+          label={cell.getValue()}
+          color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
+          size="small"
+          variant="outlined"
+          sx={{ fontSize: '0.7rem' }}
         />
       ),
     },
     { accessorKey: 'fecha_creacion', header: 'F. Creación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
     { accessorKey: 'fecha_modificacion', header: 'F. Modificación', size: 150, Cell: ({ cell }) => formatDate(cell.getValue()) },
-    
+
     // USUARIOS (Mostrar Nombre Completo)
-    { 
-      accessorKey: 'creadoPor.nombres', 
-      header: 'Creado por', 
-      size: 180, 
-      Cell: ({ row }) => helpers.getUsuarioNombre(row.original.creadoPor) 
+    {
+      accessorKey: 'creadoPor.nombres',
+      header: 'Creado por',
+      size: 180,
+      Cell: ({ row }) => helpers.getUsuarioNombre(row.original.creadoPor)
     },
-    { 
-      accessorKey: 'modificadoPor.nombres', 
-      header: 'Modif. por', 
-      size: 180, 
-      Cell: ({ row }) => helpers.getUsuarioNombre(row.original.modificadoPor) 
+    {
+      accessorKey: 'modificadoPor.nombres',
+      header: 'Modif. por',
+      size: 180,
+      Cell: ({ row }) => helpers.getUsuarioNombre(row.original.modificadoPor)
     },
     { accessorKey: 'identity_key', header: 'Key', size: 150 },
   ], [])
@@ -230,14 +232,14 @@ const Clusters = ({ clusters }) => {
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: { 
-        id: false, 
+      columnVisibility: {
+        id: false,
         estado: false,
-        fecha_creacion: false, 
-        fecha_modificacion: false, 
+        fecha_creacion: false,
+        fecha_modificacion: false,
         identity_key: false,
-        'creadoPor.nombres': false, 
-        'modificadoPor.nombres': false 
+        'creadoPor.nombres': false,
+        'modificadoPor.nombres': false
       },
     },
     muiTablePaperProps: {
@@ -245,11 +247,11 @@ const Clusters = ({ clusters }) => {
       sx: {
         maxWidth: 1500,
         mx: 'auto',
-        px: 2, 
+        px: 2,
         py: 1,
         border: `1px solid ${theme.palette.divider}`,
-        borderTop: 'none', 
-        borderRadius: 2, 
+        borderTop: 'none',
+        borderRadius: 2,
         borderTopLeftRadius: '0 !important',
         borderTopRightRadius: '0 !important',
         backgroundColor: 'background.paper',
@@ -257,26 +259,26 @@ const Clusters = ({ clusters }) => {
       },
     },
     muiTableContainerProps: {
-       sx: {
-         border: `1px solid ${theme.palette.divider}`,
-         borderRadius: 2, 
-         overflow: 'auto', 
-       }
+      sx: {
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 2,
+        overflow: 'auto',
+      }
     },
     muiTopToolbarProps: {
       sx: {
-        pl: 1, 
+        pl: 1,
         pr: 1,
         backgroundColor: 'background.paper',
-        mb: 1, 
+        mb: 1,
       }
     },
     muiBottomToolbarProps: {
-        sx: {
-            backgroundColor: 'background.paper',
-            border: 'none', 
-            boxShadow: 'none',
-        }
+      sx: {
+        backgroundColor: 'background.paper',
+        border: 'none',
+        boxShadow: 'none',
+      }
     },
     renderTopToolbarCustomActions: () => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -291,15 +293,15 @@ const Clusters = ({ clusters }) => {
         color: 'text.primary',
         fontWeight: 'bold',
         fontSize: '0.85rem',
-        borderBottom: `1px solid ${theme.palette.divider}`, 
-        borderRight: `1px solid ${theme.palette.divider}`,  
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        borderRight: `1px solid ${theme.palette.divider}`,
         '&:last-child': { borderRight: 'none' },
       }
     },
     muiTableBodyCellProps: {
-        sx: {
-            borderBottom: `1px solid ${theme.palette.divider}`,
-        }
+      sx: {
+        borderBottom: `1px solid ${theme.palette.divider}`,
+      }
     },
     muiTableBodyRowProps: ({ row }) => ({
       sx: {
@@ -337,7 +339,7 @@ const Clusters = ({ clusters }) => {
     }
 
     if (scope === 'all') {
-       rowsToExport = table.getPrePaginationRowModel().rows
+      rowsToExport = table.getPrePaginationRowModel().rows
     }
 
     if (scope === 'selected') {
@@ -345,23 +347,23 @@ const Clusters = ({ clusters }) => {
     }
 
     if (!rowsToExport || rowsToExport.length === 0) {
-        toast.error('No hay datos para exportar')
-        return
+      toast.error('No hay datos para exportar')
+      return
     }
 
     const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
-    
+
     if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
     if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
     if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
-    
+
     closeAllDialogs()
   }
 
   // --- CONFIG PARA SCAFFOLD ---
   const listActionsConfig = useMemo(() => {
     const selectedRowCount = table.getSelectedRowModel().rows.length
-    
+
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
         <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
@@ -382,6 +384,12 @@ const Clusters = ({ clusters }) => {
         </MenuItem>
         <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
           <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleDetailedReport(table.getSelectedRowModel().rows.map(r => r.original))}
+          disabled={selectedRowCount === 0}
+        >
+          <ListItemIcon><PrintIcon fontSize="small" color="secondary" /></ListItemIcon> Reporte Detallado ({selectedRowCount})
         </MenuItem>
         <Divider />
         <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
@@ -417,31 +425,31 @@ const Clusters = ({ clusters }) => {
       showDeleted,
       selectedRowCount,
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
-      
+
       handleBulkAction: (e) => {
         if (showDeleted) {
-            handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+          handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
         } else {
-            setBulkMenuAnchorEl(e.currentTarget)
+          setBulkMenuAnchorEl(e.currentTarget)
         }
       },
-      
+
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
       exportMenu: ExportMenu,
       bulkActionMenu: BulkActionMenu,
     }
   }, [
-    table, 
-    showDeleted, 
-    exportMenuAnchorEl, 
-    bulkMenuAnchorEl, 
+    table,
+    showDeleted,
+    exportMenuAnchorEl,
+    bulkMenuAnchorEl,
     table.getState().rowSelection,
     table.getState().pagination
   ])
 
   // Lógica segura para obtener el nombre(s) en el diálogo
-  const namesToDelete = rowsToDelete.length === 1 
-    ? rowsToDelete[0]?.nombre || 'este registro' 
+  const namesToDelete = rowsToDelete.length === 1
+    ? rowsToDelete[0]?.nombre || 'este registro'
     : `${rowsToDelete.length} registros`
 
   return (
@@ -475,19 +483,19 @@ const Clusters = ({ clusters }) => {
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={() => { 
-                setOpenDeleteDialog(false); 
-                setRowsToDelete([]); 
-            }} 
+          <Button
+            onClick={() => {
+              setOpenDeleteDialog(false);
+              setRowsToDelete([]);
+            }}
             color="primary"
           >
             Cancelar
           </Button>
-          <Button 
-            onClick={confirmHardDelete} 
-            color="error" 
-            variant="contained" 
+          <Button
+            onClick={confirmHardDelete}
+            color="error"
+            variant="contained"
             autoFocus
           >
             Eliminar

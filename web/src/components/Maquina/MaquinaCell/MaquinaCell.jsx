@@ -3,7 +3,6 @@ import Maquina from 'src/components/Maquina/Maquina'
 
 export const QUERY = gql`
   query FindMaquinaById($id: Int!) {
-    # Cambiamos 'maquinaCompleta' por 'maquina'
     maquina(id: $id) {
       id
       nombre
@@ -13,14 +12,12 @@ export const QUERY = gql`
       so
       ram
       almacenamiento
-      estado_operativo 
       cpu
       estado
       fecha_creacion
       fecha_modificacion
-      cod_plataforma 
-      
-      # --- USANDO LOS NUEVOS RESOLVERS ---
+
+      # --- NUEVOS RESOLVERS (Objetos anidados) ---
       creadoPor {
         nombres
         primer_apellido
@@ -40,6 +37,7 @@ export const QUERY = gql`
         codigo
       }
 
+      # --- RELACIONES ---
       # Proxmox
       servidores {
         id
@@ -67,7 +65,8 @@ export const QUERY = gql`
           }
         }
       }
-      # k8s
+
+      # Kubernetes / Orquestación
       cluster_nodos {
         id
         nombre
@@ -162,7 +161,6 @@ export const Loading = () => <div>Cargando...</div>
 export const Empty = () => <div>No existe la máquina</div>
 export const Failure = ({ error }) => <div className="rw-cell-error">{error?.message}</div>
 
-// OJO: El prop ahora se llama 'maquina', no 'maquinaCompleta'
 export const Success = ({ maquina }) => {
   return <Maquina maquina={maquina} />
 }

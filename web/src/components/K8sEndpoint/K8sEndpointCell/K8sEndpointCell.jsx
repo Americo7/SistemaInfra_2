@@ -14,18 +14,24 @@ export const QUERY = gql`
       usuario_creacion
       fecha_modificacion
       usuario_modificacion
+      creadoPor {
+        id
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
+      modificadoPor {
+        id
+        nombres
+        primer_apellido
+        segundo_apellido
+      }
       clusters {
         id
         nombre
         cod_tipo_cluster
         estado
       }
-    }
-    usuarios {
-      id
-      nombres
-      primer_apellido
-      segundo_apellido
     }
   }
 `
@@ -38,11 +44,10 @@ export const Failure = ({ error }) => (
   <div className="rw-cell-error">{error?.message}</div>
 )
 
-export const Success = ({ k8SEndpoint, usuarios }) => {
+export const Success = ({ k8SEndpoint }) => {
   return (
     <K8sEndpoint
       k8SEndpoint={k8SEndpoint}
-      usuarios={usuarios}
     />
   )
 }

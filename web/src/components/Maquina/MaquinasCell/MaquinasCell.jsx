@@ -1,5 +1,5 @@
 import { Link, routes } from '@redwoodjs/router'
-import { gql } from '@redwoodjs/web' 
+import { gql } from '@redwoodjs/web'
 import Maquinas from 'src/components/Maquina/Maquinas'
 
 export const QUERY = gql`
@@ -8,69 +8,122 @@ export const QUERY = gql`
       id
       nombre
       ip
+      so
       ram
       cpu
+      almacenamiento
       proxmox_vmid
+      cod_plataforma
       estado_operativo
       estado
       
-      # --- 2. AUDITORÍA ---
+      # --- AUDITORÍA ---
       fecha_creacion
-      usuario_creacion
       fecha_modificacion
-      usuario_modificacion
       
-      # --- 3. RELACIONES SIMPLIFICADAS (ID y NOMBRE) ---
-      
-      # 3A. Infos (Cátalogo)
+      # --- INFORMACIÓN CATALOGADA ---
       plataformaInfo {
         id
         nombre
+        codigo
       }
       estadoOperativoInfo {
         id
         nombre
+        codigo
       }
       
-      # 3B. Auditoría Usuarios
+      # --- USUARIOS DE AUDITORÍA ---
       creadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       modificadoPor {
         id
         nombres
         primer_apellido
+        segundo_apellido
       }
       
-      # 3C. Host (Servidor) y Data Center
+      # --- RELACIONES DE INFRAESTRUCTURA ---
       servidores {
         id
         nombre
-        # Data Center del Host
-        data_centers { 
+        ip_primaria
+        marca
+        modelo
+        cod_tipo_servidor
+        tipoServidorInfo {
+          nombre
+        }
+        data_centers {
           id
           nombre
         }
-        # Si el Servidor Host es parte de un Cluster
-        cluster_nodos { 
+        cluster_nodos {
           id
           nombre
           cluster {
             id
             nombre
+            tipoClusterInfo {
+              id
+              nombre
+            }
           }
         }
       }
 
-      # 3D. Máquina como Nodo (Si la VM es un nodo K8s/Proxmox)
+      # --- CLUSTER SI LA VM ES NODO ---
       cluster_nodos {
         id
         nombre
         cluster {
           id
           nombre
+          tipoClusterInfo {
+            id
+            nombre
+          }
+        }
+      }
+
+      # --- DATOS PROFUNDOS PARA REPORTE DETALLADO (Agregados) ---
+      usuario_roles {
+        id
+        usuarios {
+          nombres
+          primer_apellido
+          segundo_apellido
+        }
+        roles {
+          nombre
+        }
+        sistemas {
+          sigla
+        }
+      }
+
+      despliegue {
+        id
+        fecha_despliegue
+        estado_despliegue
+        componentes {
+          nombre
+          sistemas {
+            sigla
+          }
+        }
+      }
+      
+      infra_afectada {
+        id
+        eventos {
+            id
+            cod_evento
+            descripcion
         }
       }
     }
@@ -86,5 +139,5 @@ export const Failure = ({ error }) => (
 )
 
 export const Success = ({ maquinas }) => {
-  return <Maquinas maquinas={maquinas}/>
+  return <Maquinas maquinas={maquinas} />
 }

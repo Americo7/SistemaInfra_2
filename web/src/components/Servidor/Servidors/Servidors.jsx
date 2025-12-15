@@ -17,6 +17,7 @@ import {
   PowerOff as SoftDeleteIcon,
   RestoreFromTrash as RestoreIcon,
   Dns as ParentIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material'
 
 import {
@@ -34,6 +35,7 @@ import {
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table'
 import { exportToExcel, exportToPDF, exportToCSV } from 'src/lib/exporter/servidoresExporter'
+import { generatePDF as generateDetailedPDF } from 'src/lib/exporter/servidorDetalleExporter'
 
 // --- GRAPHQL ---
 const UPDATE_SERVIDOR_MUTATION = gql`
@@ -84,9 +86,9 @@ const formatDate = (d) => {
 
 const Servidores = ({ servidores, parametros, usuarios }) => {
   const theme = useTheme()
-  
+
   const [rowSelection, setRowSelection] = useState({})
-  
+
   const [showDeleted, setShowDeleted] = useState(false)
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
@@ -145,7 +147,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
   }
 
   const handleHardDelete = (rows) => {
-    if(!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
+    if (!window.confirm(`ADVERTENCIA: ¿Estás seguro de ELIMINAR DEFINITIVAMENTE ${rows.length} registro(s)?\n\nEsta acción no se puede deshacer.`)) {
       closeAllDialogs()
       return
     }
@@ -153,10 +155,82 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     rows.forEach((servidor) => {
       deleteServidor({ variables: { id: servidor.id } })
     })
-    
+
     setRowSelection({})
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
+  }
+
+  const handleDetailedReport = async (rows) => {
+    if (rows.length === 0) {
+      toast.error('Debe seleccionar al menos un servidor')
+      return
+    }
+
+    const toastId = toast.loading(`Generando reporte detallado de ${rows.length} servidor(es)...`)
+
+    try {
+      const QUERY_DETALLE = gql`
+        query FindServidorDetalle($id: Int!) {
+          servidor(id: $id) {
+            id nombre ip_primaria marca modelo serie sistema_operativo
+            ram almacenamiento cod_inventario_agetic cod_tipo_servidor
+            estado_operativo estado fecha_creacion fecha_modificacion
+            tipoServidorInfo { nombre }
+            estadoOperativoInfo { nombre }
+            creadoPor { nombres primer_apellido segundo_apellido }
+            modificadoPor { nombres primer_apellido segundo_apellido }
+            data_centers { id nombre direccion }
+            servidores_padre { id nombre ip_primaria }
+            maquinas {
+              id nombre ip so estado_operativo
+              estadoOperativoInfo { nombre }
+            }
+            despliegue {
+              fecha_despliegue estado_despliegue
+              componentes { nombre sistemas { sigla } }
+            }
+          }
+        }
+      `
+
+      const promises = rows.map(async (row) => {
+        const response = await fetch(global.RWJS_API_GRAPHQL_URL || '/graphql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'auth-provider': 'dbAuth',
+          },
+          body: JSON.stringify({
+            query: QUERY_DETALLE.loc.source.body,
+            variables: { id: row.id }
+          }),
+          credentials: 'include'
+        })
+        const result = await response.json()
+        return result.data?.servidor
+      })
+
+      const servidoresCompletos = (await Promise.all(promises)).filter(Boolean)
+
+      if (servidoresCompletos.length === 0) {
+        throw new Error('No se pudieron obtener los datos completos')
+      }
+
+      for (const srv of servidoresCompletos) {
+        const pdfDataUri = await generateDetailedPDF(srv)
+        const link = document.createElement('a')
+        link.href = pdfDataUri
+        link.download = `Servidor_${srv.nombre}_Detalle_${new Date().getTime()}.pdf`
+        link.click()
+      }
+
+      toast.success(`${servidoresCompletos.length} reporte(s) generado(s) exitosamente`, { id: toastId })
+      closeAllDialogs()
+    } catch (error) {
+      console.error('Error al generar reporte detallado:', error)
+      toast.error('Error al generar el reporte detallado: ' + error.message, { id: toastId })
+    }
   }
 
   // --- DATOS ---
@@ -169,8 +243,8 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
 
   // --- COLUMNAS (Corrección de anchos) ---
   const columns = useMemo(() => [
-    { 
-      accessorKey: 'id', 
+    {
+      accessorKey: 'id',
       header: 'ID',
       // Se eliminó size para auto-ancho
     },
@@ -191,7 +265,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
       accessorKey: 'ip_primaria',
       header: 'IP',
       // Se eliminó size: 130
-      Cell: ({ cell }) => cell.getValue() || '-', 
+      Cell: ({ cell }) => cell.getValue() || '-',
     },
     // --- MANTENEMOS FIJOS RAM Y DISCO ---
     {
@@ -236,115 +310,115 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
       header: 'Data Center',
       // Se eliminó size: 150
       Cell: ({ row }) => {
-        const dc = row.original.data_centers 
+        const dc = row.original.data_centers
         if (!dc) return '-'
         return (
-             <Typography variant="body2" fontWeight={600} color="info.main">
-                {dc.nombre}
-             </Typography>
+          <Typography variant="body2" fontWeight={600} color="info.main">
+            {dc.nombre}
+          </Typography>
         )
       },
     },
     {
-        accessorKey: 'nodos',
-        header: 'Nodo',
-        // Se eliminó size: 180
-        Cell: ({ row }) => {
-          const nodos = row.original.cluster_nodos
-          if (!nodos?.length) return '-'
-          return (
-            <Stack spacing={0.3}>
-              {nodos.map((n) => (
-                <Link
-                  key={n.id}
-                  to={routes.clusterNodo({ id: n.id })}
-                  style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.info.main }}
-                >
-                  {n.nombre}
-                </Link>
-              ))}
-            </Stack>
-          )
-        },
+      accessorKey: 'nodos',
+      header: 'Nodo',
+      // Se eliminó size: 180
+      Cell: ({ row }) => {
+        const nodos = row.original.cluster_nodos
+        if (!nodos?.length) return '-'
+        return (
+          <Stack spacing={0.3}>
+            {nodos.map((n) => (
+              <Link
+                key={n.id}
+                to={routes.clusterNodo({ id: n.id })}
+                style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.info.main }}
+              >
+                {n.nombre}
+              </Link>
+            ))}
+          </Stack>
+        )
+      },
     },
     {
-        accessorKey: 'clusters',
-        header: 'Cluster',
-        // Se eliminó size: 180
-        Cell: ({ row }) => {
-          const nodos = row.original.cluster_nodos
-          if (!nodos?.length) return '-'
-          return (
-            <Stack spacing={0.3}>
-              {nodos.map((n) => (
-                <Link
-                  key={n.cluster?.id}
-                  to={routes.cluster({ id: n.cluster?.id })}
-                  style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.info.main }}
-                >
-                  {n.cluster?.nombre}
-                </Link>
-              ))}
-            </Stack>
-          )
-        },
+      accessorKey: 'clusters',
+      header: 'Cluster',
+      // Se eliminó size: 180
+      Cell: ({ row }) => {
+        const nodos = row.original.cluster_nodos
+        if (!nodos?.length) return '-'
+        return (
+          <Stack spacing={0.3}>
+            {nodos.map((n) => (
+              <Link
+                key={n.cluster?.id}
+                to={routes.cluster({ id: n.cluster?.id })}
+                style={{ textDecoration: 'none', fontWeight: 600, color: theme.palette.info.main }}
+              >
+                {n.cluster?.nombre}
+              </Link>
+            ))}
+          </Stack>
+        )
+      },
     },
     {
-        accessorKey: 'estadoOperativoInfo',
-        header: 'Estado Operativo',
-        // Se eliminó size: 150
-        Cell: ({ row }) => {
-          const info = row.original.estadoOperativoInfo
-          const label = info?.nombre || '-'
-          const color = getStatusColor(info?.codigo)
-          return (
-            <Chip
-              size="small"
-              label={label}
-              color={color}
-              variant={info?.codigo ? 'filled' : 'outlined'}
-              sx={{ fontWeight: 'bold' }}
-            />
-          )
-        },
+      accessorKey: 'estadoOperativoInfo',
+      header: 'Estado Operativo',
+      // Se eliminó size: 150
+      Cell: ({ row }) => {
+        const info = row.original.estadoOperativoInfo
+        const label = info?.nombre || '-'
+        const color = getStatusColor(info?.codigo)
+        return (
+          <Chip
+            size="small"
+            label={label}
+            color={color}
+            variant={info?.codigo ? 'filled' : 'outlined'}
+            sx={{ fontWeight: 'bold' }}
+          />
+        )
+      },
     },
     {
       accessorKey: 'estado',
       header: 'Estado',
       // Se eliminó size: 100
       Cell: ({ cell }) => (
-        <Chip 
-            label={cell.getValue()} 
-            color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'} 
-            size="small" 
-            variant="outlined" 
-            sx={{ fontSize: '0.7rem' }}
+        <Chip
+          label={cell.getValue()}
+          color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
+          size="small"
+          variant="outlined"
+          sx={{ fontSize: '0.7rem' }}
         />
       ),
     },
     {
-        accessorKey: 'fecha_creacion',
-        header: 'Creación',
-        // Se eliminó size: 150
-        Cell: ({ cell }) => formatDate(cell.getValue()),
+      accessorKey: 'fecha_creacion',
+      header: 'Creación',
+      // Se eliminó size: 150
+      Cell: ({ cell }) => formatDate(cell.getValue()),
     },
     {
-        accessorKey: 'usuario_creacion',
-        header: 'Creado por',
-        // Se eliminó size: 150
-        Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
+      accessorKey: 'usuario_creacion',
+      header: 'Creado por',
+      // Se eliminó size: 150
+      Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
     },
     {
-        accessorKey: 'fecha_modificacion',
-        header: 'Modificación',
-        // Se eliminó size: 150
-        Cell: ({ cell }) => formatDate(cell.getValue()),
+      accessorKey: 'fecha_modificacion',
+      header: 'Modificación',
+      // Se eliminó size: 150
+      Cell: ({ cell }) => formatDate(cell.getValue()),
     },
     {
-        accessorKey: 'usuario_modificacion',
-        header: 'Modif. por',
-        // Se eliminó size: 150
-        Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
+      accessorKey: 'usuario_modificacion',
+      header: 'Modif. por',
+      // Se eliminó size: 150
+      Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
     },
   ], [theme, usuariosMap, estadosOperativosMap])
 
@@ -357,20 +431,20 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     enableGlobalFilter: true,
     enableRowVirtualization: true,
     rowVirtualizerOptions: { overscan: 5 },
-    
+
     state: { rowSelection },
     onRowSelectionChange: setRowSelection,
 
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
-      columnVisibility: { 
+      columnVisibility: {
         id: false,
         estado: false,
-        fecha_creacion: false, 
-        usuario_creacion: false, 
-        fecha_modificacion: false, 
-        usuario_modificacion: false 
+        fecha_creacion: false,
+        usuario_creacion: false,
+        fecha_modificacion: false,
+        usuario_modificacion: false
       },
     },
     muiTablePaperProps: {
@@ -378,11 +452,11 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
       sx: {
         maxWidth: 1500,
         mx: 'auto',
-        px: 2, 
+        px: 2,
         py: 1,
         border: `1px solid ${theme.palette.divider}`,
-        borderTop: 'none', 
-        borderRadius: 2, 
+        borderTop: 'none',
+        borderRadius: 2,
         borderTopLeftRadius: '0 !important',
         borderTopRightRadius: '0 !important',
         backgroundColor: 'background.paper',
@@ -390,26 +464,26 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
       },
     },
     muiTableContainerProps: {
-       sx: {
-         border: `1px solid ${theme.palette.divider}`,
-         borderRadius: 2, 
-         overflow: 'auto', 
-       }
+      sx: {
+        border: `1px solid ${theme.palette.divider}`,
+        borderRadius: 2,
+        overflow: 'auto',
+      }
     },
     muiTopToolbarProps: {
       sx: {
-        pl: 1, 
+        pl: 1,
         pr: 1,
         backgroundColor: 'background.paper',
-        mb: 1, 
+        mb: 1,
       }
     },
     muiBottomToolbarProps: {
-        sx: {
-            backgroundColor: 'background.paper',
-            border: 'none', 
-            boxShadow: 'none',
-        }
+      sx: {
+        backgroundColor: 'background.paper',
+        border: 'none',
+        boxShadow: 'none',
+      }
     },
     renderTopToolbarCustomActions: () => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -424,8 +498,8 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
         color: 'text.primary',
         fontWeight: 'bold',
         fontSize: '0.85rem',
-        borderBottom: `1px solid ${theme.palette.divider}`, 
-        borderRight: `1px solid ${theme.palette.divider}`, 
+        borderBottom: `1px solid ${theme.palette.divider}`,
+        borderRight: `1px solid ${theme.palette.divider}`,
         '&:last-child': { borderRight: 'none' },
       }
     },
@@ -470,7 +544,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     }
 
     if (scope === 'all') {
-       rowsToExport = table.getPrePaginationRowModel().rows
+      rowsToExport = table.getPrePaginationRowModel().rows
     }
 
     if (scope === 'selected') {
@@ -478,23 +552,23 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     }
 
     if (!rowsToExport || rowsToExport.length === 0) {
-        toast.error('No hay datos para exportar')
-        return
+      toast.error('No hay datos para exportar')
+      return
     }
 
     const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
-    
+
     if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
     if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
     if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
-    
+
     closeAllDialogs()
   }
 
   // --- CONFIG PARA SCAFFOLD ---
   const listActionsConfig = useMemo(() => {
     const selectedRowCount = Object.keys(rowSelection).length
-    
+
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
         {/* EXCEL */}
@@ -507,7 +581,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
         <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
           <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
         </MenuItem>
-        
+
         <Divider />
 
         {/* PDF */}
@@ -519,6 +593,12 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
         </MenuItem>
         <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
           <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleDetailedReport(table.getSelectedRowModel().rows.map(r => r.original))}
+          disabled={selectedRowCount === 0}
+        >
+          <ListItemIcon><PrintIcon fontSize="small" color="secondary" /></ListItemIcon> Reporte Detallado ({selectedRowCount})
         </MenuItem>
 
         <Divider />
@@ -557,30 +637,30 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
       showDeleted,
       selectedRowCount,
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
-      
+
       handleBulkAction: (e) => {
         if (selectedRowCount === 0) {
-            toast.error('Debe seleccionar al menos un registro.')
-            return;
+          toast.error('Debe seleccionar al menos un registro.')
+          return;
         }
 
         if (showDeleted) {
-             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
+          handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
         } else {
-             setBulkMenuAnchorEl(e.currentTarget)
+          setBulkMenuAnchorEl(e.currentTarget)
         }
       },
-      
+
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
       exportMenu: ExportMenu,
       bulkActionMenu: BulkActionMenu,
     }
   }, [
-    table, 
-    showDeleted, 
-    exportMenuAnchorEl, 
-    bulkMenuAnchorEl, 
-    rowSelection, 
+    table,
+    showDeleted,
+    exportMenuAnchorEl,
+    bulkMenuAnchorEl,
+    rowSelection,
   ])
 
   return (

@@ -1,719 +1,289 @@
-import { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-import { useMutation, useQuery } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
-import { formatEnum, timeTag } from 'src/lib/formatters'
-
-// Material-UI imports
 import {
   Box,
   Typography,
+  Card,
+  CardContent,
+  CardHeader,
+  Avatar,
+  Chip,
   Paper,
-  Grid,
+  Stack,
+  Tabs,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Button,
-  IconButton,
-  Chip,
-  Card,
-  CardContent,
-  CardHeader,
-  Avatar,
-  colors,
-  Tab,
-  Tabs,
-  Divider,
-  Stack,
-  Tooltip,
   useTheme,
+  IconButton,
+  Tooltip,
+  alpha,
 } from '@mui/material'
+
 import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Person as PersonIcon,
-  ArrowBack as BackIcon,
-  Info as InfoIcon,
-  Event as EventIcon,
-  Update as UpdateIcon,
-  MoreVert as MoreIcon,
+  Person as UserIcon,
   Badge as RoleIcon,
   Apps as SystemIcon,
   Computer as MachineIcon,
+  History as AuditIcon,
+  Info as GeneralIcon,
+  ArrowBack as BackIcon,
   Email as EmailIcon,
   Phone as PhoneIcon,
-  Fingerprint as FingerprintIcon,
-  Lock as PasswordIcon,
-  AssignmentInd as DocumentIcon,
-  Event as CalendarIcon,
+  Fingerprint as DocumentIcon,
 } from '@mui/icons-material'
 
-const DELETE_USUARIO_MUTATION = gql`
-  mutation DeleteUsuarioMutation($id: Int!) {
-    deleteUsuario(id: $id) {
-      id
-    }
+/* HELPERS GLOBALES */
+const fmtDate = (d) => {
+  if (!d) return '-'
+  try {
+    return new Date(d).toLocaleString('es-BO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  } catch {
+    return '-'
   }
-`
-
-const GET_ROLES_QUERY = gql`
-  query RolesUsuarioQuery($id: Int!) {
-    usuario(id: $id) {
-      usuario_roles {
-        id
-        roles {
-          id
-          nombre
-          cod_tipo_rol
-          descripcion
-          estado
-        }
-      }
-    }
-  }
-`
-
-const GET_SISTEMAS_QUERY = gql`
-  query SistemasUsuarioQuery($id: Int!) {
-    usuario(id: $id) {
-      usuario_roles {
-        id
-        sistemas {
-          id
-          nombre
-          sigla
-          descripcion
-          estado
-        }
-      }
-    }
-  }
-`
-
-const GET_MAQUINAS_QUERY = gql`
-  query MaquinasUsuarioQuery($id: Int!) {
-    usuario(id: $id) {
-      usuario_roles {
-        id
-        maquinas {
-          id
-          nombre
-          ip
-          so
-          estado
-        }
-      }
-    }
-  }
-`
-
-const GET_USER_CREACION_QUERY = gql`
-  query UserCreacionQuery($id: Int!) {
-    usuario(id: $id) {
-      nombres
-      primer_apellido
-      segundo_apellido
-    }
-  }
-`
-
-const GET_USER_MODIFICACION_QUERY = gql`
-  query UserModificacionQuery($id: Int!) {
-    usuario(id: $id) {
-      nombres
-      primer_apellido
-      segundo_apellido
-    }
-  }
-`
-
-const formatDateTime = (dateString) => {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleString('es-ES', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
-const Usuario = ({ usuario }) => {
+const formatUserName = (userObj) => {
+  if (!userObj) return 'Sistema Automático'
+  if (typeof userObj === 'string' || typeof userObj === 'number') return userObj
+  const { nombres, primer_apellido, segundo_apellido } = userObj || {}
+  if (!nombres && !primer_apellido) return '-'
+  return `${nombres || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim()
+}
+
+const getStatusColor = (codigo) => {
+  if (!codigo) return 'default'
+  const c = String(codigo).toUpperCase()
+  const map = {
+    OPERATIVO: 'success', ACTIVO: 'success', EXITOSO: 'success',
+    FUERA_SERVICIO: 'error', INACTIVO: 'error',
+    MANTENIMIENTO: 'warning', PENDIENTE: 'warning',
+  }
+  return map[c] || 'default'
+}
+
+/* SUB-COMPONENTES */
+const RowItem = ({ label, value, icon, isLast }) => {
   const theme = useTheme()
-  const [activeTab, setActiveTab] = useState(0)
-
-  const { data: rolesData } = useQuery(GET_ROLES_QUERY, {
-    variables: { id: usuario.id }
-  })
-
-  const { data: sistemasData } = useQuery(GET_SISTEMAS_QUERY, {
-    variables: { id: usuario.id }
-  })
-
-  const { data: maquinasData } = useQuery(GET_MAQUINAS_QUERY, {
-    variables: { id: usuario.id }
-  })
-
-  const { data: userCreacionData } = useQuery(GET_USER_CREACION_QUERY, {
-    variables: { id: usuario.usuario_creacion },
-    skip: !usuario.usuario_creacion
-  })
-
-  const { data: userModificacionData } = useQuery(GET_USER_MODIFICACION_QUERY, {
-    variables: { id: usuario.usuario_modificacion },
-    skip: !usuario.usuario_modificacion
-  })
-
-  // Extraer datos de las consultas
-  const roles = rolesData?.usuario?.usuario_roles || []
-  const sistemas = sistemasData?.usuario?.usuario_roles || []
-  const maquinas = maquinasData?.usuario?.usuario_roles || []
-
-  // Eliminar duplicados de sistemas y máquinas
-  const sistemasUnicos = sistemas.reduce((acc, current) => {
-    if (current.sistemas) {
-      const x = acc.find(item => item.sistemas?.id === current.sistemas?.id)
-      if (!x) {
-        return acc.concat([current])
-      }
-    }
-    return acc
-  }, [])
-
-  const maquinasUnicas = maquinas.reduce((acc, current) => {
-    if (current.maquinas) {
-      const x = acc.find(item => item.maquinas?.id === current.maquinas?.id)
-      if (!x) {
-        return acc.concat([current])
-      }
-    }
-    return acc
-  }, [])
-
-  // Formatear nombres de usuarios
-  const formatUserName = (user) => {
-    if (!user) return 'N/A'
-    return `${user.nombres || ''} ${user.primer_apellido || ''} ${user.segundo_apellido || ''}`.trim()
-  }
-
-  const usuarioCreacionNombre = formatUserName(userCreacionData?.usuario)
-  const usuarioModificacionNombre = formatUserName(userModificacionData?.usuario)
-
-
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue)
-  }
-
-  const getEstadoColor = (estado) => {
-    return estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main
-  }
+  const displayValue = (value === null || value === undefined || value === '') ? '-' : value;
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* acciones */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Tooltip title="Volver a la lista">
-          <IconButton
-            onClick={() => navigate(routes.usuarios())}
-            sx={{
-              mr: 2,
-              backgroundColor: theme.palette.action.hover,
-              '&:hover': {
-                backgroundColor: theme.palette.action.selected,
-              }
-            }}
-          >
-            <BackIcon />
-          </IconButton>
-        </Tooltip>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
-          {usuario.nombres} {usuario.primer_apellido} {usuario.segundo_apellido}
-        </Typography>
-        <Box sx={{ flexGrow: 1 }} />
-        <Stack direction="row" spacing={2}>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<EditIcon />}
-            component={Link}
-            to={routes.editUsuario({ id: usuario.id })}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Editar Usuario
-          </Button>
-         
-        </Stack>
+    <Box sx={{ display: 'flex', alignItems: 'center', py: 0.75, borderBottom: isLast ? 'none' : '1px solid', borderColor: theme.palette.divider, '&:hover': { bgcolor: 'action.hover' } }}>
+      <Typography variant="body2" color="text.secondary" sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}>
+        {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+        {label}
+      </Typography>
+      <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
+        {React.isValidElement(displayValue) ? displayValue : (
+          <Typography variant="body1" sx={{ fontWeight: 600 }}>{displayValue}</Typography>
+        )}
       </Box>
+    </Box>
+  )
+}
 
-      {/* informacion */}
-      <Card sx={{ mb: 3, borderRadius: 3, boxShadow: theme.shadows[3] }}>
-        <CardHeader
-          avatar={
-            <Avatar sx={{
-              bgcolor: theme.palette.primary.main,
-              width: 56,
-              height: 56,
-            }}>
-              <PersonIcon fontSize="large" />
-            </Avatar>
-          }
-          title={
-            <Typography variant="h5" component="div" sx={{ fontWeight: 600 }}>
-              {usuario.nombres} {usuario.primer_apellido} {usuario.segundo_apellido}
-              <Chip
-                label={formatEnum(usuario.estado)}
-                size="small"
-                sx={{
-                  ml: 2,
-                  backgroundColor: getEstadoColor(usuario.estado),
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '0.75rem',
-                  height: 24,
-                }}
-              />
-            </Typography>
-          }
-          subheader={
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <Typography variant="subtitle1" color="text.secondary">
-                {usuario.nombre_usuario} - {usuario.email}
-              </Typography>
-            </Box>
-          }
-          action={
-            <IconButton>
-              <MoreIcon />
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  return (
+    <Card sx={{ borderRadius: 2, borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`, bgcolor: theme.palette.background.paper }}>
+      <CardHeader avatar={<Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main, width: 32, height: 32 }}>{icon}</Avatar>} title={<Typography sx={{ fontWeight: 700 }}>{title}</Typography>} sx={{ py: 1, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }} />
+      <CardContent sx={{ p: 1.5 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* COMPONENTE PRINCIPAL */
+const Usuario = ({ usuario }) => {
+  const theme = useTheme()
+  const [tab, setTab] = useState(0)
+
+  const usuarioRoles = usuario?.usuario_roles || []
+
+  const handleTabChange = (_, v) => setTab(v)
+
+  // Extraer roles, sistemas y máquinas únicos
+  const rolesUnicos = useMemo(() => {
+    const map = new Map()
+    usuarioRoles.forEach(ur => {
+      if (ur.roles && !map.has(ur.roles.id)) {
+        map.set(ur.roles.id, ur.roles)
+      }
+    })
+    return [...map.values()]
+  }, [usuarioRoles])
+
+  const sistemasUnicos = useMemo(() => {
+    const map = new Map()
+    usuarioRoles.forEach(ur => {
+      if (ur.sistemas && !map.has(ur.sistemas.id)) {
+        map.set(ur.sistemas.id, ur.sistemas)
+      }
+    })
+    return [...map.values()]
+  }, [usuarioRoles])
+
+  const maquinasUnicas = useMemo(() => {
+    const map = new Map()
+    usuarioRoles.forEach(ur => {
+      if (ur.maquinas && !map.has(ur.maquinas.id)) {
+        map.set(ur.maquinas.id, ur.maquinas)
+      }
+    })
+    return [...map.values()]
+  }, [usuarioRoles])
+
+  return (
+    <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
+      <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '0 0 12px 12px', mb: 3, bgcolor: theme.palette.background.paper }}>
+        <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Tooltip title="Volver">
+            <IconButton onClick={() => navigate(routes.usuarios())} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`, color: theme.palette.primary.main, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}>
+              <BackIcon fontSize="small" />
             </IconButton>
-          }
-          sx={{
-            pb: 0,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          }}
-        />
-        <CardContent>
-          <Grid container spacing={3}>
-            {/* Left column - User info */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <InfoIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Información Personal
-              </Typography>
+          </Tooltip>
+          <Avatar sx={{ width: 42, height: 42, background: 'linear-gradient(135deg, #667eea, #764ba2)' }}>
+            <UserIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="h5" fontWeight={800}>{formatUserName(usuario)}</Typography>
+            <Typography variant="caption" color="text.secondary">Usuario del sistema</Typography>
+          </Box>
+        </Box>
 
-              <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                <Table size="small">
-                  <TableBody>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600, width: '40%' }}>Nombre de Usuario</TableCell>
-                      <TableCell>{usuario.nombre_usuario}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Nombre(s)</TableCell>
-                      <TableCell>{usuario.nombres}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Primer Apellido</TableCell>
-                      <TableCell>{usuario.primer_apellido}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Segundo Apellido</TableCell>
-                      <TableCell>{usuario.segundo_apellido}</TableCell>
-                    </TableRow>
-                  
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Número de Documento</TableCell>
-                      <TableCell>{usuario.nro_documento}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Correo Electrónico</TableCell>
-                      <TableCell>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <EmailIcon fontSize="small" color="action" />
-                          <Typography variant="body2">
-                            {usuario.email}
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Teléfono Celular</TableCell>
-                      <TableCell>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <PhoneIcon fontSize="small" color="action" />
-                          <Typography variant="body2">
-                            {usuario.celular}
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Grid>
+        <CardContent sx={{ px: 5, pb: 4 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, alignItems: 'start' }}>
+            <Stack spacing={2}>
+              <SectionCard icon={<GeneralIcon />} title="Información Personal" bgcolor={theme.palette.primary.main}>
+                <RowItem label="Nombre Usuario" value={usuario.nombre_usuario} />
+                <RowItem label="Nombres" value={usuario.nombres} />
+                <RowItem label="Primer Apellido" value={usuario.primer_apellido} />
+                <RowItem label="Segundo Apellido" value={usuario.segundo_apellido} />
+                <RowItem label="Nro. Documento" value={usuario.nro_documento} icon={<DocumentIcon />} />
+                <RowItem label="Email" value={usuario.email} icon={<EmailIcon />} />
+                <RowItem label="Celular" value={usuario.celular} icon={<PhoneIcon />} isLast />
+              </SectionCard>
+            </Stack>
 
-            {/* Right column - Status and audit */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <EventIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Auditoría
-              </Typography>
-
-              <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <PersonIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Creado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {usuarioCreacionNombre}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <CalendarIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Fecha Creación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDateTime(usuario.fecha_creacion)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <PersonIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Modificado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {usuarioModificacionNombre}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <UpdateIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Última Modificación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDateTime(usuario.fecha_modificacion)}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-
-              <Typography variant="subtitle1" sx={{
-                mb: 1,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <InfoIcon sx={{ mr: 1, color: theme.palette.info.main }} />
-                Estado
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                <Chip
-                  label={formatEnum(usuario.estado)}
-                  size="small"
-                  sx={{
-                    backgroundColor: getEstadoColor(usuario.estado),
-                    color: 'white',
-                  }}
-                />
-              </Typography>
-            </Grid>
-          </Grid>
+            <Stack spacing={2}>
+              <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
+                <RowItem label="Estado" value={<Chip label={usuario.estado} size="small" color={getStatusColor(usuario.estado)} sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem' }} />} />
+                <RowItem label="Fecha Creación" value={fmtDate(usuario.fecha_creacion)} />
+                <RowItem label="Creado por" value={formatUserName(usuario.creadoPor)} />
+                <RowItem label="Última Modificación" value={fmtDate(usuario.fecha_modificacion)} />
+                <RowItem label="Modificado por" value={formatUserName(usuario.modificadoPor)} isLast />
+              </SectionCard>
+            </Stack>
+          </Box>
         </CardContent>
       </Card>
 
-      {/* Tabs section */}
-      <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3] }}>
-        <Tabs
-          value={activeTab}
-          onChange={handleTabChange}
-          indicatorColor="primary"
-          textColor="primary"
-          variant="fullWidth"
-          sx={{
-            '& .MuiTabs-flexContainer': {
-              borderBottom: `1px solid ${theme.palette.divider}`,
-            }
-          }}
-        >
-          <Tab
-            label={
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <RoleIcon fontSize="small" />
-                <span>Roles</span>
-                <Chip
-                  label={roles.length}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.7rem' }}
-                />
-              </Stack>
-            }
-          />
-          <Tab
-            label={
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <SystemIcon fontSize="small" />
-                <span>Sistemas</span>
-                <Chip
-                  label={sistemasUnicos.length}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.7rem' }}
-                />
-              </Stack>
-            }
-          />
-          <Tab
-            label={
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <MachineIcon fontSize="small" />
-                <span>Máquinas</span>
-                <Chip
-                  label={maquinasUnicas.length}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.7rem' }}
-                />
-              </Stack>
-            }
-          />
+      <Card sx={{ borderRadius: 2, mt: 3, bgcolor: theme.palette.background.paper }}>
+        <Tabs value={tab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: `1px solid ${theme.palette.divider}`, px: 2 }}>
+          <Tab label={<Stack direction="row" spacing={1}><RoleIcon fontSize="small" /><span>Roles</span><Chip label={rolesUnicos.length} size="small" /></Stack>} />
+          <Tab label={<Stack direction="row" spacing={1}><SystemIcon fontSize="small" /><span>Sistemas</span><Chip label={sistemasUnicos.length} size="small" /></Stack>} />
+          <Tab label={<Stack direction="row" spacing={1}><MachineIcon fontSize="small" /><span>Máquinas</span><Chip label={maquinasUnicas.length} size="small" /></Stack>} />
         </Tabs>
 
         <CardContent>
-          {activeTab === 0 && (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                Roles asignados a este usuario
-              </Typography>
-              {roles.length > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Tipo</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Descripción</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
-
+          {tab === 0 && (
+            rolesUnicos.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Nombre</TableCell>
+                      <TableCell>Tipo</TableCell>
+                      <TableCell>Descripción</TableCell>
+                      <TableCell>Estado</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {rolesUnicos.map((r) => (
+                      <TableRow key={r.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          <Link to={routes.role({ id: r.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>{r.nombre}</Link>
+                        </TableCell>
+                        <TableCell>{r.cod_tipo_rol}</TableCell>
+                        <TableCell>{r.descripcion}</TableCell>
+                        <TableCell><Chip label={r.estado} size="small" color={getStatusColor(r.estado)} /></TableCell>
                       </TableRow>
-
-                    </TableHead>
-                    <TableBody>
-                      {roles.map((usuarioRol) => (
-                        usuarioRol.roles && (
-                          <TableRow key={usuarioRol.id} hover>
-                            <TableCell>
-                              <Link
-                                to={routes.role({ id: usuarioRol.roles.id })}
-                                style={{ textDecoration: 'none' }}
-                              >
-                                <Typography variant="body2" sx={{ color: theme.palette.primary.main, fontWeight: 500 }}>
-                                  {usuarioRol.roles.nombre}
-                                </Typography>
-                              </Link>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={usuarioRol.roles.cod_tipo_rol || 'N/A'}
-                                size="small"
-                                sx={{
-                                  backgroundColor: theme.palette.grey[200],
-                                  fontSize: '0.7rem',
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2">
-                                {usuarioRol.roles.descripcion?.substring(0, 50) || 'N/A'}
-                                {usuarioRol.roles.descripcion?.length > 50 ? '...' : ''}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={formatEnum(usuarioRol.roles.estado)}
-                                size="small"
-                                sx={{
-                                  backgroundColor: getEstadoColor(usuarioRol.roles.estado),
-                                  color: 'white',
-                                  fontSize: '0.7rem',
-                                }}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        )
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <RoleIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    Este usuario no tiene roles asignados.
-                  </Typography>
-                </Paper>
-              )}
-            </>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay roles asignados.</Typography>
           )}
 
-          {activeTab === 1 && (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                Sistemas asociados a este usuario
-              </Typography>
-              {sistemasUnicos.length > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Sigla</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Descripción</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
-
-
+          {tab === 1 && (
+            sistemasUnicos.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Sigla</TableCell>
+                      <TableCell>Nombre</TableCell>
+                      <TableCell>Descripción</TableCell>
+                      <TableCell>Estado</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {sistemasUnicos.map((s) => (
+                      <TableRow key={s.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          <Link to={routes.sistema({ id: s.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>{s.sigla}</Link>
+                        </TableCell>
+                        <TableCell>{s.nombre}</TableCell>
+                        <TableCell>{s.descripcion}</TableCell>
+                        <TableCell><Chip label={s.estado} size="small" color={getStatusColor(s.estado)} /></TableCell>
                       </TableRow>
-
-                    </TableHead>
-                    <TableBody>
-                      {sistemasUnicos.map((usuarioRol) => (
-                        usuarioRol.sistemas && (
-                          <TableRow key={usuarioRol.id} hover>
-                            <TableCell>
-                              <Link
-                                to={routes.sistema({ id: usuarioRol.sistemas.id })}
-                                style={{ textDecoration: 'none' }}
-                              >
-                                <Typography variant="body2" sx={{ color: theme.palette.primary.main, fontWeight: 500 }}>
-                                  {usuarioRol.sistemas.nombre}
-                                </Typography>
-                              </Link>
-                            </TableCell>
-                            <TableCell>{usuarioRol.sistemas.sigla || 'N/A'}</TableCell>
-                            <TableCell>
-                              <Typography variant="body2">
-                                {usuarioRol.sistemas.descripcion?.substring(0, 50) || 'N/A'}
-                                {usuarioRol.sistemas.descripcion?.length > 50 ? '...' : ''}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>
-                              <Chip
-                                label={formatEnum(usuarioRol.sistemas.estado)}
-                                size="small"
-                                sx={{
-                                  backgroundColor: getEstadoColor(usuarioRol.sistemas.estado),
-                                  color: 'white',
-                                  fontSize: '0.7rem',
-                                }}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        )
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <SystemIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    Este usuario no está asociado a ningún sistema.
-                  </Typography>
-                </Paper>
-              )}
-            </>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay sistemas asociados.</Typography>
           )}
 
-          {activeTab === 2 && (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                Máquinas asociadas a este usuario
-              </Typography>
-              {maquinasUnicas.length > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>IP</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Sistema Operativo</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
-
+          {tab === 2 && (
+            maquinasUnicas.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Nombre</TableCell>
+                      <TableCell>IP</TableCell>
+                      <TableCell>SO</TableCell>
+                      <TableCell>Estado</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {maquinasUnicas.map((m) => (
+                      <TableRow key={m.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          <Link to={routes.maquina({ id: m.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>{m.nombre}</Link>
+                        </TableCell>
+                        <TableCell>{m.ip}</TableCell>
+                        <TableCell>{m.so}</TableCell>
+                        <TableCell><Chip label={m.estado} size="small" color={getStatusColor(m.estado)} /></TableCell>
                       </TableRow>
-
-                    </TableHead>
-                    <TableBody>
-                      {maquinasUnicas.map((usuarioRol) => (
-                        usuarioRol.maquinas && (
-                          <TableRow key={usuarioRol.id} hover>
-                            <TableCell>
-                              <Link
-                                to={routes.maquina({ id: usuarioRol.maquinas.id })}
-                                style={{ textDecoration: 'none' }}
-                              >
-                                <Typography variant="body2" sx={{ color: theme.palette.primary.main, fontWeight: 500 }}>
-                                  {usuarioRol.maquinas.nombre}
-                                </Typography>
-                              </Link>
-                            </TableCell>
-                            <TableCell>{usuarioRol.maquinas.ip}</TableCell>
-                            <TableCell>{usuarioRol.maquinas.so}</TableCell>
-                            <TableCell>
-                              <Chip
-                                label={formatEnum(usuarioRol.maquinas.estado)}
-                                size="small"
-                                sx={{
-                                  backgroundColor: getEstadoColor(usuarioRol.maquinas.estado),
-                                  color: 'white',
-                                  fontSize: '0.7rem',
-                                }}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        )
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <MachineIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    Este usuario no tiene máquinas asignadas.
-                  </Typography>
-                </Paper>
-              )}
-            </>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay máquinas asignadas.</Typography>
           )}
         </CardContent>
-      </Card >
-    </Box >
+      </Card>
+    </Box>
   )
 }
 

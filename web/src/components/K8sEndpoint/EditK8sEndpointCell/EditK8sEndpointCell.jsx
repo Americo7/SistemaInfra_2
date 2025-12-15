@@ -23,7 +23,7 @@ export const QUERY = gql`
 `
 
 const UPDATE_K8S_ENDPOINT_MUTATION = gql`
-  mutation UpdateK8sEndpointMutation(
+  mutation UpdateK8sEndpointMutation1(
     $id: Int!
     $input: UpdateK8sEndpointInput!
   ) {

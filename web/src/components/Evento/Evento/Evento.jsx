@@ -1,626 +1,332 @@
-import { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-import { useMutation, useQuery, gql } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
-import { formatEnum, timeTag } from 'src/lib/formatters'
-
-// Material-UI imports
 import {
   Box,
   Typography,
+  Card,
+  CardContent,
+  CardHeader,
+  Avatar,
+  Chip,
   Paper,
-  Grid,
+  Stack,
+  Tabs,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Button,
-  IconButton,
-  Chip,
-  Card,
-  CardContent,
-  CardHeader,
-  Avatar,
-  colors,
-  Tab,
-  Tabs,
-  Divider,
-  Stack,
-  Tooltip,
   useTheme,
+  IconButton,
+  Tooltip,
+  alpha,
 } from '@mui/material'
+
 import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
   Event as EventIcon,
+  DeveloperBoard as InfraIcon,
+  History as BitacoraIcon,
+  Assignment as AuditIcon,
+  Info as GeneralIcon,
   ArrowBack as BackIcon,
-  Info as InfoIcon,
-  CalendarToday as CalendarIcon,
-  Person as PersonIcon,
-  Update as UpdateIcon,
-  MoreVert as MoreIcon,
-  History as HistoryIcon,
 } from '@mui/icons-material'
 
-const DELETE_EVENTO_MUTATION = gql`
-  mutation DeleteEventoMutation($id: Int!) {
-    deleteEvento(id: $id) {
-      id
-    }
-  }
-`
-
-const GET_USUARIOS_QUERY = gql`
-  query GetUsuarios_fromEventoVista {
-    usuarios {
-      id
-      nombres
-      primer_apellido
-    }
-  }
-`
-// Bitácora de eventos fue removida del sistema
-
-const GET_INFRA_AFECTADA_QUERY = gql`
-  query GetInfraAfectadaByEvento($id: Int!) {
-    evento(id: $id) {
-      infra_afectada {
-        id
-        data_centers {
-          id
-          nombre
-        }
-        servidores {
-          id
-          nombre
-        }
-        maquinas {
-          id
-          nombre
-        }
-      }
-    }
-  }
-`
-
-const Evento = ({ evento }) => {
-  const theme = useTheme()
-  const [activeTab, setActiveTab] = useState(0)
-
-  const [deleteEvento] = useMutation(DELETE_EVENTO_MUTATION, {
-    onCompleted: () => {
-      toast.success('Evento eliminado correctamente')
-      navigate(routes.eventos())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar evento: ${error.message}`)
-    },
-  })
-
-  // Consulta para todos los usuarios
-  const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
-
-  // Consulta para la infraestructura afectada
-  const { data: infraAfectadaData } = useQuery(GET_INFRA_AFECTADA_QUERY, {
-    variables: { id: evento.id }
-  })
-
-  // Función para convertir responsables a array de IDs
-  const getResponsableIds = () => {
-    if (!evento.responsables) return []
-
-    if (Array.isArray(evento.responsables)) {
-      return evento.responsables
-    }
-
-    if (typeof evento.responsables === 'string') {
-      return evento.responsables.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id))
-    }
-
-    return []
-  }
-
-  const responsableIds = getResponsableIds()
-
-  // Mapa de IDs a nombres completos (de la tabla usuario)
-  const usuariosMap = usuariosData?.usuarios?.reduce((map, usuario) => {
-    map[usuario.id] = `${usuario.nombres} ${usuario.primer_apellido}`
-    return map
-  }, {}) || {}
-
-  // Obtener nombres de responsables desde el mapa de usuarios
-  const responsablesNombres = responsableIds
-    .map(id => usuariosMap[id])
-    .filter(Boolean) // Filtra nombres no encontrados
-    .join(', ') || 'No especificado'
-
-  // Bitácoras fue removida del sistema
-  const bitacoras = []
-
-  // Datos de infraestructura afectada
-  const infraAfectada = infraAfectadaData?.evento?.infra_afectada || []
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar el evento ${id}?`)) {
-      deleteEvento({ variables: { id } })
-    }
-  }
-
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue)
-  }
-
-  const getEstadoColor = (estado) => {
-    return estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main
-  }
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-'
-    const date = new Date(dateString)
-    return date.toLocaleString('es-ES', {
+/* -----------------------
+ * HELPERS GLOBALES
+ * ----------------------- */
+const fmtDate = (d) => {
+  if (!d) return '-'
+  try {
+    return new Date(d).toLocaleString('es-BO', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     })
+  } catch {
+    return '-'
   }
+}
+
+const formatUserName = (userObj) => {
+  if (!userObj) return 'Sistema Automático'
+  if (typeof userObj === 'string' || typeof userObj === 'number') return userObj
+  const { nombres, primer_apellido, segundo_apellido } = userObj || {}
+  if (!nombres && !primer_apellido) return '-'
+  return `${nombres || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim()
+}
+
+const getStatusColor = (codigo) => {
+  if (!codigo) return 'default'
+  const c = String(codigo).toUpperCase()
+  const map = {
+    OPERATIVO: 'success', ACTIVO: 'success', EXITOSO: 'success', REALIZADO: 'success', FINALIZADO: 'success',
+    FUERA_SERVICIO: 'error', FUERA_DE_SERVICIO: 'error', INACTIVO: 'error', FALLIDO: 'error', CRITICO: 'error', BAJA: 'error',
+    MANTENIMIENTO: 'warning', PENDIENTE: 'warning', INICIADO: 'warning', EN_PROGRESO: 'warning',
+    PROCESO: 'info', CREADO: 'info'
+  }
+  return map[c] || 'default'
+}
+
+/* -----------------------
+ * SUB-COMPONENTES UI
+ * ----------------------- */
+const RowItem = ({ label, value, icon, isLast }) => {
+  const theme = useTheme()
+  const displayValue = (value === null || value === undefined || value === '') ? '-' : value;
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Encabezado */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Tooltip title="Volver a la lista">
-          <IconButton
-            onClick={() => navigate(routes.eventos())}
-            sx={{
-              mr: 2,
-              backgroundColor: theme.palette.action.hover,
-              '&:hover': {
-                backgroundColor: theme.palette.action.selected,
-              }
-            }}
-          >
-            <BackIcon />
-          </IconButton>
-        </Tooltip>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 900 }}>
-          {evento.cod_evento}
-        </Typography>
-        <Box sx={{ flexGrow: 1 }} />
-        <Stack direction="row" spacing={2}>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<EditIcon />}
-            component={Link}
-            to={routes.editEvento({ id: evento.id })}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Editar Evento
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(evento.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
-          </Button>
-        </Stack>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        py: 0.75,
+        borderBottom: isLast ? 'none' : '1px solid',
+        borderColor: theme.palette.divider,
+        transition: 'background-color 0.2s',
+        '&:hover': { bgcolor: 'action.hover' },
+      }}
+    >
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}
+      >
+        {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+        {label}
+      </Typography>
+
+      <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
+        {React.isValidElement(displayValue) ? displayValue : (
+          <Typography variant="body1" sx={{ fontWeight: 600 }}>
+            {displayValue}
+          </Typography>
+        )}
       </Box>
+    </Box>
+  )
+}
 
-      {/* Tarjeta principal de información */}
-      <Card sx={{ mb: 3, borderRadius: 3, boxShadow: theme.shadows[3] }}>
-        <CardHeader
-          avatar={
-            <Avatar sx={{
-              bgcolor: theme.palette.primary.main,
-              width: 56,
-              height: 56,
-            }}>
-              <EventIcon fontSize="large" />
-            </Avatar>
-          }
-          title={
-            <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
-              {evento.cod_evento}
-              <Chip
-                label={evento.estado}
-                size="small"
-                sx={{
-                  ml: 2,
-                  backgroundColor: getEstadoColor(evento.estado),
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '0.75rem',
-                  height: 24,
-                }}
-              />
-            </Typography>
-          }
-          subheader={
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <Typography variant="subtitle1" color="text.secondary">
-                Creado el {formatDate(evento.fecha_creacion)}
-              </Typography>
-            </Box>
-          }
-          action={
-            <IconButton>
-              <MoreIcon />
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  return (
+    <Card
+      sx={{
+        borderRadius: 2,
+        borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`,
+        bgcolor: theme.palette.background.paper,
+        height: 'auto'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography sx={{ fontWeight: 700 }}>{title}</Typography>}
+        sx={{ py: 1, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 1.5 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* -----------------------
+ * COMPONENTE PRINCIPAL
+ * ----------------------- */
+const Evento = ({ evento }) => {
+  const theme = useTheme()
+  const [tab, setTab] = useState(0)
+
+  // Datos básicos
+  const infraAfectada = evento?.infra_afectada || []
+  const eventosBitacora = evento?.eventos_bitacora || []
+
+  const handleTabChange = (_, v) => setTab(v)
+
+  return (
+    <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
+      {/* HEADER CARD */}
+      <Card
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: '0 0 12px 12px',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
+        <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Tooltip title="Volver">
+            <IconButton
+              onClick={() => navigate(routes.eventos())}
+              sx={{
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                color: theme.palette.primary.main,
+                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+              }}
+            >
+              <BackIcon fontSize="small" />
             </IconButton>
-          }
-          sx={{
-            pb: 0,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          }}
-        />
-        <CardContent>
-          <Grid container spacing={3}>
-            {/* Columna izquierda - Detalles del evento */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <InfoIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Detalles del Evento
-              </Typography>
+          </Tooltip>
 
-              <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                <Table size="small">
-                  <TableBody>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Tipo de Evento</TableCell>
-                      <TableCell>{evento.cod_tipo_evento}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Codigo de Evento</TableCell>
-                      <TableCell>{evento.cod_evento}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Descripción</TableCell>
-                      <TableCell>{evento.descripcion}</TableCell>
-                    </TableRow>
+          <Avatar
+            sx={{
+              width: 42,
+              height: 42,
+              background: 'linear-gradient(135deg, #fa709a, #fee140)',
+            }}
+          >
+            <EventIcon />
+          </Avatar>
 
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Fecha del Evento</TableCell>
-                      <TableCell>{timeTag(evento.fecha_evento)}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Responsables</TableCell>
-                      <TableCell>
-                        {responsablesNombres}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Estado del Evento</TableCell>
-                      <TableCell>{evento.estado_evento}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Cite</TableCell>
-                      <TableCell>{evento.cite || 'N/A'}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Solicitante</TableCell>
-                      <TableCell>{evento.solicitante || 'N/A'}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Grid>
+          <Box>
+            <Typography variant="h5" fontWeight={800}>
+              {evento.cod_evento || `Evento #${evento.id}`}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Evento registrado
+            </Typography>
+          </Box>
+        </Box>
 
-            {/* Columna derecha - Auditoría */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <UpdateIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Información de Auditoría
-              </Typography>
+        <CardContent sx={{ px: 5, pb: 4 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, alignItems: 'start' }}>
 
-              <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <PersonIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Creado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {usuariosMap[evento.usuario_creacion] || evento.usuario_creacion || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <CalendarIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Fecha Creación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDate(evento.fecha_creacion)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <PersonIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Modificado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {usuariosMap[evento.usuario_modificacion] || evento.usuario_modificacion || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <CalendarIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Última Modificación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDate(evento.fecha_modificacion)}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
-          </Grid>
+            {/* --- COLUMNA IZQUIERDA --- */}
+            <Stack spacing={2}>
+              {/* 1. INFORMACIÓN GENERAL */}
+              <SectionCard icon={<GeneralIcon />} title="Información General" bgcolor={theme.palette.primary.main}>
+                <RowItem label="Tipo Evento" value={evento.cod_tipo_evento} />
+                <RowItem label="Código Evento" value={evento.cod_evento} />
+                <RowItem label="Descripción" value={evento.descripcion} />
+                <RowItem label="Fecha Evento" value={fmtDate(evento.fecha_evento)} />
+                <RowItem label="Solicitante" value={evento.solicitante} />
+                <RowItem label="CITE" value={evento.cite} />
+                <RowItem
+                  label="Estado Evento"
+                  isLast
+                  value={
+                    <Chip
+                      label={evento.estado_evento}
+                      size="small"
+                      color={getStatusColor(evento.estado_evento)}
+                      sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem' }}
+                    />
+                  }
+                />
+              </SectionCard>
+            </Stack>
+
+            {/* --- COLUMNA DERECHA --- */}
+            <Stack spacing={2}>
+              {/* 1. AUDITORÍA */}
+              <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
+                <RowItem
+                  label="Estado Registro"
+                  value={
+                    <Chip
+                      label={evento.estado}
+                      size="small"
+                      color={getStatusColor(evento.estado)}
+                      sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem' }}
+                    />
+                  }
+                />
+                <RowItem label="Fecha Creación" value={fmtDate(evento.fecha_creacion)} />
+                <RowItem label="Creado por" value={formatUserName(evento.creadoPor)} />
+                <RowItem label="Última Modificación" value={fmtDate(evento.fecha_modificacion)} />
+                <RowItem label="Modificado por" value={formatUserName(evento.modificadoPor)} isLast />
+              </SectionCard>
+            </Stack>
+
+          </Box>
         </CardContent>
       </Card>
-
-      {/* Sección de pestañas */}
-      <Card sx={{ borderRadius: 3, boxShadow: theme.shadows[3] }}>
+      <Card sx={{ borderRadius: 2, mt: 3, bgcolor: theme.palette.background.paper }}>
         <Tabs
-          value={activeTab}
+          value={tab}
           onChange={handleTabChange}
-          indicatorColor="primary"
-          textColor="primary"
-          variant="fullWidth"
-          sx={{
-            '& .MuiTabs-flexContainer': {
-              borderBottom: `1px solid ${theme.palette.divider}`,
-            }
-          }}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ borderBottom: `1px solid ${theme.palette.divider}`, px: 2 }}
         >
-          <Tab
-            label={
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <HistoryIcon fontSize="small" />
-                <span>Bitácoras</span>
-                <Chip
-                  label={bitacoras.length}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.7rem' }}
-                />
-              </Stack>
-            }
-          />
-          <Tab
-            label={
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <InfoIcon fontSize="small" />
-                <span>Infraestructura Afectada</span>
-                <Chip
-                  label={infraAfectada.length}
-                  size="small"
-                  sx={{ height: 20, fontSize: '0.7rem' }}
-                />
-              </Stack>
-            }
-          />
+          <Tab label={<Stack direction="row" spacing={1}><InfraIcon fontSize="small" /><span>Infraestructura Afectada</span><Chip label={infraAfectada.length} size="small" /></Stack>} />
+          <Tab label={<Stack direction="row" spacing={1}><BitacoraIcon fontSize="small" /><span>Bitácora</span><Chip label={eventosBitacora.length} size="small" /></Stack>} />
         </Tabs>
 
         <CardContent>
-          {activeTab === 0 && (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                Historial de cambios del evento
-              </Typography>
-              {bitacoras.length > 0 ? (
-                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                        <TableCell sx={{ fontWeight: 600 }}>Fecha</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Estado Anterior</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Estado Actual</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Descripción</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Usuario</TableCell>
+          {/* TAB 0: INFRAESTRUCTURA AFECTADA */}
+          {tab === 0 && (
+            infraAfectada.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Tipo</TableCell>
+                      <TableCell>Recurso</TableCell>
+                      <TableCell>Estado</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {infraAfectada.map((ia) => (
+                      <TableRow key={ia.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          {ia.data_centers ? 'Data Center' : ia.servidores ? 'Servidor' : ia.maquinas ? 'Máquina' : 'Otro'}
+                        </TableCell>
+                        <TableCell>
+                          {ia.data_centers && ia.data_centers.nombre}
+                          {ia.servidores && (
+                            <Link to={routes.servidor({ id: ia.servidores.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>
+                              {ia.servidores.nombre}
+                            </Link>
+                          )}
+                          {ia.maquinas && (
+                            <Link to={routes.maquina({ id: ia.maquinas.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>
+                              {ia.maquinas.nombre}
+                            </Link>
+                          )}
+                        </TableCell>
+                        <TableCell><Chip label={ia.estado} size="small" color={getStatusColor(ia.estado)} /></TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {bitacoras.map((bitacora) => (
-                        <TableRow key={bitacora.id} hover>
-                          <TableCell>{formatDate(bitacora.fecha_creacion)}</TableCell>
-                          <TableCell>
-                            <Chip
-                              label={bitacora.estado_anterior}
-                              size="small"
-                              sx={{
-                                backgroundColor: theme.palette.grey[200],
-                                fontSize: '0.7rem',
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              label={bitacora.estado_actual}
-                              size="small"
-                              sx={{
-                                backgroundColor: theme.palette.info.main,
-                                color: 'white',
-                                fontSize: '0.7rem',
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>{bitacora.descripcion}</TableCell>
-                          <TableCell>
-                            {usuariosMap[bitacora.usuario_creacion] || bitacora.usuario_creacion || 'N/A'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <HistoryIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    No hay registros de bitácora para este evento.
-                  </Typography>
-                </Paper>
-              )}
-            </>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay infraestructura afectada.</Typography>
           )}
 
-          {activeTab === 1 && (
-            <>
-              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-                Infraestructura afectada por este evento
-              </Typography>
-              {infraAfectada.length > 0 ? (
-                <Box>
-                  {/* Data Centers */}
-                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                    Data Centers afectados:
-                  </Typography>
-                  {infraAfectada.filter(item => item.data_centers).length > 0 ? (
-                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                            <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {infraAfectada
-                            .filter(item => item.data_centers)
-                            .map((item) => (
-                              <TableRow key={`dc-${item.data_centers.id}`} hover>
-                                <TableCell>
-                                  <Typography variant="body2">
-                                    {item.data_centers.nombre}
-                                  </Typography>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                      No hay data centers afectados
-                    </Typography>
-                  )}
-
-                  {/* Servidores */}
-                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                    Servidores afectados:
-                  </Typography>
-                  {infraAfectada.filter(item => item.servidores).length > 0 ? (
-                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                            <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {infraAfectada
-                            .filter(item => item.servidores)
-                            .map((item) => (
-                              <TableRow key={`sv-${item.servidores.id}`} hover>
-                                <TableCell>
-                                  <Link
-                                    to={routes.servidor({ id: item.servidores.id })}
-                                    style={{ textDecoration: 'none' }}
-                                  >
-                                    <Typography variant="body2" sx={{ color: theme.palette.primary.main }}>
-                                      {item.servidores.nombre}
-                                    </Typography>
-                                  </Link>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                      No hay servidores afectados
-                    </Typography>
-                  )}
-
-                  {/* Máquinas */}
-                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                    Máquinas afectadas:
-                  </Typography>
-                  {infraAfectada.filter(item => item.maquinas).length > 0 ? (
-                    <TableContainer component={Paper} variant="outlined" sx={{ mb: 3, borderRadius: 2 }}>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ backgroundColor: theme.palette.grey[50] }}>
-                            <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {infraAfectada
-                            .filter(item => item.maquinas)
-                            .map((item) => (
-                              <TableRow key={`mq-${item.maquinas.id}`} hover>
-                                <TableCell>
-                                  <Link
-                                    to={routes.maquina({ id: item.maquinas.id })}
-                                    style={{ textDecoration: 'none' }}
-                                  >
-                                    <Typography variant="body2" sx={{ color: theme.palette.primary.main }}>
-                                      {item.maquinas.nombre}
-                                    </Typography>
-                                  </Link>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No hay máquinas afectadas
-                    </Typography>
-                  )}
-                </Box>
-              ) : (
-                <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                  <InfoIcon sx={{ fontSize: 40, color: theme.palette.grey[400], mb: 1 }} />
-                  <Typography variant="body1" color="text.secondary">
-                    No hay infraestructura afectada registrada para este evento.
-                  </Typography>
-                </Paper>
-              )}
-            </>
+          {/* TAB 1: BITÁCORA */}
+          {tab === 1 && (
+            eventosBitacora.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Fecha</TableCell>
+                      <TableCell>Estado Anterior</TableCell>
+                      <TableCell>Estado Actual</TableCell>
+                      <TableCell>Descripción</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {eventosBitacora.map((b) => (
+                      <TableRow key={b.id} hover>
+                        <TableCell>{fmtDate(b.fecha_creacion)}</TableCell>
+                        <TableCell><Chip label={b.estado_anterior} size="small" variant="outlined" /></TableCell>
+                        <TableCell><Chip label={b.estado_actual} size="small" color="primary" /></TableCell>
+                        <TableCell>{b.descripcion}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay bitácora registrada.</Typography>
           )}
         </CardContent>
       </Card>

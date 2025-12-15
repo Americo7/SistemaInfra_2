@@ -1,444 +1,189 @@
-import { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-import { useMutation, useQuery } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
-import { formatEnum, timeTag } from 'src/lib/formatters'
-
-// Material-UI imports
 import {
   Box,
   Typography,
+  Card,
+  CardContent,
+  CardHeader,
+  Avatar,
+  Chip,
   Paper,
-  Grid,
+  Stack,
+  Tabs,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Button,
-  IconButton,
-  Chip,
-  Card,
-  CardContent,
-  CardHeader,
-  Avatar,
-  Stack,
-  Tooltip,
   useTheme,
+  IconButton,
+  Tooltip,
+  alpha,
 } from '@mui/material'
+
 import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
+  Assignment as AssignmentIcon,
   Person as UserIcon,
-  VerifiedUser as RoleIcon,
+  Badge as RoleIcon,
   Computer as MachineIcon,
-  Dns as SystemIcon,
+  Apps as SystemIcon,
+  History as AuditIcon,
+  Info as GeneralIcon,
   ArrowBack as BackIcon,
-  Info as InfoIcon,
-  CalendarToday as CalendarIcon,
-  Update as UpdateIcon,
-  MoreVert as MoreIcon,
 } from '@mui/icons-material'
 
-const DELETE_USUARIO_ROL_MUTATION = gql`
-  mutation DeleteUsuarioRolMutation($id: Int!) {
-    deleteUsuarioRol(id: $id) {
-      id
-    }
-  }
-`
-
-const GET_USUARIO_QUERY = gql`
-  query GetUsuario($id: Int!) {
-    usuario(id: $id) {
-      id
-      nombres
-      primer_apellido
-    }
-  }
-`
-
-const GET_ROL_QUERY = gql`
-  query GetRol($id: Int!) {
-    role(id: $id) {
-      id
-      nombre
-      descripcion
-    }
-  }
-`
-
-const GET_MAQUINA_QUERY = gql`
-  query GetMaquina($id: Int!) {
-    maquina(id: $id) {
-      id
-      nombre
-    }
-  }
-`
-
-const GET_SISTEMA_QUERY = gql`
-  query GetSistema($id: Int!) {
-    sistema(id: $id) {
-      id
-      nombre
-    }
-  }
-`
-
-const GET_USUARIOS_QUERY = gql`
-  query GetUsuarios {
-    usuarios {
-      id
-      nombres
-      primer_apellido
-    }
-  }
-`
-
-const UsuarioRol = ({ usuarioRol }) => {
-  const theme = useTheme()
-
-  const [deleteUsuarioRol] = useMutation(DELETE_USUARIO_ROL_MUTATION, {
-    onCompleted: () => {
-      toast.success('Asignación de rol eliminada correctamente')
-      navigate(routes.usuarioRols())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar: ${error.message}`)
-    },
-  })
-
-  // Consultas para las asociaciones
-  const { data: usuarioData } = useQuery(GET_USUARIO_QUERY, {
-    variables: { id: usuarioRol.id_usuario },
-    skip: !usuarioRol.id_usuario
-  })
-
-  const { data: rolData } = useQuery(GET_ROL_QUERY, {
-    variables: { id: usuarioRol.id_rol },
-    skip: !usuarioRol.id_rol
-  })
-
-  const { data: maquinaData } = useQuery(GET_MAQUINA_QUERY, {
-    variables: { id: usuarioRol.id_maquina },
-    skip: !usuarioRol.id_maquina
-  })
-
-  const { data: sistemaData } = useQuery(GET_SISTEMA_QUERY, {
-    variables: { id: usuarioRol.id_sistema },
-    skip: !usuarioRol.id_sistema
-  })
-
-  // Consulta para los usuarios (para usuario_creacion/modificacion)
-  const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
-
-  // Mapa de IDs a nombres completos
-  const usuariosMap = usuariosData?.usuarios?.reduce((map, usuario) => {
-    map[usuario.id] = `${usuario.nombres} ${usuario.primer_apellido}`
-    return map
-  }, {}) || {}
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar esta asignación de rol (ID: ${id})?`)) {
-      deleteUsuarioRol({ variables: { id } })
-    }
-  }
-
-  const getEstadoColor = (estado) => {
-    return estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main
-  }
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-'
-    const date = new Date(dateString)
-    return date.toLocaleString('es-ES', {
+/* HELPERS GLOBALES */
+const fmtDate = (d) => {
+  if (!d) return '-'
+  try {
+    return new Date(d).toLocaleString('es-BO', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     })
+  } catch {
+    return '-'
   }
+}
+
+const formatUserName = (userObj) => {
+  if (!userObj) return 'Sistema Automático'
+  if (typeof userObj === 'string' || typeof userObj === 'number') return userObj
+  const { nombres, primer_apellido, segundo_apellido } = userObj || {}
+  if (!nombres && !primer_apellido) return '-'
+  return `${nombres || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim()
+}
+
+const getStatusColor = (codigo) => {
+  if (!codigo) return 'default'
+  const c = String(codigo).toUpperCase()
+  const map = {
+    OPERATIVO: 'success', ACTIVO: 'success', EXITOSO: 'success',
+    FUERA_SERVICIO: 'error', INACTIVO: 'error',
+    MANTENIMIENTO: 'warning', PENDIENTE: 'warning',
+  }
+  return map[c] || 'default'
+}
+
+/* SUB-COMPONENTES */
+const RowItem = ({ label, value, icon, isLast }) => {
+  const theme = useTheme()
+  const displayValue = (value === null || value === undefined || value === '') ? '-' : value;
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Encabezado */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Tooltip title="Volver a la lista">
-          <IconButton
-            onClick={() => navigate(routes.usuarioRols())}
-            sx={{
-              mr: 2,
-              backgroundColor: theme.palette.action.hover,
-              '&:hover': {
-                backgroundColor: theme.palette.action.selected,
-              }
-            }}
-          >
-            <BackIcon />
-          </IconButton>
-        </Tooltip>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
-          Asignación Rol-Usuario #{usuarioRol.id}
-        </Typography>
-        <Box sx={{ flexGrow: 1 }} />
-        <Stack direction="row" spacing={2}>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<EditIcon />}
-            component={Link}
-            to={routes.editUsuarioRol({ id: usuarioRol.id })}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Editar Asignación
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(usuarioRol.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
-          </Button>
-        </Stack>
+    <Box sx={{ display: 'flex', alignItems: 'center', py: 0.75, borderBottom: isLast ? 'none' : '1px solid', borderColor: theme.palette.divider, '&:hover': { bgcolor: 'action.hover' } }}>
+      <Typography variant="body2" color="text.secondary" sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}>
+        {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+        {label}
+      </Typography>
+      <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
+        {React.isValidElement(displayValue) ? displayValue : (
+          <Typography variant="body1" sx={{ fontWeight: 600 }}>{displayValue}</Typography>
+        )}
       </Box>
+    </Box>
+  )
+}
 
-      {/* Tarjeta principal de información */}
-      <Card sx={{ mb: 3, borderRadius: 3, boxShadow: theme.shadows[3] }}>
-        <CardHeader
-          avatar={
-            <Avatar sx={{
-              bgcolor: theme.palette.primary.main,
-              width: 56,
-              height: 56,
-            }}>
-              <RoleIcon fontSize="large" />
-            </Avatar>
-          }
-          title={
-            <Typography variant="h5" component="div" sx={{ fontWeight: 600 }}>
-              Asignación #{usuarioRol.id}
-              <Chip
-                label={usuarioRol.estado}
-                size="small"
-                sx={{
-                  ml: 2,
-                  backgroundColor: getEstadoColor(usuarioRol.estado),
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '0.75rem',
-                  height: 24,
-                }}
-              />
-            </Typography>
-          }
-          subheader={
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <Typography variant="subtitle1" color="text.secondary">
-                Creada el {formatDate(usuarioRol.fecha_creacion)}
-              </Typography>
-            </Box>
-          }
-          action={
-            <IconButton>
-              <MoreIcon />
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  return (
+    <Card sx={{ borderRadius: 2, borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`, bgcolor: theme.palette.background.paper }}>
+      <CardHeader avatar={<Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main, width: 32, height: 32 }}>{icon}</Avatar>} title={<Typography sx={{ fontWeight: 700 }}>{title}</Typography>} sx={{ py: 1, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }} />
+      <CardContent sx={{ p: 1.5 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* COMPONENTE PRINCIPAL */
+const UsuarioRol = ({ usuarioRol }) => {
+  const theme = useTheme()
+  const [tab, setTab] = useState(0)
+
+  const handleTabChange = (_, v) => setTab(v)
+
+  const usuario = usuarioRol?.usuarios
+  const rol = usuarioRol?.roles
+  const maquina = usuarioRol?.maquinas
+  const sistema = usuarioRol?.sistemas
+
+  return (
+    <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
+      <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '0 0 12px 12px', mb: 3, bgcolor: theme.palette.background.paper }}>
+        <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Tooltip title="Volver">
+            <IconButton onClick={() => navigate(routes.usuarioRols())} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.1), border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`, color: theme.palette.primary.main, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) } }}>
+              <BackIcon fontSize="small" />
             </IconButton>
-          }
-          sx={{
-            pb: 0,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          }}
-        />
-        <CardContent>
-          <Grid container spacing={3}>
-            {/* Columna izquierda - Detalles de la asignación */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <InfoIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Detalles de la Asignación
-              </Typography>
+          </Tooltip>
+          <Avatar sx={{ width: 42, height: 42, background: 'linear-gradient(135deg, #fa709a, #fee140)' }}>
+            <AssignmentIcon />
+          </Avatar>
+          <Box>
+            <Typography variant="h5" fontWeight={800}>Asignación Usuario-Rol #{usuarioRol.id}</Typography>
+            <Typography variant="caption" color="text.secondary">Relación de asignación</Typography>
+          </Box>
+        </Box>
 
-              <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                <Table size="small">
-                  <TableBody>
+        <CardContent sx={{ px: 5, pb: 4 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, alignItems: 'start' }}>
+            <Stack spacing={2}>
+              <SectionCard icon={<GeneralIcon />} title="Información de la Asignación" bgcolor={theme.palette.primary.main}>
+                <RowItem
+                  label="Usuario"
+                  value={usuario ? (
+                    <Link to={routes.usuario({ id: usuario.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none', fontWeight: 600 }}>
+                      {formatUserName(usuario)}
+                    </Link>
+                  ) : '-'}
+                  icon={<UserIcon />}
+                />
+                <RowItem
+                  label="Rol"
+                  value={rol ? (
+                    <Link to={routes.role({ id: rol.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none', fontWeight: 600 }}>
+                      {rol.nombre}
+                    </Link>
+                  ) : '-'}
+                  icon={<RoleIcon />}
+                />
+                <RowItem
+                  label="Máquina"
+                  value={maquina ? (
+                    <Link to={routes.maquina({ id: maquina.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none', fontWeight: 600 }}>
+                      {maquina.nombre}
+                    </Link>
+                  ) : 'No asignada'}
+                  icon={<MachineIcon />}
+                />
+                <RowItem
+                  label="Sistema"
+                  value={sistema ? (
+                    <Link to={routes.sistema({ id: sistema.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none', fontWeight: 600 }}>
+                      {sistema.nombre}
+                    </Link>
+                  ) : 'No asignado'}
+                  icon={<SystemIcon />}
+                  isLast
+                />
+              </SectionCard>
+            </Stack>
 
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Usuario</TableCell>
-                      <TableCell>
-                        {usuarioData?.usuario ? (
-                          <Link
-                            to={routes.usuario({ id: usuarioData.usuario.id })}
-                            style={{ textDecoration: 'none' }}
-                          >
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                              <UserIcon fontSize="small" color="action" />
-                              <span style={{ color: theme.palette.primary.main }}>
-                                {`${usuarioData.usuario.nombres} ${usuarioData.usuario.primer_apellido}`}
-                              </span>
-                            </Stack>
-                          </Link>
-                        ) : usuarioRol.id_usuario ? usuarioRol.id_usuario : 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Rol</TableCell>
-                      <TableCell>
-                        {rolData?.role ? (
-                          <Link
-                            to={routes.role({ id: rolData.role.id })}
-                            style={{ textDecoration: 'none' }}
-                          >
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                              <RoleIcon fontSize="small" color="action" />
-                              <span style={{ color: theme.palette.primary.main }}>
-                                {rolData.role.nombre}
-                              </span>
-                            </Stack>
-                          </Link>
-                        ) : usuarioRol.id_rol ? usuarioRol.id_rol : 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Máquina</TableCell>
-                      <TableCell>
-                        {maquinaData?.maquina ? (
-                          <Link
-                            to={routes.maquina({ id: maquinaData.maquina.id })}
-                            style={{ textDecoration: 'none' }}
-                          >
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                              <MachineIcon fontSize="small" color="action" />
-                              <span style={{ color: theme.palette.primary.main }}>
-                                {maquinaData.maquina.nombre}
-                              </span>
-                            </Stack>
-                          </Link>
-                        ) : usuarioRol.id_maquina ? usuarioRol.id_maquina : 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Sistema</TableCell>
-                      <TableCell>
-                        {sistemaData?.sistema ? (
-                          <Link
-                            to={routes.sistema({ id: sistemaData.sistema.id })}
-                            style={{ textDecoration: 'none' }}
-                          >
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                              <SystemIcon fontSize="small" color="action" />
-                              <span style={{ color: theme.palette.primary.main }}>
-                                {sistemaData.sistema.nombre}
-                              </span>
-                            </Stack>
-                          </Link>
-                        ) : usuarioRol.id_sistema ? usuarioRol.id_sistema : 'N/A'}
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Grid>
-
-            {/* Columna derecha - Auditoría */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <UpdateIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Información de Auditoría
-              </Typography>
-
-              <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <UserIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Creado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {usuariosMap[usuarioRol.usuario_creacion] || usuarioRol.usuario_creacion || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <CalendarIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Fecha Creación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDate(usuarioRol.fecha_creacion)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <UserIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Modificado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {usuariosMap[usuarioRol.usuario_modificacion] || usuarioRol.usuario_modificacion || 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <CalendarIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Última Modificación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDate(usuarioRol.fecha_modificacion)}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <InfoIcon sx={{ mr: 1, color: theme.palette.info.main }} />
-                Estado
-              </Typography>
-              <Chip
-                label={usuarioRol.estado}
-                sx={{
-                  backgroundColor: getEstadoColor(usuarioRol.estado),
-                  color: 'white',
-                  fontSize: '1rem',
-                  padding: '0.5rem',
-                }}
-              />
-            </Grid>
-          </Grid>
+            <Stack spacing={2}>
+              <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
+                <RowItem label="Estado" value={<Chip label={usuarioRol.estado} size="small" color={getStatusColor(usuarioRol.estado)} sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem' }} />} />
+                <RowItem label="Fecha Creación" value={fmtDate(usuarioRol.fecha_creacion)} />
+                <RowItem label="Creado por" value={formatUserName(usuarioRol.creadoPor)} />
+                <RowItem label="Última Modificación" value={fmtDate(usuarioRol.fecha_modificacion)} />
+                <RowItem label="Modificado por" value={formatUserName(usuarioRol.modificadoPor)} isLast />
+              </SectionCard>
+            </Stack>
+          </Box>
         </CardContent>
       </Card>
     </Box>

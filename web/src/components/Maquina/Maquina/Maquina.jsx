@@ -39,12 +39,42 @@ import {
   Info as GeneralIcon,
   ArrowBack as BackIcon,
   Fingerprint as CodeIcon,
-  CalendarMonth as DateIcon,
 } from '@mui/icons-material'
 
 /* -----------------------
  * HELPERS GLOBALES
  * ----------------------- */
+
+// Helper para obtener el nombre correcto sin forzar mayúsculas
+const getEstadoOperativoLabel = (maquina) => {
+  // 1. Si existe el objeto info con nombre, úsalo (Ej: "Fuera de Servicio")
+  if (maquina?.estadoOperativoInfo?.nombre) {
+    return maquina.estadoOperativoInfo.nombre
+  }
+  // 2. Si no, usa el código plano, quitando guiones bajos si los tiene
+  if (maquina?.estado_operativo) {
+    return maquina.estado_operativo.replace(/_/g, ' ')
+  }
+  return 'Desconocido'
+}
+
+const getStatusColor = (codigo) => {
+  // Convertimos a mayúsculas solo para buscar el color, no para mostrar el texto
+  const c = codigo?.toUpperCase() || 'UNKNOWN'
+  const map = {
+    OPERATIVO: 'success',
+    FINALIZADO: 'success',
+    INICIADO: 'warning',
+    FUERA_SERVICIO: 'error',
+    FUERA_DE_SERVICIO: 'error',
+    MANTENIMIENTO: 'warning',
+    ACTIVO: 'success',
+    INACTIVO: 'default',
+    UNKNOWN: 'default'
+  }
+  return map[c] || 'default'
+}
+
 const fmtDate = (d) => {
   if (!d) return '-'
   try {
@@ -86,20 +116,6 @@ const formatUserName = (usuarioObj) => {
   return '-'
 }
 
-const getStatusColor = (codigo) => {
-  const map = {
-    OPERATIVO: 'success',
-    FINALIZADO: 'success',
-    INICIADO: 'warning',
-    FUERA_SERVICIO: 'error',
-    MANTENIMIENTO: 'warning',
-    ACTIVO: 'success',
-    INACTIVO: 'default',
-    UNKNOWN: 'default'
-  }
-  return map[codigo] || 'default'
-}
-
 /* -----------------------
  * SUB-COMPONENTES
  * ----------------------- */
@@ -112,7 +128,7 @@ const RowItem = ({ label, value, icon, isLast }) => {
         alignItems: 'center',
         py: 0.75,
         borderBottom: isLast ? 'none' : '1px solid',
-        borderColor: theme.palette.divider, 
+        borderColor: theme.palette.divider,
         '&:hover': { bgcolor: 'action.hover' },
       }}
     >
@@ -172,22 +188,24 @@ const Maquina = ({ maquina }) => {
   const usuarioRoles = maquina?.usuario_roles || []
   const despliegues = maquina?.despliegue || []
   const infraAfectada = maquina?.infra_afectada || []
-  
-  // AQUI OBTENEMOS LOS NODOS DEL CLUSTER
   const maquinaClusterNodos = maquina?.cluster_nodos || []
+
+  // Preparamos etiquetas y códigos
+  const estadoOpLabel = getEstadoOperativoLabel(maquina)
+  const estadoOpCodigo = maquina.estadoOperativoInfo?.codigo || maquina.estado_operativo
 
   /* --- LOGICA CLUSTERS --- */
   const clusterInfo = useMemo(() => {
     const arr = []
-    
+
     // 1. HOST DE VIRTUALIZACIÓN (Proxmox)
     if (servidor) {
-      const srvNodes = Array.isArray(servidor.cluster_nodos) 
-        ? servidor.cluster_nodos 
+      const srvNodes = Array.isArray(servidor.cluster_nodos)
+        ? servidor.cluster_nodos
         : (servidor.cluster_nodos ? [servidor.cluster_nodos] : [])
-      
-      const srvNode = srvNodes[0] 
-      
+
+      const srvNode = srvNodes[0]
+
       if (srvNode && srvNode.cluster) {
         const dc = Array.isArray(servidor.data_centers) ? servidor.data_centers[0] : servidor.data_centers
 
@@ -205,12 +223,8 @@ const Maquina = ({ maquina }) => {
     }
 
     // 2. ORQUESTACIÓN (K8s, etc)
-    // Recorremos maquina.cluster_nodos (la lista)
     for (const n of maquinaClusterNodos) {
       if (n.cluster) {
-        
-        // --- AQUÍ ESTÁ LA CLAVE ---
-        // Accedemos a n.rolInfo.nombre. Si el Query está bien, esto mostrará "WORKER" o "MASTER".
         const rolNombre = n.rolInfo?.nombre || 'Sin Rol';
 
         arr.push({
@@ -219,7 +233,7 @@ const Maquina = ({ maquina }) => {
           clusterType: n.cluster.tipoClusterInfo?.nombre || 'Orquestación',
           clusterNombre: n.cluster.nombre,
           nodoNombre: n.nombre,
-          rol: rolNombre, // Pasamos el dato procesado
+          rol: rolNombre,
           link: routes.cluster({ id: n.cluster.id }),
         })
       }
@@ -236,19 +250,19 @@ const Maquina = ({ maquina }) => {
 
   const eventosInfra = useMemo(() => {
     return infraAfectada.map(ia => {
-        const eList = ia.eventos
-        const e = Array.isArray(eList) ? eList[0] : eList
-        return {
-            id: ia.id,
-            eventId: e?.id,
-            codigoEvento: e?.cod_evento || '-',
-            descripcion: e?.descripcion || '-',
-            tipo: e?.tipoEventoInfo?.nombre || e?.cod_tipo_evento || 'Desconocido',
-            solicitante: e?.solicitante || '-',
-            fecha: e?.fecha_evento,
-            estado: e?.estadoEventoInfo?.nombre || e?.estado_evento || '-',
-            estadoCodigo: e?.estadoEventoInfo?.codigo
-        }
+      const eList = ia.eventos
+      const e = Array.isArray(eList) ? eList[0] : eList
+      return {
+        id: ia.id,
+        eventId: e?.id,
+        codigoEvento: e?.cod_evento || '-',
+        descripcion: e?.descripcion || '-',
+        tipo: e?.tipoEventoInfo?.nombre || e?.cod_tipo_evento || 'Desconocido',
+        solicitante: e?.solicitante || '-',
+        fecha: e?.fecha_evento,
+        estado: e?.estadoEventoInfo?.nombre || e?.estado_evento || '-',
+        estadoCodigo: e?.estadoEventoInfo?.codigo
+      }
     }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
   }, [infraAfectada])
 
@@ -262,7 +276,7 @@ const Maquina = ({ maquina }) => {
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: '0 0 12px 12px',
           mb: 3,
-          bgcolor: theme.palette.background.paper, 
+          bgcolor: theme.palette.background.paper,
         }}
       >
         <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -274,7 +288,7 @@ const Maquina = ({ maquina }) => {
                 border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
                 color: theme.palette.primary.main,
                 '&:hover': {
-                    bgcolor: alpha(theme.palette.primary.main, 0.2),
+                  bgcolor: alpha(theme.palette.primary.main, 0.2),
                 }
               }}
             >
@@ -304,7 +318,7 @@ const Maquina = ({ maquina }) => {
 
         <CardContent sx={{ px: 5, pb: 4 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-            
+
             {/* --- COLUMNA IZQUIERDA --- */}
             <Stack spacing={2}>
               {/* 1. INFORMACIÓN GENERAL */}
@@ -313,19 +327,24 @@ const Maquina = ({ maquina }) => {
                 <RowItem label="Identificador" value={maquina.identity_key} icon={<MacIcon />} />
                 <RowItem label="Dirección IP" value={maquina.ip} />
                 <RowItem label="Sistema Operativo" value={maquina.so} icon={<OSIcon />} />
-                <RowItem 
-                    label="Plataforma" 
-                    value={maquina.plataformaInfo?.nombre || maquina.cod_plataforma || '-'} 
+                <RowItem
+                  label="Plataforma"
+                  value={maquina.plataformaInfo?.nombre || maquina.cod_plataforma || '-'}
                 />
                 <RowItem
                   label="Estado Operativo"
                   isLast
                   value={
                     <Chip
-                      label={maquina.estadoOperativoInfo?.nombre || maquina.estado_operativo || 'Desconocido'}
+                      label={estadoOpLabel} // Muestra "Fuera de Servicio" (respetando mayúsculas/minúsculas)
                       size="small"
-                      color={getStatusColor(maquina.estado_operativo)} 
-                      sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase' }}
+                      color={getStatusColor(estadoOpCodigo)} // Usa el código para definir el color (rojo/error)
+                      sx={{
+                        height: 20,
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        // textTransform eliminado: ahora respeta el formato original
+                      }}
                     />
                   }
                 />
@@ -363,43 +382,42 @@ const Maquina = ({ maquina }) => {
                         <Typography variant="caption" sx={{ fontWeight: 700, mr: 1 }}>
                           {info.headerTitle}
                         </Typography>
-                        <Chip 
-                            label={info.clusterType} 
-                            size="small" 
-                            variant="outlined" 
-                            sx={{ height: 18, fontSize: '0.65rem' }} 
+                        <Chip
+                          label={info.clusterType}
+                          size="small"
+                          variant="outlined"
+                          sx={{ height: 18, fontSize: '0.65rem' }}
                         />
                       </Box>
 
                       {info.tipoContexto === 'VIRTUALIZACION' && (
                         <>
-                            <RowItem label="Host Servidor" value={info.hostServidor} />
-                            <RowItem label="Data Center" value={info.dataCenter} />
-                            <RowItem label="Nodo" value={info.nodoNombre} />
-                            <RowItem
-                                label="Cluster"
-                                value={
-                                <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                    {info.clusterNombre}
-                                </Link>
-                                }
-                            />
+                          <RowItem label="Host Servidor" value={info.hostServidor} />
+                          <RowItem label="Data Center" value={info.dataCenter} />
+                          <RowItem label="Nodo" value={info.nodoNombre} />
+                          <RowItem
+                            label="Cluster"
+                            value={
+                              <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
+                                {info.clusterNombre}
+                              </Link>
+                            }
+                          />
                         </>
                       )}
 
                       {info.tipoContexto === 'ORQUESTACION' && (
                         <>
-                            <RowItem
-                                label="Cluster"
-                                value={
-                                <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                    {info.clusterNombre}
-                                </Link>
-                                }
-                            />
-                            <RowItem label="Nodo / Host" value={info.nodoNombre} />
-                            {/* AQUÍ MOSTRAMOS EL ROL */}
-                            <RowItem label="Rol" value={<Chip label={info.rol} size="small" color="primary" variant="outlined" />} />
+                          <RowItem
+                            label="Cluster"
+                            value={
+                              <Link to={info.link} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
+                                {info.clusterNombre}
+                              </Link>
+                            }
+                          />
+                          <RowItem label="Nodo / Host" value={info.nodoNombre} />
+                          <RowItem label="Rol" value={<Chip label={info.rol} size="small" color="primary" variant="outlined" />} />
                         </>
                       )}
                     </Box>
@@ -456,7 +474,7 @@ const Maquina = ({ maquina }) => {
           {/* TAB 0: USUARIOS */}
           {tab === 0 && (
             usuarioRoles.length ? (
-              <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                     <TableRow>
@@ -468,9 +486,9 @@ const Maquina = ({ maquina }) => {
                     {usuarioRoles.map((r) => (
                       <TableRow key={r.id} hover>
                         <TableCell>
-                            <Link to={routes.usuario({ id: r.usuarios.id })} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                {formatUserName(r.usuarios)}
-                            </Link>
+                          <Link to={routes.usuario({ id: r.usuarios.id })} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
+                            {formatUserName(r.usuarios)}
+                          </Link>
                         </TableCell>
                         <TableCell>{r.roles?.nombre}</TableCell>
                       </TableRow>
@@ -484,7 +502,7 @@ const Maquina = ({ maquina }) => {
           {/* TAB 1: DESPLIEGUES */}
           {tab === 1 && (
             despliegues.length ? (
-              <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                     <TableRow>
@@ -498,19 +516,19 @@ const Maquina = ({ maquina }) => {
                     {despliegues.map((d) => (
                       <TableRow key={d.id} hover>
                         <TableCell sx={{ fontWeight: 500 }}>
-                            <Link to={routes.despliegue({ id: d.id })} style={{ color: theme.palette.text.primary, textDecoration: 'none' }}>
-                                {d.componentes?.nombre}
-                            </Link>
+                          <Link to={routes.despliegue({ id: d.id })} style={{ color: theme.palette.text.primary, textDecoration: 'none' }}>
+                            {d.componentes?.nombre}
+                          </Link>
                         </TableCell>
                         <TableCell>{d.componentes?.sistemas?.nombre}</TableCell>
                         <TableCell>{fmtDate(d.fecha_despliegue)}</TableCell>
                         <TableCell>
-                          <Chip 
-                              label={d.estadoDespliegueInfo?.nombre || ''} 
-                              size="small"
-                              color={getStatusColor(d.estadoDespliegueInfo?.codigo)} 
+                          <Chip
+                            label={d.estadoDespliegueInfo?.nombre || ''}
+                            size="small"
+                            color={getStatusColor(d.estadoDespliegueInfo?.codigo)}
                           />
-                      </TableCell>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -521,8 +539,8 @@ const Maquina = ({ maquina }) => {
 
           {/* TAB 2: SISTEMAS */}
           {tab === 2 && (
-             sistemasUnicos.length ? (
-              <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
+            sistemasUnicos.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
                 <Table size="small">
                   <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                     <TableRow>
@@ -536,9 +554,9 @@ const Maquina = ({ maquina }) => {
                     {sistemasUnicos.map((s) => (
                       <TableRow key={s.id} hover>
                         <TableCell sx={{ fontWeight: 600 }}>
-                            <Link to={routes.sistema({ id: s.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                {s.sigla}
-                            </Link>
+                          <Link to={routes.sistema({ id: s.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>
+                            {s.sigla}
+                          </Link>
                         </TableCell>
                         <TableCell>{s.nombre}</TableCell>
                         <TableCell>{s.descripcion}</TableCell>
@@ -555,44 +573,44 @@ const Maquina = ({ maquina }) => {
 
           {/* TAB 3: EVENTOS */}
           {tab === 3 && (
-              eventosInfra.length ? (
-                  <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
-                      <Table size="small">
-                          <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
-                              <TableRow>
-                                  <TableCell>Tipo Evento</TableCell>
-                                  <TableCell>Codigo Evento</TableCell>
-                                  <TableCell>Descripción</TableCell>
-                                  <TableCell>Solicitante</TableCell>
-                                  <TableCell>Fecha</TableCell>
-                                  <TableCell>Estado Final</TableCell>
-                              </TableRow>
-                          </TableHead>
-                          <TableBody>
-                              {eventosInfra.map((e) => (
-                                  <TableRow key={e.id} hover>
-                                      <TableCell sx={{fontWeight: 600}}>{e.tipo}</TableCell>
-                                      <TableCell>
-                                          <Link to={routes.evento({ id: e.eventId })} style={{ fontFamily: 'monospace', color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                              {e.codigoEvento}
-                                          </Link>
-                                      </TableCell>
-                                      <TableCell>{e.descripcion}</TableCell>
-                                      <TableCell>{e.solicitante}</TableCell>
-                                      <TableCell>{fmtDate(e.fecha)}</TableCell>
-                                      <TableCell>
-                                          <Chip 
-                                              label={e.estado} 
-                                              size="small" 
-                                              color={getStatusColor(e.estadoCodigo)} 
-                                          />
-                                      </TableCell>
-                                  </TableRow>
-                              ))}
-                          </TableBody>
-                      </Table>
-                  </TableContainer>
-              ) : <Typography variant="body2" color="text.secondary" align="center" sx={{p:2}}>No hay eventos registrados.</Typography>
+            eventosInfra.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Tipo Evento</TableCell>
+                      <TableCell>Codigo Evento</TableCell>
+                      <TableCell>Descripción</TableCell>
+                      <TableCell>Solicitante</TableCell>
+                      <TableCell>Fecha</TableCell>
+                      <TableCell>Estado Final</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {eventosInfra.map((e) => (
+                      <TableRow key={e.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>{e.tipo}</TableCell>
+                        <TableCell>
+                          <Link to={routes.evento({ id: e.eventId })} style={{ fontFamily: 'monospace', color: theme.palette.primary.main, textDecoration: 'none' }}>
+                            {e.codigoEvento}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{e.descripcion}</TableCell>
+                        <TableCell>{e.solicitante}</TableCell>
+                        <TableCell>{fmtDate(e.fecha)}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={e.estado}
+                            size="small"
+                            color={getStatusColor(e.estadoCodigo)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" align="center" sx={{ p: 2 }}>No hay eventos registrados.</Typography>
           )}
         </CardContent>
       </Card>

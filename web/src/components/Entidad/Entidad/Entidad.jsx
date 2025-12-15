@@ -1,341 +1,283 @@
-import { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-import { useMutation, useQuery } from '@redwoodjs/web'
-import { toast } from '@redwoodjs/web/toast'
-import { formatEnum, timeTag } from 'src/lib/formatters'
-
-// Material-UI imports
 import {
   Box,
   Typography,
-  Paper,
-  Grid,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableRow,
-  Button,
-  IconButton,
-  Chip,
   Card,
   CardContent,
   CardHeader,
   Avatar,
+  Chip,
+  Paper,
   Stack,
-  Tooltip,
+  Tabs,
+  Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   useTheme,
+  IconButton,
+  Tooltip,
+  alpha,
 } from '@mui/material'
+
 import {
-  Edit as EditIcon,
-  Delete as DeleteIcon,
+  Business as EntityIcon,
+  Apps as SystemIcon,
+  History as AuditIcon,
+  Info as GeneralIcon,
   ArrowBack as BackIcon,
-  Info as InfoIcon,
-  Person as PersonIcon,
-  Update as UpdateIcon,
-  MoreVert as MoreIcon,
-  Business as EntidadIcon,
+  Fingerprint as CodeIcon,
 } from '@mui/icons-material'
 
-const DELETE_ENTIDAD_MUTATION = gql`
-  mutation DeleteEntidadMutation($id: Int!) {
-    deleteEntidad(id: $id) {
-      id
-    }
-  }
-`
-
-// Consulta para obtener información de usuario por ID
-const GET_USUARIO_BY_ID = gql`
-  query GetUsuarioById($id: Int!) {
-    usuario(id: $id) {
-      id
-      nombres
-    }
-  }
-`
-
-
-const Entidad = ({ entidad }) => {
-  const theme = useTheme();
-
-  // Consulta para obtener datos del usuario creador
-  const { data: dataCreador } = useQuery(GET_USUARIO_BY_ID, {
-    variables: { id: entidad.usuario_creacion },
-    skip: !entidad.usuario_creacion,
-  })
-
-  // Consulta para obtener datos del usuario que modificó
-  const { data: dataModificador } = useQuery(GET_USUARIO_BY_ID, {
-    variables: { id: entidad.usuario_modificacion },
-    skip: !entidad.usuario_modificacion,
-  })
-
-  const [deleteEntidad] = useMutation(DELETE_ENTIDAD_MUTATION, {
-    onCompleted: () => {
-      toast.success('Entidad eliminada correctamente')
-      navigate(routes.entidads())
-    },
-    onError: (error) => {
-      toast.error(`Error al eliminar entidad: ${error.message}`)
-    },
-  })
-
-  const onDeleteClick = (id) => {
-    if (confirm(`¿Está seguro que desea eliminar la entidad ${entidad.nombre} (ID: ${id})?`)) {
-      deleteEntidad({ variables: { id } })
-    }
-  }
-
-  const getEstadoColor = (estado) => {
-    return estado === 'ACTIVO' ? theme.palette.success.main : theme.palette.error.main
-  }
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-'
-    const date = new Date(dateString)
-    return date.toLocaleString('es-ES', {
+/* -----------------------
+ * HELPERS GLOBALES
+ * ----------------------- */
+const fmtDate = (d) => {
+  if (!d) return '-'
+  try {
+    return new Date(d).toLocaleString('es-BO', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     })
+  } catch {
+    return '-'
   }
+}
 
-  // Función para formatear el nombre completo del usuario
-  const formatUsuario = (usuarioData) => {
-    if (!usuarioData || !usuarioData.usuario) return 'N/A'
-    const usuario = usuarioData.usuario
-    return `${usuario.nombres}`
+const formatUserName = (userObj) => {
+  if (!userObj) return 'Sistema Automático'
+  if (typeof userObj === 'string' || typeof userObj === 'number') return userObj
+  const { nombres, primer_apellido, segundo_apellido } = userObj || {}
+  if (!nombres && !primer_apellido) return '-'
+  return `${nombres || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim()
+}
+
+const getStatusColor = (codigo) => {
+  if (!codigo) return 'default'
+  const c = String(codigo).toUpperCase()
+  const map = {
+    OPERATIVO: 'success', ACTIVO: 'success', EXITOSO: 'success', REALIZADO: 'success',
+    FUERA_SERVICIO: 'error', FUERA_DE_SERVICIO: 'error', INACTIVO: 'error', FALLIDO: 'error', CRITICO: 'error', BAJA: 'error',
+    MANTENIMIENTO: 'warning', PENDIENTE: 'warning', INICIADO: 'warning', EN_PROGRESO: 'warning',
+    PROCESO: 'info', CREADO: 'info'
   }
+  return map[c] || 'default'
+}
+
+/* -----------------------
+ * SUB-COMPONENTES UI
+ * ----------------------- */
+const RowItem = ({ label, value, icon, isLast }) => {
+  const theme = useTheme()
+  const displayValue = (value === null || value === undefined || value === '') ? '-' : value;
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Acciones */}
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <Tooltip title="Volver a la lista">
-          <IconButton
-            onClick={() => navigate(routes.entidads())}
-            sx={{
-              mr: 2,
-              backgroundColor: theme.palette.action.hover,
-              '&:hover': {
-                backgroundColor: theme.palette.action.selected,
-              }
-            }}
-          >
-            <BackIcon />
-          </IconButton>
-        </Tooltip>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>
-          {entidad.nombre}
-        </Typography>
-        <Box sx={{ flexGrow: 1 }} />
-        <Stack direction="row" spacing={2}>
-          <Button
-            variant="outlined"
-            color="primary"
-            startIcon={<EditIcon />}
-            component={Link}
-            to={routes.editEntidad({ id: entidad.id })}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Editar Entidad
-          </Button>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={() => onDeleteClick(entidad.id)}
-            sx={{
-              borderRadius: 2,
-              boxShadow: 'none',
-              textTransform: 'none',
-              px: 3,
-            }}
-          >
-            Eliminar
-          </Button>
-        </Stack>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        py: 0.75,
+        borderBottom: isLast ? 'none' : '1px solid',
+        borderColor: theme.palette.divider,
+        transition: 'background-color 0.2s',
+        '&:hover': { bgcolor: 'action.hover' },
+      }}
+    >
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}
+      >
+        {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+        {label}
+      </Typography>
+
+      <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
+        {React.isValidElement(displayValue) ? displayValue : (
+          <Typography variant="body1" sx={{ fontWeight: 600 }}>
+            {displayValue}
+          </Typography>
+        )}
       </Box>
+    </Box>
+  )
+}
 
-      {/* Información principal */}
-      <Card sx={{ mb: 3, borderRadius: 3, boxShadow: theme.shadows[3] }}>
-        <CardHeader
-          avatar={
-            <Avatar sx={{
-              bgcolor: theme.palette.primary.main,
-              width: 56,
-              height: 56,
-            }}>
-              <EntidadIcon fontSize="large" />
-            </Avatar>
-          }
-          title={
-            <Typography variant="h5" component="div" sx={{ fontWeight: 600 }}>
-              {entidad.nombre}
-              <Chip
-                label={entidad.sigla}
-                size="small"
-                sx={{
-                  ml: 2,
-                  backgroundColor: theme.palette.primary.light,
-                  color: 'white',
-                  fontWeight: 'bold',
-                  fontSize: '0.75rem',
-                  height: 24,
-                }}
-              />
-            </Typography>
-          }
-          subheader={
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-              <Typography variant="subtitle1" color="text.secondary">
-                Código: {entidad.codigo}
-              </Typography>
-              <Chip
-                label={formatEnum(entidad.estado)}
-                size="small"
-                sx={{
-                  ml: 2,
-                  backgroundColor: getEstadoColor(entidad.estado),
-                  color: 'white',
-                  fontSize: '0.7rem',
-                  height: 20,
-                }}
-              />
-            </Box>
-          }
-          action={
-            <IconButton>
-              <MoreIcon />
+const SectionCard = ({ icon, title, children, bgcolor }) => {
+  const theme = useTheme()
+  return (
+    <Card
+      sx={{
+        borderRadius: 2,
+        borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`,
+        bgcolor: theme.palette.background.paper,
+        height: 'auto'
+      }}
+    >
+      <CardHeader
+        avatar={
+          <Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
+        title={<Typography sx={{ fontWeight: 700 }}>{title}</Typography>}
+        sx={{ py: 1, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+      />
+      <CardContent sx={{ p: 1.5 }}>{children}</CardContent>
+    </Card>
+  )
+}
+
+/* -----------------------
+ * COMPONENTE PRINCIPAL
+ * ----------------------- */
+const Entidad = ({ entidad }) => {
+  const theme = useTheme()
+  const [tab, setTab] = useState(0)
+
+  // Datos básicos
+  const sistemas = entidad?.sistemas || []
+
+  const handleTabChange = (_, v) => setTab(v)
+
+  return (
+    <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
+      {/* HEADER CARD */}
+      <Card
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: '0 0 12px 12px',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
+        <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Tooltip title="Volver">
+            <IconButton
+              onClick={() => navigate(routes.entidads())}
+              sx={{
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                color: theme.palette.primary.main,
+                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) }
+              }}
+            >
+              <BackIcon fontSize="small" />
             </IconButton>
-          }
-          sx={{
-            pb: 0,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          }}
-        />
-        <CardContent>
-          <Grid container spacing={3}>
-            {/* Detalles principales */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <InfoIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Detalles de la Entidad
-              </Typography>
+          </Tooltip>
 
-              <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+          <Avatar
+            sx={{
+              width: 42,
+              height: 42,
+              background: 'linear-gradient(135deg, #667eea, #764ba2)',
+            }}
+          >
+            <EntityIcon />
+          </Avatar>
+
+          <Box>
+            <Typography variant="h5" fontWeight={800}>
+              {entidad.nombre}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Entidad registrada
+            </Typography>
+          </Box>
+        </Box>
+
+        <CardContent sx={{ px: 5, pb: 4 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, alignItems: 'start' }}>
+
+            {/* --- COLUMNA IZQUIERDA --- */}
+            <Stack spacing={2}>
+              {/* 1. INFORMACIÓN GENERAL */}
+              <SectionCard icon={<GeneralIcon />} title="Información General" bgcolor={theme.palette.primary.main}>
+                <RowItem label="Código" value={entidad.codigo} icon={<CodeIcon />} />
+                <RowItem label="Sigla" value={entidad.sigla} />
+                <RowItem label="Nombre" value={entidad.nombre} />
+                <RowItem
+                  label="Estado Registro"
+                  isLast
+                  value={
+                    <Chip
+                      label={entidad.estado}
+                      size="small"
+                      color={getStatusColor(entidad.estado)}
+                      sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem' }}
+                    />
+                  }
+                />
+              </SectionCard>
+            </Stack>
+
+            {/* --- COLUMNA DERECHA --- */}
+            <Stack spacing={2}>
+              {/* 1. AUDITORÍA */}
+              <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
+                <RowItem label="Fecha Creación" value={fmtDate(entidad.fecha_creacion)} />
+                <RowItem label="Creado por" value={formatUserName(entidad.creadoPor)} />
+                <RowItem label="Última Modificación" value={fmtDate(entidad.fecha_modificacion)} />
+                <RowItem label="Modificado por" value={formatUserName(entidad.modificadoPor)} isLast />
+              </SectionCard>
+            </Stack>
+
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* TABS INFERIORES */}
+      <Card sx={{ borderRadius: 2, mt: 3, bgcolor: theme.palette.background.paper }}>
+        <Tabs
+          value={tab}
+          onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{ borderBottom: `1px solid ${theme.palette.divider}`, px: 2 }}
+        >
+          <Tab label={<Stack direction="row" spacing={1}><SystemIcon fontSize="small" /><span>Sistemas</span><Chip label={sistemas.length} size="small" /></Stack>} />
+        </Tabs>
+
+        <CardContent>
+          {/* TAB 0: SISTEMAS */}
+          {tab === 0 && (
+            sistemas.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
                 <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Sigla</TableCell>
+                      <TableCell>Nombre</TableCell>
+                      <TableCell>Descripción</TableCell>
+                      <TableCell>Estado</TableCell>
+                    </TableRow>
+                  </TableHead>
                   <TableBody>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600, width: '40%' }}>ID</TableCell>
-                      <TableCell>{entidad.id}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Código</TableCell>
-                      <TableCell>{entidad.codigo}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Sigla</TableCell>
-                      <TableCell>{entidad.sigla}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Nombre</TableCell>
-                      <TableCell>{entidad.nombre}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell sx={{ fontWeight: 600 }}>Estado</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={formatEnum(entidad.estado)}
-                          size="small"
-                          sx={{
-                            backgroundColor: getEstadoColor(entidad.estado),
-                            color: 'white',
-                            fontSize: '0.7rem',
-                          }}
-                        />
-                      </TableCell>
-                    </TableRow>
+                    {sistemas.map((s) => (
+                      <TableRow key={s.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          <Link to={routes.sistema({ id: s.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>
+                            {s.sigla}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{s.nombre}</TableCell>
+                        <TableCell>{s.descripcion}</TableCell>
+                        <TableCell><Chip label={s.estado} size="small" color={getStatusColor(s.estado)} /></TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </TableContainer>
-            </Grid>
-
-            {/* Información de auditoría */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="h6" sx={{
-                mb: 2,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-              }}>
-                <UpdateIcon sx={{ mr: 1, color: theme.palette.primary.main }} />
-                Información de Auditoría
-              </Typography>
-
-              <Paper variant="outlined" sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <PersonIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Creado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatUsuario(dataCreador)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <UpdateIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Fecha Creación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDate(entidad.fecha_creacion)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <PersonIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Modificado por
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {entidad.usuario_modificacion ? formatUsuario(dataModificador) : 'N/A'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                      <UpdateIcon fontSize="small" color="action" />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        Última Modificación
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      {formatDate(entidad.fecha_modificacion)}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
-          </Grid>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay sistemas registrados.</Typography>
+          )}
         </CardContent>
       </Card>
     </Box>

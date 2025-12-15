@@ -37,10 +37,7 @@ import {
   Event as EventIcon,
   DeveloperBoard as HardwareIcon,
   Settings as OSIcon,
-  CalendarMonth as DateIcon,
-  Person as PersonIcon,
   Apps as SystemIcon,
-  Code as CodeIcon,
   ArrowBack as BackIcon,
   Apartment as EntityIcon,
   ViewModule as NodeIcon,
@@ -73,19 +70,32 @@ const formatUserName = (userObj) => {
   return `${nombres || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim()
 }
 
+// Helper para obtener el nombre correcto sin forzar mayúsculas
+const getEstadoOperativoLabel = (servidor) => {
+  // 1. Prioridad: Nombre descriptivo desde la relación
+  if (servidor?.estadoOperativoInfo?.nombre) {
+    return servidor.estadoOperativoInfo.nombre
+  }
+  // 2. Respaldo: El código plano (limpiando guiones bajos)
+  if (servidor?.estado_operativo) {
+    return servidor.estado_operativo.replace(/_/g, ' ')
+  }
+  return 'Desconocido'
+}
+
 const getStatusColor = (codigo) => {
   if (!codigo) return 'default'
   const c = String(codigo).toUpperCase()
   const map = {
     OPERATIVO: 'success', ACTIVO: 'success', EXITOSO: 'success', REALIZADO: 'success',
-    FUERA_SERVICIO: 'error', INACTIVO: 'error', FALLIDO: 'error', CRITICO: 'error', BAJA: 'error',
+    FUERA_SERVICIO: 'error', FUERA_DE_SERVICIO: 'error', INACTIVO: 'error', FALLIDO: 'error', CRITICO: 'error', BAJA: 'error',
     MANTENIMIENTO: 'warning', PENDIENTE: 'warning', INICIADO: 'warning', EN_PROGRESO: 'warning',
     PROCESO: 'info', CREADO: 'info'
   }
   return map[c] || 'default'
 }
 
-// NUEVO HELPER: Calcula el total de almacenamiento sumando los discos
+// Calcula el total de almacenamiento sumando los discos
 const getStorageTotal = (val) => {
   if (!val) return '-'
   try {
@@ -173,6 +183,10 @@ const Servidor = ({ servidor }) => {
   const despliegues = servidor?.despliegue || []
   const infraAfectada = servidor?.infra_afectada || []
 
+  // Preparamos etiquetas y códigos del Estado
+  const estadoOpLabel = getEstadoOperativoLabel(servidor)
+  const estadoOpCodigo = servidor.estadoOperativoInfo?.codigo || servidor.estado_operativo
+
   /* --- LOGICA CLUSTERS Y UBICACIÓN --- */
   const ubicacionInfo = useMemo(() => {
     const arr = []
@@ -182,12 +196,12 @@ const Servidor = ({ servidor }) => {
     if (clusterNodos.length > 0) {
       clusterNodos.forEach((n) => {
         const isVirt = n.cluster?.cod_tipo_cluster === 'VIRTUALIZACION' || n.cluster?.tipoClusterInfo?.codigo === 'VIRTUALIZACION'
-        
+
         arr.push({
           headerTitle: isVirt ? 'Host de Virtualización' : 'Miembro de Cluster',
           chipLabel: n.cluster?.tipoClusterInfo?.nombre || 'Cluster',
           dataCenter: dcNombre,
-          servidorPadre: servidorPadre, 
+          servidorPadre: servidorPadre,
           clusterNombre: n.cluster?.nombre,
           clusterLink: routes.cluster({ id: n.cluster?.id }),
           nodoNombre: n.nombre,
@@ -212,30 +226,28 @@ const Servidor = ({ servidor }) => {
   const sistemasUnicos = useMemo(() => {
     const map = new Map()
     despliegues.forEach(d => {
-        if (d.componentes?.sistemas) map.set(d.componentes.sistemas.id, d.componentes.sistemas)
+      if (d.componentes?.sistemas) map.set(d.componentes.sistemas.id, d.componentes.sistemas)
     })
     return [...map.values()]
   }, [despliegues])
 
-  // --- CORRECCIÓN EN EVENTOS ---
   const eventosMapeados = useMemo(() => {
     return infraAfectada.flatMap(ia => ia.eventos || []).map(e => ({
-        id: e.id,
-        eventId: e.id, 
-        tipo: e.tipoEventoInfo?.nombre || e.cod_tipo_evento || 'Desconocido',
-        // CORREGIDO: Usamos codigoEvento para que coincida con el renderizado
-        codigoEvento: e.cod_evento || '-', 
-        descripcion: e.descripcion || '-',
-        solicitante: e.solicitante || '-',
-        fecha: e.fecha_evento,
-        estado: e.estadoEventoInfo?.nombre || e.estado_evento || '-',
-        estadoCod: e.estadoEventoInfo?.codigo
-    })).sort((a,b) => new Date(b.fecha) - new Date(a.fecha))
+      id: e.id,
+      eventId: e.id,
+      tipo: e.tipoEventoInfo?.nombre || e.cod_tipo_evento || 'Desconocido',
+      codigoEvento: e.cod_evento || '-',
+      descripcion: e.descripcion || '-',
+      solicitante: e.solicitante || '-',
+      fecha: e.fecha_evento,
+      estado: e.estadoEventoInfo?.nombre || e.estado_evento || '-',
+      estadoCod: e.estadoEventoInfo?.codigo
+    })).sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
   }, [infraAfectada])
 
   return (
     <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
-      
+
       {/* HEADER CARD */}
       <Card
         elevation={0}
@@ -243,7 +255,7 @@ const Servidor = ({ servidor }) => {
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: '0 0 12px 12px',
           mb: 3,
-          bgcolor: theme.palette.background.paper, 
+          bgcolor: theme.palette.background.paper,
         }}
       >
         <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -283,7 +295,7 @@ const Servidor = ({ servidor }) => {
 
         <CardContent sx={{ px: 5, pb: 4 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, alignItems: 'start' }}>
-            
+
             {/* --- COLUMNA IZQUIERDA --- */}
             <Stack spacing={2}>
               {/* 1. INFORMACIÓN GENERAL */}
@@ -298,21 +310,28 @@ const Servidor = ({ servidor }) => {
                 <RowItem label="Serie" value={servidor.serie} />
                 <RowItem label="Sistema Operativo" value={servidor.sistema_operativo} icon={<OSIcon />} />
                 <RowItem label="Dirección IP" value={servidor.ip_primaria} />
+
+                {/* --- ESTADO OPERATIVO CORREGIDO --- */}
                 <RowItem
                   label="Estado Operativo"
                   isLast
                   value={
                     <Chip
-                      label={servidor.estadoOperativoInfo?.nombre || servidor.estado_operativo || 'Desconocido'}
+                      label={estadoOpLabel} // Muestra "Fuera de Servicio" (Natural case)
                       size="small"
-                      color={getStatusColor(servidor.estadoOperativoInfo?.codigo || servidor.estado_operativo)} 
-                      sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase' }}
+                      color={getStatusColor(estadoOpCodigo)} // Color basado en código
+                      sx={{
+                        height: 20,
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        // textTransform eliminado
+                      }}
                     />
                   }
                 />
               </SectionCard>
 
-              {/* 2. RECURSOS (MOVIDO AQUI) */}
+              {/* 2. RECURSOS */}
               <SectionCard icon={<MemoryIcon />} title="Hardware y Recursos" bgcolor={theme.palette.success.main}>
                 <RowItem label="Memoria RAM" value={servidor.ram ? `${servidor.ram} GB` : '-'} />
                 <RowItem label="Almacenamiento Total" value={servidor.almacenamiento ? `${servidor.almacenamiento} GB` : '-'} isLast />
@@ -321,72 +340,72 @@ const Servidor = ({ servidor }) => {
 
             {/* --- COLUMNA DERECHA --- */}
             <Stack spacing={2}>
-              
+
               {/* 1. UBICACIÓN Y ORQUESTACIÓN */}
               <SectionCard icon={<NetworkIcon />} title="Ubicación y Orquestación" bgcolor={theme.palette.info.main}>
                 {ubicacionInfo.map((info, idx) => (
-                    <Box key={idx} sx={{ mb: idx < ubicacionInfo.length - 1 ? 2.5 : 0 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700, mr: 1, color: 'text.primary' }}>
-                                {info.headerTitle}
-                            </Typography>
-                            <Chip 
-                                label={info.chipLabel} 
-                                size="small" 
-                                variant="outlined" 
-                                sx={{ height: 18, fontSize: '0.65rem' }} 
-                            />
-                        </Box>
-
-                        <RowItem 
-                            label="Data Center" 
-                            value={info.dataCenter} 
-                            icon={<DataCenterIcon />} 
-                        />
-
-                        {info.servidorPadre && (
-                            <RowItem 
-                                label="Servidor Padre" 
-                                value={info.servidorPadre} 
-                                icon={<ParentIcon />} 
-                            />
-                        )}
-
-                        {!info.isStandalone && (
-                            <>
-                                <RowItem
-                                    label="Cluster"
-                                    value={
-                                        <Link to={info.clusterLink} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                            {info.clusterNombre}
-                                        </Link>
-                                    }
-                                    icon={<ClusterIcon />}
-                                />
-                                <RowItem 
-                                    label="Nombre de Nodo" 
-                                    value={info.nodoNombre} 
-                                    icon={<NodeIcon />} 
-                                    isLast={!info.rol} 
-                                />
-                                {info.rol && (
-                                    <RowItem 
-                                        label="Rol Asignado" 
-                                        value={<Chip label={info.rol} size="small" variant="outlined" sx={{ height: 20 }} />}
-                                        isLast
-                                    />
-                                )}
-                            </>
-                        )}
-
-                        {info.isStandalone && (
-                             <RowItem label="Cluster" value="No asignado (Stand-alone)" icon={<ClusterIcon />} isLast />
-                        )}
+                  <Box key={idx} sx={{ mb: idx < ubicacionInfo.length - 1 ? 2.5 : 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, mr: 1, color: 'text.primary' }}>
+                        {info.headerTitle}
+                      </Typography>
+                      <Chip
+                        label={info.chipLabel}
+                        size="small"
+                        variant="outlined"
+                        sx={{ height: 18, fontSize: '0.65rem' }}
+                      />
                     </Box>
+
+                    <RowItem
+                      label="Data Center"
+                      value={info.dataCenter}
+                      icon={<DataCenterIcon />}
+                    />
+
+                    {info.servidorPadre && (
+                      <RowItem
+                        label="Servidor Padre"
+                        value={info.servidorPadre}
+                        icon={<ParentIcon />}
+                      />
+                    )}
+
+                    {!info.isStandalone && (
+                      <>
+                        <RowItem
+                          label="Cluster"
+                          value={
+                            <Link to={info.clusterLink} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
+                              {info.clusterNombre}
+                            </Link>
+                          }
+                          icon={<ClusterIcon />}
+                        />
+                        <RowItem
+                          label="Nombre de Nodo"
+                          value={info.nodoNombre}
+                          icon={<NodeIcon />}
+                          isLast={!info.rol}
+                        />
+                        {info.rol && (
+                          <RowItem
+                            label="Rol Asignado"
+                            value={<Chip label={info.rol} size="small" variant="outlined" sx={{ height: 20 }} />}
+                            isLast
+                          />
+                        )}
+                      </>
+                    )}
+
+                    {info.isStandalone && (
+                      <RowItem label="Cluster" value="No asignado (Stand-alone)" icon={<ClusterIcon />} isLast />
+                    )}
+                  </Box>
                 ))}
               </SectionCard>
 
-              {/* 2. AUDITORÍA (MOVIDO AQUI) */}
+              {/* 2. AUDITORÍA */}
               <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
                 <RowItem
                   label="Estado Registro"
@@ -419,9 +438,9 @@ const Servidor = ({ servidor }) => {
         </Tabs>
 
         <CardContent>
-          {/* TAB 0: MÁQUINAS VIRTUALES (LINKS AÑADIDOS) */}
+          {/* TAB 0: MÁQUINAS VIRTUALES */}
           {tab === 0 && (
-            <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
+            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
               <Table size="small">
                 <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
                   <TableRow>
@@ -438,139 +457,135 @@ const Servidor = ({ servidor }) => {
                 <TableBody>
                   {maquinas.length > 0 ? maquinas.map((vm) => (
                     <TableRow key={vm.id} hover>
-                      <TableCell sx={{fontFamily:'monospace', color:'text.secondary'}}>{vm.proxmox_vmid || '-'}</TableCell>
-                      
+                      <TableCell sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>{vm.proxmox_vmid || '-'}</TableCell>
+
                       <TableCell>
-                          {/* LINK A DETALLE MAQUINA */}
-                          <Link to={routes.maquina({ id: vm.id })} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                              {vm.nombre}
-                          </Link>
+                        <Link to={routes.maquina({ id: vm.id })} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
+                          {vm.nombre}
+                        </Link>
                       </TableCell>
-                      
+
                       <TableCell>{vm.ip}</TableCell>
-                      
+
                       <TableCell>
-                          <Typography variant="caption" sx={{display:'block', lineHeight:1.2, maxWidth: 150}} title={vm.so}>
-                              {vm.so || '-'}
-                          </Typography>
+                        <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.2, maxWidth: 150 }} title={vm.so}>
+                          {vm.so || '-'}
+                        </Typography>
                       </TableCell>
-                      
+
                       <TableCell>{vm.cpu ? `${vm.cpu} vCPU` : '-'}</TableCell>
                       <TableCell>{vm.ram ? `${vm.ram} GB` : '-'}</TableCell>
-                      
+
                       <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                             {getStorageTotal(vm.almacenamiento)}
-                          </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {getStorageTotal(vm.almacenamiento)}
+                        </Typography>
                       </TableCell>
 
                       <TableCell><Chip label={vm.estadoOperativoInfo?.nombre} size="small" color={getStatusColor(vm.estadoOperativoInfo?.codigo)} /></TableCell>
                     </TableRow>
-                  )) : <TableRow><TableCell colSpan={8} align="center" sx={{py:3}}>Sin máquinas virtuales asociadas.</TableCell></TableRow>}
+                  )) : <TableRow><TableCell colSpan={8} align="center" sx={{ py: 3 }}>Sin máquinas virtuales asociadas.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </TableContainer>
           )}
 
-          {/* TAB 1: DESPLIEGUES (LINKS AÑADIDOS) */}
+          {/* TAB 1: DESPLIEGUES */}
           {tab === 1 && (
-             despliegues.length ? (
-                <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
-                  <Table size="small">
-                    <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
-                      <TableRow>
-                        <TableCell>Componente</TableCell>
-                        <TableCell>Sistema</TableCell>
-                        <TableCell>Fecha</TableCell>
-                        <TableCell>Estado</TableCell>
+            despliegues.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Componente</TableCell>
+                      <TableCell>Sistema</TableCell>
+                      <TableCell>Fecha</TableCell>
+                      <TableCell>Estado</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {despliegues.map((d) => (
+                      <TableRow key={d.id} hover>
+                        <TableCell sx={{ fontWeight: 500 }}>
+                          <Link to={routes.despliegue({ id: d.id })} style={{ color: theme.palette.text.primary, textDecoration: 'none' }}>
+                            {d.componentes?.nombre}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{d.componentes?.sistemas?.nombre}</TableCell>
+                        <TableCell>{fmtDate(d.fecha_despliegue)}</TableCell>
+                        <TableCell><Chip label={d.estadoDespliegueInfo?.nombre} size="small" color={getStatusColor(d.estadoDespliegueInfo?.codigo)} /></TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {despliegues.map((d) => (
-                        <TableRow key={d.id} hover>
-                          <TableCell sx={{fontWeight:500}}>
-                              {/* LINK A DETALLE DESPLIEGUE */}
-                              <Link to={routes.despliegue({ id: d.id })} style={{ color: theme.palette.text.primary, textDecoration: 'none' }}>
-                                  {d.componentes?.nombre}
-                              </Link>
-                          </TableCell>
-                          <TableCell>{d.componentes?.sistemas?.nombre}</TableCell>
-                          <TableCell>{fmtDate(d.fecha_despliegue)}</TableCell>
-                          <TableCell><Chip label={d.estadoDespliegueInfo?.nombre} size="small" color={getStatusColor(d.estadoDespliegueInfo?.codigo)} /></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-             ) : <Typography variant="body2" color="text.secondary" sx={{p:2}}>No hay despliegues.</Typography>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay despliegues.</Typography>
           )}
 
-          {/* TAB 2: SISTEMAS (LINKS AÑADIDOS) */}
+          {/* TAB 2: SISTEMAS */}
           {tab === 2 && (
-             sistemasUnicos.length ? (
-                <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
-                  <Table size="small">
-                    <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
-                      <TableRow>
-                        <TableCell>Sigla</TableCell>
-                        <TableCell>Nombre</TableCell>
-                        <TableCell>Entidad</TableCell>
-                        <TableCell>Estado</TableCell>
+            sistemasUnicos.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Sigla</TableCell>
+                      <TableCell>Nombre</TableCell>
+                      <TableCell>Entidad</TableCell>
+                      <TableCell>Estado</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {sistemasUnicos.map((s) => (
+                      <TableRow key={s.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          <Link to={routes.sistema({ id: s.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>
+                            {s.sigla}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{s.nombre}</TableCell>
+                        <TableCell>{s.entidades?.sigla || '-'}</TableCell>
+                        <TableCell><Chip label={s.estado} size="small" color={getStatusColor(s.estado)} /></TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {sistemasUnicos.map((s) => (
-                        <TableRow key={s.id} hover>
-                          <TableCell sx={{fontWeight:600}}>
-                              {/* LINK A DETALLE SISTEMA */}
-                              <Link to={routes.sistema({ id: s.id })} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                  {s.sigla}
-                              </Link>
-                          </TableCell>
-                          <TableCell>{s.nombre}</TableCell>
-                          <TableCell>{s.entidades?.sigla || '-'}</TableCell>
-                          <TableCell><Chip label={s.estado} size="small" color={getStatusColor(s.estado)}/></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-             ) : <Typography variant="body2" color="text.secondary" sx={{p:2}}>No hay sistemas.</Typography>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay sistemas.</Typography>
           )}
 
-          {/* TAB 3: EVENTOS (LINKS AÑADIDOS Y CÓDIGO CORREGIDO) */}
+          {/* TAB 3: EVENTOS */}
           {tab === 3 && (
-             eventosMapeados.length ? (
-                <TableContainer component={Paper} elevation={0} sx={{border: `1px solid ${theme.palette.divider}`}}>
-                  <Table size="small">
-                    <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
-                      <TableRow>
-                        <TableCell>Evento</TableCell>
-                        <TableCell>Código</TableCell>
-                        <TableCell>Descripción</TableCell>
-                        <TableCell>Fecha</TableCell>
-                        <TableCell>Estado</TableCell>
+            eventosMapeados.length ? (
+              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
+                <Table size="small">
+                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                    <TableRow>
+                      <TableCell>Evento</TableCell>
+                      <TableCell>Código</TableCell>
+                      <TableCell>Descripción</TableCell>
+                      <TableCell>Fecha</TableCell>
+                      <TableCell>Estado</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {eventosMapeados.map((e) => (
+                      <TableRow key={e.id} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>{e.tipo}</TableCell>
+                        <TableCell>
+                          <Link to={routes.evento({ id: e.eventId })} style={{ fontFamily: 'monospace', color: theme.palette.primary.main, textDecoration: 'none' }}>
+                            {e.codigoEvento}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{e.descripcion}</TableCell>
+                        <TableCell>{fmtDate(e.fecha)}</TableCell>
+                        <TableCell><Chip label={e.estado} size="small" color={getStatusColor(e.estadoCod)} /></TableCell>
                       </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {eventosMapeados.map((e) => (
-                        <TableRow key={e.id} hover>
-                          <TableCell sx={{fontWeight:600}}>{e.tipo}</TableCell>
-                          <TableCell>
-                              {/* LINK A DETALLE EVENTO */}
-                              <Link to={routes.evento({ id: e.eventId })} style={{ fontFamily: 'monospace', color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                  {e.codigoEvento}
-                              </Link>
-                          </TableCell>
-                          <TableCell>{e.descripcion}</TableCell>
-                          <TableCell>{fmtDate(e.fecha)}</TableCell>
-                          <TableCell><Chip label={e.estado} size="small" color={getStatusColor(e.estadoCod)}/></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-             ) : <Typography variant="body2" color="text.secondary" sx={{p:2}}>No hay eventos registrados.</Typography>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>No hay eventos registrados.</Typography>
           )}
         </CardContent>
       </Card>
