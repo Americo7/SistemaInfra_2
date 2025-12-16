@@ -2,8 +2,8 @@
 import { db } from 'src/lib/db'
 import { fetchK8sNodes } from 'src/lib/k8s/fetch'
 import { context } from '@redwoodjs/graphql-server'
-import { valkey } from 'src/lib/valkey' // 🟢 Importamos Valkey
-import crypto from 'crypto' // 🟢 Para hashing
+import { valkey } from 'src/lib/valkey' 
+import crypto from 'crypto' 
 
 // Helper para generar hash MD5
 const generateHash = (data) => crypto.createHash('md5').update(JSON.stringify(data)).digest('hex')
@@ -121,7 +121,7 @@ export const syncNodos = async (k8sApi, clusterId) => {
       }
 
       /* -----------------------------------
-         🟢 OPTIMIZACIÓN VALKEY
+         OPTIMIZACIÓN VALKEY
       ----------------------------------- */
       const currentHash = generateHash(dataToHash)
       const cacheKey = `hash:k8s:node:${identity_key}`
@@ -148,7 +148,7 @@ export const syncNodos = async (k8sApi, clusterId) => {
         if (cachedTipo === 'VIRTUAL') resumen.virtuales++
         else resumen.fisicos++
         
-        continue // ⏩ SALTAMOS AL SIGUIENTE NODO (0 carga en DB)
+        continue // SALTAMOS AL SIGUIENTE NODO (0 carga en DB)
       }
       /* -----------------------------------
          FIN OPTIMIZACIÓN
@@ -213,7 +213,7 @@ export const syncNodos = async (k8sApi, clusterId) => {
           nodoTipo: tipoNodo,
           maquinaId,
           servidorId,
-          rol: roles.includes('control-plane') || roles.includes('master') ? 'MASTER' : 'WORKER',
+          rol: roles.includes('control-plane') || roles.includes('master') ? 'NM' : 'NW',
           estado: 'ACTIVO',
           usuario_creacion: userId
         },
@@ -221,7 +221,7 @@ export const syncNodos = async (k8sApi, clusterId) => {
           nodoTipo: tipoNodo,
           maquinaId,
           servidorId,
-          rol: roles.includes('control-plane') || roles.includes('master') ? 'MASTER' : 'WORKER',
+          rol: roles.includes('control-plane') || roles.includes('master') ? 'NM' : 'NW',
           estado: 'ACTIVO',
           fecha_modificacion: new Date(),
           usuario_modificacion: userId

@@ -38,7 +38,7 @@ const QUERY = gql`
       id
       id_usuario
       id_rol
-      estado # <--- IMPORTANTE: Agregado para lógica de estado
+      estado 
     }
   }
 `
@@ -229,7 +229,7 @@ const UsuarioRolPage = ({ id }) => {
         title="Roles de Usuario"
         titleTo="usuarioRols"
         groupTitle="Gestión de Usuarios"
-        breadcrumbItems={[{ label: titulo }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <UsuarioRolCell id={id} />

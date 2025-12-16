@@ -10,7 +10,6 @@ export const QUERY = gql`
       nodoTipo
       maquinaId
       servidorId
-      rol
       estado
       identity_key
       fecha_creacion
@@ -51,6 +50,8 @@ export const QUERY = gql`
         ram
         cpu
         ip
+        so
+        almacenamientoTotal
         estadoOperativoInfo {
           id
           codigo
@@ -89,6 +90,8 @@ export const QUERY = gql`
           ram
           cpu
           ip
+          so
+          almacenamientoTotal
           estadoOperativoInfo {
             id
             codigo

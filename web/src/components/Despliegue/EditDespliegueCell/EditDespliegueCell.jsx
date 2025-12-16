@@ -23,6 +23,13 @@ export const QUERY = gql`
       cod_tipo_respaldo
       referencia_respaldo
       estado_despliegue
+      
+      # --- NUEVOS CAMPOS ---
+      version_aplicacion
+      git_commit
+      tipo_despliegue
+      # ---------------------
+
       unidadInfo {
         id
         codigo
@@ -37,7 +44,7 @@ export const QUERY = gql`
         id
         codigo
         nombre
-      } # <--- Faltaba cerrar esta llave
+      } 
     }
     # Listas para los selectores del formulario
     componentes {
@@ -54,13 +61,13 @@ export const QUERY = gql`
       id
       nombre
       estado
-      ip # <--- Agregado: necesario para el buscador del form
+      ip 
     }
     servidores {
       id
       nombre
       estado
-      ip_primaria # <--- Agregado: necesario para el buscador del form
+      ip_primaria 
     }
     parametros: parametrosFormularioDespliegue {
       id
@@ -123,6 +130,11 @@ export const Success = ({ despliegue, componentes, maquinas, servidores, paramet
       cod_tipo_respaldo: input.cod_tipo_respaldo,
       referencia_respaldo: input.referencia_respaldo,
       estado_despliegue: input.estado_despliegue,
+      
+      // --- NUEVOS CAMPOS EN UPDATE ---
+      version_aplicacion: input.version_aplicacion,
+      git_commit: input.git_commit,
+      tipo_despliegue: input.tipo_despliegue,
     }
 
     updateDespliegue({ variables: { id, input: cleanInput } })

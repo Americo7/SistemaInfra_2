@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react'
 import { Link, routes, navigate } from '@redwoodjs/router'
-import { useQuery, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
 
 // Importar funciones de exportación
@@ -33,6 +32,7 @@ import {
   DialogContent,
   DialogActions,
   CircularProgress,
+  alpha,
 } from '@mui/material'
 
 import {
@@ -40,7 +40,6 @@ import {
   DeveloperBoard as ComponentIcon,
   People as UsersIcon,
   Cloud as DeployIcon,
-  Computer as MachineIcon,
   PictureAsPdf as PdfIcon,
   Download as DownloadIcon,
   ArrowBack as BackIcon,
@@ -49,146 +48,177 @@ import {
   Business as EntityIcon,
   VpnKey as KeyIcon,
   Description as DescIcon,
-  CalendarToday as DateIcon,
   OpenInNew as OpenInNewIcon,
   Label as TagIcon,
+  Computer as VmIcon,
+  Dns as ServerIcon,
+  Hub as ClusterIcon,
+  Person as PersonIcon,
+  Email as EmailIcon,
+  Phone as PhoneIcon,
+  Badge as BadgeIcon,
+  Code as CodeIcon,
+  AccountTree as BranchIcon,
 } from '@mui/icons-material'
 
 /* -----------------------
- * CONSULTAS (QUERIES)
- * ----------------------- */
-const GET_USUARIOS_QUERY = gql`
-  query UsuariosLookupForSistema {
-    usuarios {
-      id
-      nombres
-      primer_apellido
-      segundo_apellido
-    }
-  }
-`
-
-/* -----------------------
- * HELPERS
+ * HELPERS GLOBALES
  * ----------------------- */
 const fmtDate = (d) => {
   if (!d) return '-'
   try {
-    const date = new Date(d)
-    return date.toLocaleString('es-ES', {
-      year: 'numeric',
-      month: '2-digit',
+    return new Date(d).toLocaleString('es-BO', {
       day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     })
   } catch {
-    return String(d)
+    return '-'
   }
 }
 
 const fmtEnum = (val) => (val ? String(val).toUpperCase() : '')
 
-const uniqueById = (arr = []) => {
-  const map = new Map()
-  arr.forEach((it) => {
-    if (it?.id != null && !map.has(it.id)) map.set(it.id, it)
-  })
-  return Array.from(map.values())
+// Helper para obtener nombre completo de un objeto usuario (creadoPor/modificadoPor)
+const formatUserObj = (userObj) => {
+  if (!userObj) return '-'
+  const { nombres, primer_apellido, segundo_apellido } = userObj
+  return `${nombres || ''} ${primer_apellido || ''} ${segundo_apellido || ''}`.trim()
+}
+
+// Helper para el Color del Estado
+const getStatusColor = (codigo) => {
+  const c = codigo?.toUpperCase() || 'UNKNOWN'
+  const map = {
+    ACTIVO: 'success',
+    EXITOSO: 'success',
+    OPERATIVO: 'success',
+    FINALIZADO: 'success',
+    FALLIDO: 'error',
+    ERROR: 'error',
+    INACTIVO: 'default',
+    PENDIENTE: 'warning',
+    INICIADO: 'warning',
+    MANTENIMIENTO: 'warning',
+    UNKNOWN: 'default',
+  }
+  return map[c] || 'default'
+}
+
+// Helper para la Variante del Estado (Relleno vs Líneas)
+const getStatusVariant = (codigo) => {
+  const c = codigo?.toUpperCase() || ''
+  if (c === 'ACTIVO' || c === 'INACTIVO') {
+    return 'outlined'
+  }
+  return 'filled'
+}
+
+// Helper para el Color del Entorno
+const getEntornoColor = (codigo) => {
+  const c = codigo?.toUpperCase() || ''
+  if (c === 'PROD' || c === 'PRODUCCION') return 'success'
+  if (c === 'PREPROD' || c === 'PRE_PROD' || c === 'STAGING') return 'warning'
+  if (c === 'DEMO' || c === 'DEV' || c === 'QA' || c === 'TEST') return 'info'
+  return 'default'
+}
+
+/* Lógica de Prioridad de Cluster: K8s > Proxmox > Físico */
+const resolveClusterInfo = (recurso, tipoRecurso) => {
+  if (!recurso) return { nombre: '-', tipo: 'NONE' }
+
+  // 1. Buscamos Cluster de Orquestación (K8s) en cluster_nodos (Directo en la VM o Server)
+  const nodosK8s = Array.isArray(recurso.cluster_nodos) ? recurso.cluster_nodos : []
+  const k8sNode = nodosK8s.find((n) => n.cluster)
+
+  if (k8sNode) {
+    return {
+      nombre: k8sNode.cluster.nombre,
+      tipo: k8sNode.cluster.tipoClusterInfo?.nombre || 'Orquestación',
+      color: 'primary',
+    }
+  }
+
+  // 2. Si es VM, buscamos el Host de Virtualización (Proxmox) -> Servidores -> Cluster
+  if (tipoRecurso === 'VM') {
+    const host = recurso.servidores
+    if (host) {
+      const hostNodos = Array.isArray(host.cluster_nodos) ? host.cluster_nodos : []
+      const hostNode = hostNodos.find((n) => n.cluster)
+
+      if (hostNode) {
+        return {
+          nombre: hostNode.cluster.nombre,
+          tipo: hostNode.cluster.tipoClusterInfo?.nombre || 'Virtualización',
+          color: 'secondary',
+        }
+      }
+    }
+  }
+
+  return { nombre: '-', tipo: '-', color: 'default' }
 }
 
 /* -----------------------
- * SUB-COMPONENTES UI
+ * SUB-COMPONENTES
  * ----------------------- */
-const RowItem = ({ label, value, icon, isLast, multiline }) => (
-  <Box
-    sx={{
-      display: multiline ? 'block' : 'flex',
-      alignItems: multiline ? 'flex-start' : 'center',
-      py: 1.2, // Espacio vertical cómodo
-      borderBottom: isLast ? 'none' : '1px solid',
-      borderColor: 'divider',
-      width: '100%',
-      '&:hover': { bgcolor: 'action.hover' },
-    }}
-  >
-    <Typography
-      variant="body2"
-      color="text.secondary"
+const RowItem = ({ label, value, icon, isLast, multiline }) => {
+  const theme = useTheme()
+  return (
+    <Box
       sx={{
-        width: multiline ? '100%' : '40%',
-        pr: 2,
-        display: 'flex',
-        alignItems: 'center',
-        fontSize: '0.95rem', // Letra grande para etiqueta
-        mb: multiline ? 0.5 : 0,
-        fontWeight: 500,
+        display: multiline ? 'block' : 'flex',
+        alignItems: multiline ? 'flex-start' : 'center',
+        py: 0.75,
+        borderBottom: isLast ? 'none' : '1px solid',
+        borderColor: theme.palette.divider,
+        '&:hover': { bgcolor: 'action.hover' },
       }}
     >
-      {icon && (
-        <Box component="span" sx={{ mr: 1, display: 'flex', color: 'action.active' }}>
-          {icon}
-        </Box>
-      )}
-      {label}
-    </Typography>
-
-    <Box sx={{ width: multiline ? '100%' : '60%', display: 'flex', alignItems: 'center' }}>
-      {typeof value === 'string' || typeof value === 'number' ? (
-        <Typography
-          variant="body1"
-          sx={{
-            fontWeight: 600,
-            fontSize: '1rem', // Letra grande para el valor
-            whiteSpace: multiline ? 'pre-wrap' : 'normal',
-            color: 'text.primary'
-          }}
-        >
-          {value ?? ''}
-        </Typography>
-      ) : (
-        value ?? <Typography variant="body1"> </Typography>
-      )}
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ width: multiline ? '100%' : '40%', pr: 2, display: 'flex', alignItems: 'center' }}
+      >
+        {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
+        {label}
+      </Typography>
+      <Box sx={{ width: multiline ? '100%' : '60%', display: 'flex', alignItems: 'center' }}>
+        {React.isValidElement(value) ? (
+          value
+        ) : (
+          <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: multiline ? 'pre-wrap' : 'normal' }}>
+            {value || '-'}
+          </Typography>
+        )}
+      </Box>
     </Box>
-  </Box>
-)
+  )
+}
 
-// Diseño Original: Borde superior de color
 const SectionCard = ({ icon, title, children, bgcolor }) => {
   const theme = useTheme()
-  const activeColor = bgcolor || theme.palette.primary.main
-
   return (
     <Card
       sx={{
         borderRadius: 2,
-        display: 'flex',
-        flexDirection: 'column',
-        borderTop: `3px solid ${activeColor}`, // Mantenemos el borde de color
-        borderLeft: `1px solid ${theme.palette.divider}`,
-        borderRight: `1px solid ${theme.palette.divider}`,
-        borderBottom: `1px solid ${theme.palette.divider}`,
+        borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`,
+        bgcolor: theme.palette.background.paper,
         height: '100%',
       }}
     >
       <CardHeader
         avatar={
-          <Avatar sx={{ bgcolor: activeColor, width: 32, height: 32 }}>
+          <Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main, width: 32, height: 32 }}>
             {icon}
           </Avatar>
         }
-        title={
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
-            {title}
-          </Typography>
-        }
-        sx={{
-          py: 1.5,
-          px: 2,
-          borderBottom: `1px solid ${theme.palette.divider}`,
-        }}
+        title={<Typography sx={{ fontWeight: 700 }}>{title}</Typography>}
+        sx={{ py: 1, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
       />
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>{children}</CardContent>
+      <CardContent sx={{ p: 1.5 }}>{children}</CardContent>
     </Card>
   )
 }
@@ -199,41 +229,78 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
 const Sistema = ({ sistema }) => {
   const theme = useTheme()
   const [tab, setTab] = useState(0)
+
+  // Estados para PDF
   const [pdfData, setPdfData] = useState(null)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
 
-  // -- Queries --
-  const { data: usuariosData } = useQuery(GET_USUARIOS_QUERY)
+  // -- Procesamiento de Datos (Memo) --
 
-  // -- Data Processing (Memo) --
-  const componentes = sistema?.componentes || []
-  const usuariosRoles = sistema?.usuario_roles || []
-
-  const usuariosMap = useMemo(
-    () =>
-      usuariosData?.usuarios?.reduce((map, u) => {
-        map[u.id] = `${u.nombres} ${u.primer_apellido}`.trim()
-        return map
-      }, {}) || {},
-    [usuariosData]
-  )
-
-  const getUserFullName = (id) => (!id ? '-' : usuariosMap[id] || `ID: ${id}`)
-
-  // 1. Historial Despliegues
+  // 1. Historial de Despliegues (Aplanado desde Componentes)
   const historialDespliegues = useMemo(() => {
-    const all = componentes.flatMap((c) =>
-      (c.despliegue || []).map((d) => ({ ...d, componente: c }))
-    )
-    return all.sort((a, b) => new Date(b.fecha_despliegue) - new Date(a.fecha_despliegue))
-  }, [componentes])
+    const lista = []
+    const compsRaw = sistema.componentes
+    const comps = Array.isArray(compsRaw) ? compsRaw : compsRaw ? [compsRaw] : []
 
-  // 2. Máquinas Únicas
-  const maquinasInvolucradas = useMemo(() => {
-    const rawMaquinas = historialDespliegues.flatMap((d) => (d.maquina ? [d.maquina] : []))
-    return uniqueById(rawMaquinas)
-  }, [historialDespliegues])
+    comps.forEach((comp) => {
+      const despliegues = Array.isArray(comp.despliegue) ? comp.despliegue : []
+
+      despliegues.forEach((d) => {
+        const targets = []
+        // Mapear VMs
+        if (d.maquinas && Array.isArray(d.maquinas)) {
+             d.maquinas.forEach(m => targets.push({ ...m, type: 'VM' }))
+        } else if (d.maquinas) { // Por si viene como objeto único
+             targets.push({ ...d.maquinas, type: 'VM' })
+        }
+
+        // Mapear Servidores (Bare Metal)
+        if (d.servidores && Array.isArray(d.servidores)) {
+             d.servidores.forEach(s => targets.push({ ...s, type: 'SRV' }))
+        } else if (d.servidores) {
+             targets.push({ ...d.servidores, type: 'SRV' })
+        }
+
+        if (targets.length === 0) {
+          lista.push({
+            id: `d-${d.id}-none`,
+            fecha: d.fecha_despliegue,
+            compNombre: comp.nombre,
+            dominio: comp.dominio,
+            entorno: comp.entornoInfo?.codigo || '-',
+            estado: d.estadoDespliegueInfo?.nombre || d.estado_despliegue,
+            estadoCodigo: d.estadoDespliegueInfo?.codigo || d.estado_despliegue, // Para color
+            destino: null,
+            ip: '-',
+          })
+        } else {
+          targets.forEach((t) => {
+            const clusterData = resolveClusterInfo(t, t.type)
+            const ipAddress = t.type === 'VM' ? t.ip || '-' : t.ip_primaria || '-'
+            lista.push({
+              id: `d-${d.id}-${t.type}-${t.id}`,
+              fecha: d.fecha_despliegue,
+              compNombre: comp.nombre,
+              dominio: comp.dominio,
+              entorno: comp.entornoInfo?.codigo || '-',
+              estado: d.estadoDespliegueInfo?.nombre || d.estado_despliegue,
+              estadoCodigo: d.estadoDespliegueInfo?.codigo || d.estado_despliegue,
+              ip: ipAddress,
+              destino: {
+                id: t.id,
+                nombre: t.nombre,
+                tipo: t.type,
+                cluster: clusterData,
+              },
+            })
+          })
+        }
+      })
+    })
+    // Ordenar por fecha descendente
+    return lista.sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+  }, [sistema])
 
   // -- Handlers --
   const handleTabChange = (_, v) => setTab(v)
@@ -261,394 +328,507 @@ const Sistema = ({ sistema }) => {
     document.body.removeChild(link)
   }
 
+  const safeUsuarios = Array.isArray(sistema.usuario_roles) ? sistema.usuario_roles : []
+  const safeComponentes = Array.isArray(sistema.componentes)
+    ? sistema.componentes
+    : sistema.componentes
+    ? [sistema.componentes]
+    : []
+
   return (
-    <Box sx={{ width: '100%', maxWidth: 1600, mx: 'auto' }}>
+    <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
       {/* HEADER CARD */}
-      <Card elevation={3} sx={{ borderRadius: 2, mb: 3, overflow: 'hidden' }}>
-        <Box
-          sx={{
-            px: 4,
-            py: 2,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.5,
-            flexWrap: 'wrap',
-          }}
-        >
-          {/* Back Button */}
+      <Card
+        elevation={0}
+        sx={{
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: '0 0 12px 12px',
+          mb: 3,
+          bgcolor: theme.palette.background.paper,
+        }}
+      >
+        <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Tooltip title="Volver">
             <IconButton
               onClick={() => navigate(routes.sistemas())}
-              size="small"
               sx={{
-                mr: 1,
-                bgcolor: 'rgba(63, 81, 181, 0.15)',
-                color: '#3f51b5',
-                border: '1px solid rgba(63, 81, 181, 0.3)',
-                '&:hover': {
-                  bgcolor: 'rgba(63, 81, 181, 0.25)',
-                  color: '#303f9f',
-                  borderColor: 'rgba(63, 81, 181, 0.6)',
-                },
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                color: theme.palette.primary.main,
+                '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.2) },
               }}
             >
               <BackIcon fontSize="small" />
             </IconButton>
           </Tooltip>
 
-          {/* Avatar Identidad (Mantenemos Colores/Gradientes) */}
           <Avatar
             sx={{
-              width: 48,
-              height: 48,
+              width: 42,
+              height: 42,
               background: 'linear-gradient(135deg, #1976d2, #42a5f5)',
-              color: 'white',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
             }}
           >
-            <SystemIcon fontSize="medium" />
+            <SystemIcon />
           </Avatar>
 
-          {/* Títulos */}
-          <Box sx={{ flexGrow: 1 }}>
-            <Typography
-              variant="h5"
-              sx={{
-                fontWeight: 800,
-                lineHeight: 1.2,
-                // CAMBIO: Color negro (text.primary)
-                color: 'text.primary',
-              }}
-            >
+          <Box>
+            <Typography variant="h6" fontWeight={800}>
               {sistema.nombre}
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">
               Ficha técnica del sistema
             </Typography>
           </Box>
 
-          {/* Botones de Acción (Solo Reporte) */}
-          <Stack direction="row" spacing={1}>
+          <Box sx={{ ml: 'auto' }}>
             <Button
               variant="contained"
-              size="medium"
+              size="small"
               disableElevation
-              startIcon={generatingPdf ? <CircularProgress size={20} color="inherit" /> : <PdfIcon />}
+              startIcon={generatingPdf ? <CircularProgress size={16} color="inherit" /> : <PdfIcon />}
               onClick={generatePDFHandler}
               disabled={generatingPdf}
               sx={{ fontWeight: 700 }}
             >
               Reporte
             </Button>
-          </Stack>
+          </Box>
         </Box>
 
-        {/* CONTENIDO PRINCIPAL (GRID 2 COLUMNAS) */}
-        <CardContent sx={{ px: 4, py: 4 }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+        <CardContent sx={{ px: 5, pb: 4 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+            {/* COLUMNA IZQUIERDA */}
+            <Stack spacing={2}>
+              <SectionCard icon={<GeneralIcon />} title="Información General" bgcolor={theme.palette.primary.main}>
+                <RowItem
+                  label="Entidad"
+                  icon={<EntityIcon fontSize="small" />}
+                  value={
+                    sistema.entidades ? (
+                      // AQUÍ SE AGREGA TYPOGRAPHY body2 PARA IGUALAR AL RESTO DE CAMPOS
+                      <Typography variant="body2" fontWeight={600}>
+                        <Link
+                          to={routes.entidad({ id: sistema.entidades.id })}
+                          style={{ color: theme.palette.primary.main, textDecoration: 'none' }}
+                        >
+                          {sistema.entidades.nombre}
+                        </Link>
+                      </Typography>
+                    ) : (
+                      'No asignada'
+                    )
+                  }
+                />
+                <RowItem label="Código" value={sistema.codigo} icon={<KeyIcon fontSize="small" />} />
+                <RowItem label="Sigla" value={sistema.sigla} icon={<TagIcon fontSize="small" />} />
+                <RowItem label="RA Creación" value={sistema.ra_creacion} />
+                <RowItem
+                  label="Descripción"
+                  isLast
+                  multiline
+                  icon={<DescIcon fontSize="small" />}
+                  value={sistema.descripcion}
+                />
+              </SectionCard>
+            </Stack>
 
-            {/* IZQUIERDA: Información General */}
-            <SectionCard
-              icon={<GeneralIcon fontSize="small" />}
-              title="Información General"
-              bgcolor={theme.palette.primary.main}
-            >
-              <RowItem
-                label="Entidad"
-                icon={<EntityIcon fontSize="inherit" />}
-                value={
-                  sistema.entidades ? (
-                    <Typography variant="body1" fontWeight={700} color="primary.main">
-                      {sistema.entidades.nombre}
-                    </Typography>
-                  ) : 'No asignada'
-                }
-              />
-              <RowItem label="Código" value={sistema.codigo} icon={<KeyIcon fontSize="inherit" />} />
-              <RowItem label="Sigla" value={sistema.sigla} icon={<TagIcon fontSize="inherit" />} />
-              <RowItem label="RA Creación" value={sistema.ra_creacion} />
-              <RowItem
-                label="Descripción"
-                multiline
-                isLast
-                icon={<DescIcon fontSize="inherit" />}
-                value={sistema.descripcion || 'Sin descripción detallada.'}
-              />
-            </SectionCard>
-
-            {/* DERECHA: Auditoría y Stats */}
-            <Stack spacing={3}>
-              <SectionCard
-                icon={<AuditIcon fontSize="small" />}
-                title="Auditoría del Registro"
-                bgcolor={theme.palette.warning.dark}
-              >
+            {/* COLUMNA DERECHA */}
+            <Stack spacing={2}>
+              <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
                 <RowItem
                   label="Estado Registro"
                   value={
                     <Chip
                       label={fmtEnum(sistema.estado)}
                       size="small"
-                      color={sistema.estado === 'ACTIVO' ? 'success' : 'error'}
-                      sx={{ height: 24, fontWeight: 700, fontSize: '0.75rem' }}
+                      color={getStatusColor(sistema.estado)}
+                      variant={getStatusVariant(sistema.estado)}
+                      sx={{ height: 20, fontWeight: 700, fontSize: '0.75rem' }}
                     />
                   }
                 />
-                <RowItem label="Fecha Creación" value={fmtDate(sistema.fecha_creacion)} icon={<DateIcon fontSize="inherit" />} />
-                <RowItem label="Creado por" value={getUserFullName(sistema.usuario_creacion)} />
+                <RowItem label="Fecha Creación" value={fmtDate(sistema.fecha_creacion)} />
+                <RowItem label="Creado por" value={formatUserObj(sistema.creadoPor)} />
                 <RowItem label="Última Modificación" value={fmtDate(sistema.fecha_modificacion)} />
-                <RowItem label="Modificado por" value={getUserFullName(sistema.usuario_modificacion)} isLast />
+                <RowItem label="Modificado por" value={formatUserObj(sistema.modificadoPor)} isLast />
               </SectionCard>
-
-              {/* Stats Rápidos (Bordes de Colores mantenidos) */}
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2 }}>
-                <Paper
-                  variant="outlined"
-                  sx={{ p: 2, textAlign: 'center', borderColor: theme.palette.info.main, borderTopWidth: 3 }}
-                >
-                  <Typography variant="h5" color="primary.main" fontWeight={800}>
-                    {componentes.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                    Componentes
-                  </Typography>
-                </Paper>
-                <Paper
-                  variant="outlined"
-                  sx={{ p: 2, textAlign: 'center', borderColor: theme.palette.success.main, borderTopWidth: 3 }}
-                >
-                  <Typography variant="h5" color="success.main" fontWeight={800}>
-                    {maquinasInvolucradas.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                    Máquinas
-                  </Typography>
-                </Paper>
-                <Paper
-                  variant="outlined"
-                  sx={{ p: 2, textAlign: 'center', borderColor: theme.palette.warning.main, borderTopWidth: 3 }}
-                >
-                  <Typography variant="h5" color="warning.main" fontWeight={800}>
-                    {historialDespliegues.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" fontWeight={600}>
-                    Despliegues
-                  </Typography>
-                </Paper>
-              </Box>
             </Stack>
           </Box>
         </CardContent>
       </Card>
 
-      {/* TABS */}
-      <Card sx={{ borderRadius: 2 }}>
+      {/* --------- TABS INFERIORES --------- */}
+      <Card sx={{ borderRadius: 2, mt: 3, bgcolor: theme.palette.background.paper }}>
         <Tabs
           value={tab}
           onChange={handleTabChange}
-          indicatorColor="primary"
-          textColor="primary"
           variant="scrollable"
           scrollButtons="auto"
-          sx={{ borderBottom: `1px solid ${theme.palette.divider}`, minHeight: 54 }}
+          sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}
         >
           <Tab
-            sx={{ minHeight: 54 }}
             label={
-              <Stack direction="row" spacing={1} alignItems="center">
-                <ComponentIcon />
-                <Typography variant="subtitle2" fontWeight={600}>Componentes</Typography>
-                <Chip label={componentes.length} size="small" sx={{ height: 20, fontSize: '0.75rem', fontWeight: 700 }} />
+              <Stack direction="row" spacing={1}>
+                <ComponentIcon fontSize="small" />
+                Componentes
+                <Chip label={safeComponentes.length} size="small" />
               </Stack>
             }
           />
           <Tab
-            sx={{ minHeight: 54 }}
             label={
-              <Stack direction="row" spacing={1} alignItems="center">
-                <DeployIcon />
-                <Typography variant="subtitle2" fontWeight={600}>Despliegues</Typography>
-                <Chip label={historialDespliegues.length} size="small" sx={{ height: 20, fontSize: '0.75rem', fontWeight: 700 }} />
+              <Stack direction="row" spacing={1}>
+                <DeployIcon fontSize="small" />
+                Despliegues
+                <Chip label={historialDespliegues.length} size="small" />
               </Stack>
             }
           />
           <Tab
-            sx={{ minHeight: 54 }}
             label={
-              <Stack direction="row" spacing={1} alignItems="center">
-                <MachineIcon />
-                <Typography variant="subtitle2" fontWeight={600}>Máquinas</Typography>
-                <Chip label={maquinasInvolucradas.length} size="small" sx={{ height: 20, fontSize: '0.75rem', fontWeight: 700 }} />
-              </Stack>
-            }
-          />
-          <Tab
-            sx={{ minHeight: 54 }}
-            label={
-              <Stack direction="row" spacing={1} alignItems="center">
-                <UsersIcon />
-                <Typography variant="subtitle2" fontWeight={600}>Usuarios</Typography>
-                <Chip label={usuariosRoles.length} size="small" sx={{ height: 20, fontSize: '0.75rem', fontWeight: 700 }} />
+              <Stack direction="row" spacing={1}>
+                <UsersIcon fontSize="small" />
+                Usuarios
+                <Chip label={safeUsuarios.length} size="small" />
               </Stack>
             }
           />
         </Tabs>
 
-        {/* TAB CONTENT */}
         <CardContent sx={{ p: 0 }}>
-          {/* 0. COMPONENTES */}
+          {/* TAB 0: COMPONENTES */}
           {tab === 0 && (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: theme.palette.action.hover }}>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Nombre</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Dominio</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Entorno</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Estado</TableCell>
+            <TableContainer component={Paper} elevation={0}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                  <TableRow>
+                    <TableCell>Nombre</TableCell>
+                    <TableCell>Dominio</TableCell>
+                    <TableCell>Entorno</TableCell>
+                    <TableCell>Categoría</TableCell>
+                    <TableCell>GitLab Repo</TableCell>
+                    <TableCell>Rama</TableCell>
+                    <TableCell>Estado</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {componentes.length > 0 ? (
-                    componentes.map((c) => (
+                  {safeComponentes.length > 0 ? (
+                    safeComponentes.map((c) => (
                       <TableRow key={c.id} hover>
-                        <TableCell>
+                        {/* Nombre */}
+                        <TableCell sx={{ fontWeight: 600 }}>
                           <Link
                             to={routes.componente({ id: c.id })}
-                            style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none', fontSize: '0.95rem' }}
+                            style={{ color: theme.palette.primary.main, textDecoration: 'none' }}
                           >
                             {c.nombre}
                           </Link>
                         </TableCell>
-                        <TableCell sx={{ fontSize: '0.95rem' }}>
+
+                        {/* Dominio */}
+                        <TableCell>
                           {c.dominio ? (
                             <Stack direction="row" alignItems="center" spacing={0.5}>
-                              <a href={`https://${c.dominio}`} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>{c.dominio}</a>
-                              <OpenInNewIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
+                              <a
+                                href={`https://${c.dominio}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ color: 'inherit', textDecoration: 'none' }}
+                              >
+                                {c.dominio}
+                              </a>
+                              <OpenInNewIcon sx={{ fontSize: 12, color: 'text.disabled' }} />
                             </Stack>
-                          ) : '-'}
+                          ) : (
+                            '-'
+                          )}
                         </TableCell>
-                        <TableCell sx={{ fontSize: '0.95rem' }}>{c.cod_entorno}</TableCell>
+
+                        {/* Entorno - CON COLOR */}
                         <TableCell>
-                          <Chip label={c.estado} size="small" color={c.estado === 'ACTIVO' ? 'success' : 'default'} sx={{ height: 24, fontSize: '0.75rem', fontWeight: 600 }} />
+                          {c.entornoInfo ? (
+                            <Chip
+                              label={c.entornoInfo.nombre || c.entornoInfo.codigo}
+                              size="small"
+                              variant="outlined"
+                              color={getEntornoColor(c.entornoInfo.codigo)}
+                            />
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+
+                        {/* Categoría */}
+                        <TableCell>
+                          {c.categoriaInfo ? <Typography variant="body2">{c.categoriaInfo.nombre}</Typography> : '-'}
+                        </TableCell>
+
+                        {/* GitLab Repo */}
+                        <TableCell>
+                          {c.gitlab_repo ? (
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <CodeIcon fontSize="small" color="action" sx={{ fontSize: 16 }} />
+                              <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
+                                {c.gitlab_repo}
+                              </Typography>
+                            </Stack>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+
+                        {/* Rama */}
+                        <TableCell>
+                          {c.gitlab_rama ? (
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <BranchIcon fontSize="small" sx={{ fontSize: 14, color: 'text.disabled' }} />
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                              >
+                                {c.gitlab_rama}
+                              </Typography>
+                            </Stack>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              -
+                            </Typography>
+                          )}
+                        </TableCell>
+
+                        {/* Estado */}
+                        <TableCell>
+                          <Chip
+                            label={c.estado}
+                            size="small"
+                            color={getStatusColor(c.estado)}
+                            variant={getStatusVariant(c.estado)}
+                          />
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '1rem' }}>No hay componentes registrados</TableCell></TableRow>
+                    <TableRow>
+                      <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                        No hay componentes registrados.
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>
             </TableContainer>
           )}
 
-          {/* 1. DESPLIEGUES */}
+          {/* TAB 1: DESPLIEGUES */}
           {tab === 1 && (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: theme.palette.action.hover }}>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Componente</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Versión / Tag</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Fecha</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Estado</TableCell>
+            <TableContainer component={Paper} elevation={0}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                  <TableRow>
+                    <TableCell>Componente</TableCell>
+                    <TableCell>Dominio</TableCell>
+                    <TableCell>Entorno</TableCell>
+                    <TableCell>Fecha</TableCell>
+                    <TableCell>Destino (IP)</TableCell>
+                    <TableCell>Cluster</TableCell>
+                    <TableCell>Estado</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {historialDespliegues.length > 0 ? (
                     historialDespliegues.map((d) => (
                       <TableRow key={d.id} hover>
-                        <TableCell sx={{ fontSize: '0.95rem', fontWeight: 500 }}>{d.componente?.nombre}</TableCell>
-                        <TableCell sx={{ fontSize: '0.95rem' }}>{d.version || '-'}</TableCell>
-                        <TableCell sx={{ fontSize: '0.95rem' }}>{fmtDate(d.fecha_despliegue)}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={d.estado_despliegue}
-                            size="small"
-                            color={
-                              d.estado_despliegue === 'EXITOSO' ? 'success' : d.estado_despliegue === 'FALLIDO' ? 'error' : 'warning'
-                            }
-                            sx={{ height: 24, fontSize: '0.75rem', fontWeight: 600 }}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '1rem' }}>No hay historial de despliegues</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
+                        {/* Componente */}
+                        <TableCell sx={{ fontWeight: 500 }}>{d.compNombre}</TableCell>
 
-          {/* 2. MAQUINAS */}
-          {tab === 2 && (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: theme.palette.action.hover }}>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Nombre / Hostname</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>IP</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>S.O.</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Estado</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {maquinasInvolucradas.length > 0 ? (
-                    maquinasInvolucradas.map((m) => (
-                      <TableRow key={m.id} hover>
+                        {/* Dominio */}
                         <TableCell>
-                          <Link to={routes.maquina({ id: m.id })} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none', fontSize: '0.95rem' }}>
-                            {m.nombre}
-                          </Link>
+                          {d.dominio ? (
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                              {d.dominio}
+                            </Typography>
+                          ) : (
+                            '-'
+                          )}
                         </TableCell>
-                        <TableCell sx={{ fontSize: '0.95rem' }}>{m.ip || '-'}</TableCell>
-                        <TableCell sx={{ fontSize: '0.95rem' }}>{m.so || '-'}</TableCell>
+
+                        {/* Entorno - CON COLOR */}
                         <TableCell>
                           <Chip
-                            label={m.estado_operativo}
+                            label={d.entorno}
                             size="small"
                             variant="outlined"
-                            color={m.estado_operativo === 'OPERATIVO' ? 'success' : 'warning'}
-                            sx={{ height: 24, fontSize: '0.75rem', fontWeight: 600 }}
+                            color={getEntornoColor(d.entorno)}
+                          />
+                        </TableCell>
+
+                        {/* Fecha */}
+                        <TableCell>{fmtDate(d.fecha)}</TableCell>
+
+                        {/* Destino + IP */}
+                        <TableCell>
+                          {d.destino ? (
+                            <Stack>
+                              <Stack direction="row" alignItems="center" gap={1}>
+                                {d.destino.tipo === 'VM' ? (
+                                  <VmIcon fontSize="small" color="action" />
+                                ) : (
+                                  <ServerIcon fontSize="small" color="action" />
+                                )}
+                                <Typography variant="body2" fontWeight={600}>
+                                  {d.destino.nombre}
+                                </Typography>
+                              </Stack>
+                              <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
+                                {d.ip !== '-' ? `IP: ${d.ip}` : 'Sin IP'}
+                              </Typography>
+                            </Stack>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              Sin destino
+                            </Typography>
+                          )}
+                        </TableCell>
+
+                        {/* Cluster */}
+                        <TableCell>
+                          {d.destino && d.destino.cluster.nombre !== '-' ? (
+                            <Stack direction="row" alignItems="center" gap={1}>
+                              <ClusterIcon fontSize="small" color={d.destino.cluster.color} />
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>
+                                  {d.destino.cluster.nombre}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {d.destino.cluster.tipo}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+
+                        {/* Estado */}
+                        <TableCell>
+                          <Chip
+                            label={d.estado}
+                            size="small"
+                            color={getStatusColor(d.estadoCodigo)}
+                            variant={getStatusVariant(d.estadoCodigo)}
                           />
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '1rem' }}>No hay máquinas vinculadas</TableCell></TableRow>
+                    <TableRow>
+                      <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                        No hay historial de despliegues.
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>
             </TableContainer>
           )}
 
-          {/* 3. USUARIOS */}
-          {tab === 3 && (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: theme.palette.action.hover }}>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Nombre Completo</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Rol en Sistema</TableCell>
-                    <TableCell sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Email</TableCell>
+          {/* TAB 2: USUARIOS */}
+          {tab === 2 && (
+            <TableContainer component={Paper} elevation={0}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                  <TableRow>
+                    <TableCell>Cuenta</TableCell>
+                    <TableCell>Nombre Completo</TableCell>
+                    <TableCell>Documento</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Celular</TableCell>
+                    <TableCell>Rol</TableCell>
+                    <TableCell>Estado</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {usuariosRoles.length > 0 ? (
-                    usuariosRoles.map((ur) => (
+                  {safeUsuarios.length > 0 ? (
+                    safeUsuarios.map((ur) => (
                       <TableRow key={ur.id} hover>
-                        <TableCell sx={{ fontSize: '0.95rem', fontWeight: 500 }}>
+                        {/* Cuenta */}
+                        <TableCell>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <PersonIcon fontSize="small" color="action" />
+                            <Link
+                              to={routes.usuario({ id: ur.usuarios.id })}
+                              style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}
+                            >
+                              {ur.usuarios.nombre_usuario || 'Sin usuario'}
+                            </Link>
+                          </Stack>
+                        </TableCell>
+
+                        {/* Nombre Completo */}
+                        <TableCell sx={{ fontWeight: 500 }}>
                           {ur.usuarios.nombres} {ur.usuarios.primer_apellido} {ur.usuarios.segundo_apellido}
                         </TableCell>
+
+                        {/* Documento */}
                         <TableCell>
-                          <Chip label={ur.roles?.nombre} size="small" variant="outlined" sx={{ height: 24, fontSize: '0.75rem', fontWeight: 600 }} />
+                          {ur.usuarios.nro_documento ? (
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              <BadgeIcon fontSize="small" sx={{ fontSize: 16, color: 'text.secondary' }} />
+                              <Typography variant="body2">{ur.usuarios.nro_documento}</Typography>
+                            </Stack>
+                          ) : (
+                            '-'
+                          )}
                         </TableCell>
-                        <TableCell sx={{ fontSize: '0.95rem' }}>{ur.usuarios.email}</TableCell>
+
+                        {/* Email */}
+                        <TableCell>
+                          {ur.usuarios.email ? (
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              <EmailIcon fontSize="small" sx={{ fontSize: 14, color: 'text.secondary' }} />
+                              <Typography variant="body2">{ur.usuarios.email}</Typography>
+                            </Stack>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+
+                        {/* Celular */}
+                        <TableCell>
+                          {ur.usuarios.celular ? (
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              <PhoneIcon fontSize="small" sx={{ fontSize: 14, color: 'text.secondary' }} />
+                              <Typography variant="body2">{ur.usuarios.celular}</Typography>
+                            </Stack>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+
+                        {/* Rol */}
+                        <TableCell>
+                          <Chip label={ur.roles?.nombre} size="small" variant="outlined" color="primary" />
+                        </TableCell>
+
+                        {/* Estado */}
+                        <TableCell>
+                          <Chip
+                            label={ur.usuarios.estado}
+                            size="small"
+                            color={getStatusColor(ur.usuarios.estado)}
+                            variant={getStatusVariant(ur.usuarios.estado)}
+                          />
+                        </TableCell>
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={3} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: '1rem' }}>No hay usuarios asignados</TableCell></TableRow>
+                    <TableRow>
+                      <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                        No hay usuarios asignados.
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -657,7 +837,7 @@ const Sistema = ({ sistema }) => {
         </CardContent>
       </Card>
 
-      {/* DIALOGO PDF (Sin cambios) */}
+      {/* DIALOGO PDF */}
       <Dialog
         open={previewOpen}
         onClose={() => setPreviewOpen(false)}
@@ -667,15 +847,27 @@ const Sistema = ({ sistema }) => {
       >
         <DialogTitle sx={{ borderBottom: `1px solid ${theme.palette.divider}` }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6" fontWeight={700}>Vista previa del Reporte</Typography>
-            <Button variant="contained" startIcon={<DownloadIcon />} onClick={downloadPDF} color="primary" size="medium">Descargar</Button>
+            <Typography variant="h6" fontWeight={700}>
+              Vista previa del Reporte
+            </Typography>
+            <Button variant="contained" startIcon={<DownloadIcon />} onClick={downloadPDF}>
+              Descargar
+            </Button>
           </Stack>
         </DialogTitle>
         <DialogContent sx={{ p: 0, bgcolor: '#f5f5f5' }}>
-          {pdfData && <iframe src={pdfData} width="100%" height="100%" style={{ border: 'none', minHeight: '60vh', display: 'block' }} title="Vista previa del PDF" />}
+          {pdfData && (
+            <iframe
+              src={pdfData}
+              width="100%"
+              height="100%"
+              style={{ border: 'none', minHeight: '60vh', display: 'block' }}
+              title="Vista previa del PDF"
+            />
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPreviewOpen(false)} size="medium">Cerrar</Button>
+          <Button onClick={() => setPreviewOpen(false)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -245,8 +245,8 @@ const Entidades = ({ entidads }) => {
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
-        fecha_creacion: false,
-        creadoPor: false
+        fecha_creacion: true,
+        creadoPor: true
       },
     },
     muiTablePaperProps: {

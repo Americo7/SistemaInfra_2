@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
+import { useAuth } from 'src/auth'
 
 // Iconos
 import StorageIcon from '@mui/icons-material/Storage'
@@ -45,6 +46,7 @@ const CONSULTA_ENDPOINTS = gql`
 
 export default function K8sSyncPage() {
   const { data, loading, refetch } = useQuery(CONSULTA_ENDPOINTS)
+  const { getToken } = useAuth()
 
   const [idEnProceso, setIdEnProceso] = useState(null)
   const [tipoProceso, setTipoProceso] = useState(null)
@@ -59,11 +61,8 @@ export default function K8sSyncPage() {
 
   // --- HELPER: Asegurar que los contadores sean números ---
   const normalizarDesglose = (datos) => {
-    // Busca en varias ubicaciones posibles de la respuesta
     const raw = datos.detalles?.desglose || datos.desglose || {}
-    
     return {
-      // Convierte a número y usa 0 si falla. Soporta 'Virtual', 'virtual', etc.
       virtual: Number(raw.virtuales || raw.Virtual || raw.vms || 0),
       fisico: Number(raw.fisicos || raw.Fisico || raw.physical || 0)
     }
@@ -103,7 +102,7 @@ export default function K8sSyncPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, apiError])
 
-  // 2. CONEXIÓN AL BACKEND (Modificado para devolver resultado)
+  // --- LÓGICA PRINCIPAL DE CONEXIÓN ---
   const conectarBackend = async (endpointId, accion, silencioso = false) => {
     if (apiError) {
       if (!silencioso) toast.error("API no disponible")
@@ -115,17 +114,46 @@ export default function K8sSyncPage() {
         setTipoProceso(accion)
     }
 
-    // Actualizamos estado visual a "Cargando"
     setEstadoSincronizacion((prev) => ({
       ...prev,
       [endpointId]: { ...prev[endpointId], tipo: 'cargando', accion },
     }))
 
     try {
+      // 1. OBTENER EL TOKEN
+      const token = await getToken()
+
+      // 2. VALIDACIÓN DE TOKEN (NUEVO BLOQUE DE SEGURIDAD)
+      if (!token) {
+        const msg = "Sesión expirada. Por favor, recargue la página."
+        
+        setEstadoSincronizacion((prev) => ({
+          ...prev,
+          [endpointId]: { 
+            tipo: 'error', 
+            mensaje: 'Sin sesión', 
+            accion 
+          },
+        }))
+
+        if (!silencioso) toast.error(msg)
+        return { success: false }
+      }
+
+      // 3. ENVIAR PETICIÓN CON TOKEN
       const respuesta = await fetch(URL_SYNC, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpointId, soloVerificar: accion === 'verify' }),
+        headers: { 
+            'Content-Type': 'application/json',
+            'auth-provider': 'dbAuth', 
+            'authorization': `Bearer ${token}` // Token validado
+        },
+        credentials: 'include',
+        body: JSON.stringify({ 
+            endpointId, 
+            soloVerificar: accion === 'verify',
+            trigger: 'MANUAL' 
+        }),
       })
 
       const datos = await respuesta.json()
@@ -137,8 +165,6 @@ export default function K8sSyncPage() {
       // --- ÉXITO ---
       const mensaje = datos.message || (accion === 'verify' ? 'Conexión OK' : 'Sync OK')
       const nodosTotal = Number(datos.procesados || 0)
-      
-      // USAMOS EL HELPER AQUÍ PARA CORREGIR LOS 0s
       const desglose = normalizarDesglose(datos)
 
       setEstadoSincronizacion((prev) => ({
@@ -152,7 +178,6 @@ export default function K8sSyncPage() {
         },
       }))
 
-      // Solo mostramos toast si NO es silencioso (Manual)
       if (!silencioso) toast.success(mensaje)
       if (accion === 'sync') await refetch()
       
@@ -182,7 +207,6 @@ export default function K8sSyncPage() {
     }
   }
 
-  // 3. SINCRONIZACIÓN MASIVA (MEJORADA: Reporte Final)
   const ejecutarSincronizacionMasiva = async () => {
     if (apiError) return toast.error("API no disponible")
     
@@ -190,21 +214,17 @@ export default function K8sSyncPage() {
     if (!lista.length) return
 
     setSincronizandoTodo(true)
-    // Toast de carga único con ID para poder actualizarlo o cerrarlo luego
     const toastId = toast.loading(`Sincronizando ${lista.length} clusters...`)
 
     let exitosos = 0
     let errores = 0
 
-    // Ejecutamos en serie (uno tras otro) para no saturar, pero en modo silencioso
     for (const ep of lista) {
-      // Pasamos 'true' como tercer argumento para que sea SILENCIOSO
       const resultado = await conectarBackend(ep.id, 'sync', true)
       if (resultado.success) exitosos++
       else errores++
     }
 
-    // Cerramos el loading y mostramos UN SOLO mensaje final
     toast.dismiss(toastId)
     
     if (errores === 0) {
@@ -259,7 +279,6 @@ export default function K8sSyncPage() {
             const esError = resultado.tipo === 'error'
             const esWarning = resultado.tipo === 'warning'
             
-            // Usamos los valores seguros (si es undefined, será 0 gracias al helper)
             const vms = resultado.desglose?.virtual || 0
             const fisicos = resultado.desglose?.fisico || 0
 

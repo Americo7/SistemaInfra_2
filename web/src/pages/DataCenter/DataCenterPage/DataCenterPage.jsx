@@ -228,7 +228,7 @@ const DataCenterPage = ({ id }) => {
         title="Data Centers"
         titleTo="dataCenters"
         groupTitle="Infraestructura"
-        breadcrumbItems={[{ label: nombreDataCenter }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <DataCenterCell id={id} />

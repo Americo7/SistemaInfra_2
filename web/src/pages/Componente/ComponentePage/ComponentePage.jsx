@@ -226,7 +226,7 @@ const ComponentePage = ({ id }) => {
         title="Componentes"
         titleTo="componentes"
         groupTitle="Despliegues"
-        breadcrumbItems={[{ label: nombreComponente }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <ComponenteCell id={id} />

@@ -16,28 +16,95 @@ export const QUERY = gql`
       tecnologia
       estado
       fecha_creacion
-      usuario_creacion
       fecha_modificacion
-      usuario_modificacion
       creadoPor {
-        id
         nombres
         primer_apellido
+        segundo_apellido
       }
       modificadoPor {
-        id
         nombres
         primer_apellido
+        segundo_apellido
       }
       entornoInfo {
-        id
         codigo
         nombre
       }
       categoriaInfo {
-        id
         codigo
         nombre
+      }
+      sistemas {
+        id
+        nombre
+        sigla
+      }
+      # Despliegues
+      despliegue {
+        id
+        fecha_despliegue
+        tipoRespaldoInfo { id codigo nombre }
+        estadoDespliegueInfo { id codigo nombre }
+        
+        # Destino 1: Máquinas Virtuales
+        maquinas {
+          id
+          nombre
+          ip
+          so
+          cpu
+          ram
+          almacenamientoTotal
+          estadoOperativoInfo { codigo nombre }
+          
+          # Contexto 1: Host físico (Proxmox)
+          servidores {
+            id
+            nombre
+            cluster_nodos {
+              id
+              nombre
+              cluster {
+                id
+                nombre
+                tipoClusterInfo { codigo nombre }
+              }
+            }
+          }
+          
+          # Contexto 2: Orquestación interna (K8s instalado en la VM)
+          cluster_nodos {
+            id
+            nombre
+            cluster {
+              id
+              nombre
+              tipoClusterInfo { codigo nombre }
+            }
+          }
+        }
+      
+        # Destino 2: Servidores Físicos (Bare Metal)
+        servidores {
+          id
+          nombre
+          ip_primaria
+          sistema_operativo
+          ram
+          almacenamiento
+          estadoOperativoInfo { codigo nombre }
+          
+          cluster_nodos {
+            id
+            nombre
+            cluster {
+              id
+              nombre
+              tipoClusterInfo { codigo nombre }
+            }
+          }
+        }
       }
     }
   }

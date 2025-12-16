@@ -17,16 +17,25 @@ export const schema = gql`
     cod_tipo_respaldo: String!
     referencia_respaldo: String!
     estado_despliegue: String!
+    
+    # --- NUEVOS CAMPOS ---
+    version_aplicacion: String
+    git_commit: String
+    tipo_despliegue: String
 
+    # --- RELACIONES PRISMA ---
     componentes: Componente!
     maquinas: Maquina
     servidores: Servidor
 
+    # --- RESOLVERS PERSONALIZADOS (Helpers) ---
     creadoPor: Usuario
     modificadoPor: Usuario
     tipoRespaldoInfo: Parametro
     estadoDespliegueInfo: Parametro
     unidadInfo: Parametro
+    # Nuevo resolver para obtener el nombre (Deploy/Rollback) desde Parametros
+    tipoDespliegueInfo: Parametro 
   }
 
   enum estado {
@@ -64,6 +73,10 @@ export const schema = gql`
     cod_tipo_respaldo: String!
     referencia_respaldo: String!
     estado_despliegue: String!
+    # Nuevos campos en Create
+    version_aplicacion: String
+    git_commit: String
+    tipo_despliegue: String
   }
 
   input UpdateDespliegueInput {
@@ -79,6 +92,10 @@ export const schema = gql`
     cod_tipo_respaldo: String
     referencia_respaldo: String
     estado_despliegue: String
+    # Nuevos campos en Update
+    version_aplicacion: String
+    git_commit: String
+    tipo_despliegue: String
   }
 
   type Mutation {

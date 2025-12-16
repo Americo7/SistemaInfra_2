@@ -226,7 +226,7 @@ const EntidadPage = ({ id }) => {
         title="Entidades"
         titleTo="entidads"
         groupTitle="Despliegues"
-        breadcrumbItems={[{ label: nombreEntidad }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <EntidadCell id={id} />

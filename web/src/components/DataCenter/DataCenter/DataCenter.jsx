@@ -46,6 +46,15 @@ const getStatusColor = (codigo) => {
   return map[codigo] || 'default'
 }
 
+// Helper para color de Entorno
+const getEntornoColor = (codigo) => {
+  const c = codigo?.toUpperCase() || ''
+  if (c === 'PROD' || c === 'PRODUCCION') return 'success'
+  if (c === 'PRE_PROD' || c === 'STAGING') return 'warning'
+  if (c === 'DEMO' || c === 'DEV' || c === 'QA' || c === 'TEST') return 'info'
+  return 'default'
+}
+
 const parseAlmacenamiento = (val) => {
   if (!val) return '-'
   try {
@@ -116,7 +125,6 @@ const RowItem = ({ label, value, icon, isLast }) => {
       borderBottom: isLast ? 'none' : '1px solid', 
       borderColor: theme.palette.divider, 
       transition: 'background-color 0.2s', 
-      // CORRECCIÓN: Ahora usa la variable global action.hover
       '&:hover': { bgcolor: 'action.hover' } 
     }}>
       <Typography variant="body2" color="text.secondary" sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}>
@@ -124,7 +132,8 @@ const RowItem = ({ label, value, icon, isLast }) => {
         {label}
       </Typography>
       <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
-        {React.isValidElement(value) ? value : <Typography variant="body1" sx={{ fontWeight: 600 }}>{value}</Typography>}
+        {/* CAMBIO REALIZADO: body1 -> body2 */}
+        {React.isValidElement(value) ? value : <Typography variant="body2" sx={{ fontWeight: 600 }}>{value}</Typography>}
       </Box>
     </Box>
   )
@@ -242,7 +251,6 @@ const DataCenter = ({ dataCenter }) => {
                 </TableHead>
                 <TableBody>
                   {servidores.map((s) => (
-                    // CORRECCIÓN: Usamos solo "hover"
                     <TableRow key={s.id} hover>
                       <TableCell sx={{ fontWeight: 600 }}>
                           <Link to={routes.servidor({ id: s.id })} style={{ textDecoration: 'none', color: theme.palette.primary.main }}>{s.nombre}</Link>
@@ -250,7 +258,7 @@ const DataCenter = ({ dataCenter }) => {
                       <TableCell>{s.ip_primaria || '-'}</TableCell>
                       <TableCell>{s.marca} {s.modelo}</TableCell>
                       <TableCell>{s.ram ? `${s.ram} GB` : '-'}</TableCell>
-                      <TableCell>{parseAlmacenamiento(s.almacenamiento)}</TableCell>
+                      <TableCell>{s.almacenamiento ? `${s.almacenamiento} GB` : '-'}</TableCell>
                       <TableCell>{getServerCluster(s)}</TableCell>
                       <TableCell><Chip label={s.estadoOperativoInfo?.nombre || s.estado} size="small" color={getStatusColor(s.estadoOperativoInfo?.codigo || s.estado)} /></TableCell>
                     </TableRow>
@@ -283,7 +291,6 @@ const DataCenter = ({ dataCenter }) => {
                   {maquinas.map((m) => {
                     const infra = getVmInfraInfo(m)
                     return (
-                    // CORRECCIÓN: Usamos solo "hover"
                     <TableRow key={m.id} hover>
                       <TableCell sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>{m.proxmox_vmid}</TableCell>
                       
@@ -353,6 +360,7 @@ const DataCenter = ({ dataCenter }) => {
                   <TableRow>
                     <TableCell>Componente</TableCell>
                     <TableCell>Sistema</TableCell>
+                    <TableCell>Entorno</TableCell>
                     <TableCell>Infraestructura Origen</TableCell>
                     <TableCell>Fecha</TableCell>
                     <TableCell>Estado Despliegue</TableCell>
@@ -360,10 +368,21 @@ const DataCenter = ({ dataCenter }) => {
                 </TableHead>
                 <TableBody>
                   {desplieguesTodos.map((d) => (
-                    // CORRECCIÓN: Usamos solo "hover"
                     <TableRow key={d.id} hover>
                       <TableCell sx={{ fontWeight: 600 }}>{d.componentes?.nombre}</TableCell>
                       <TableCell>{d.componentes?.sistemas?.nombre || d.componentes?.sistemas?.sigla}</TableCell>
+                      
+                      <TableCell>
+                        {d.componentes?.entornoInfo ? (
+                          <Chip 
+                            label={d.componentes.entornoInfo.nombre || d.componentes.entornoInfo.codigo} 
+                            size="small" 
+                            variant="outlined" 
+                            color={getEntornoColor(d.componentes.entornoInfo.codigo)} 
+                          />
+                        ) : '-'}
+                      </TableCell>
+
                       <TableCell>
                          <Stack direction="row" spacing={1} alignItems="center">
                              {d._isVm ? <VmIcon fontSize="small" color="action"/> : <ServerIcon fontSize="small" color="action"/>}
@@ -377,7 +396,7 @@ const DataCenter = ({ dataCenter }) => {
                       <TableCell><Chip label={d.estadoDespliegueInfo?.nombre || 'Desconocido'} size="small" color={getStatusColor(d.estadoDespliegueInfo?.codigo)} /></TableCell>
                     </TableRow>
                   ))}
-                  {desplieguesTodos.length === 0 && <TableRow><TableCell colSpan={5} align="center" sx={{py:3}}>Sin despliegues registrados</TableCell></TableRow>}
+                  {desplieguesTodos.length === 0 && <TableRow><TableCell colSpan={6} align="center" sx={{py:3}}>Sin despliegues registrados</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -399,7 +418,6 @@ const DataCenter = ({ dataCenter }) => {
                </TableHead>
                <TableBody>
                  {eventos.map((e) => (
-                   // CORRECCIÓN: Usamos solo "hover"
                    <TableRow key={e.id} hover>
                      <TableCell sx={{fontFamily: 'monospace', fontWeight: 600}}>{e.cod_evento}</TableCell>
                      <TableCell>{e.tipoEventoInfo?.nombre || e.cod_tipo_evento}</TableCell>

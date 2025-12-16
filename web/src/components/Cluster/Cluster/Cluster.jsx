@@ -93,7 +93,8 @@ const RowItem = ({ label, value, icon, isLast }) => (
 
     <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
       {typeof value === 'string' || typeof value === 'number' ? (
-        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+        // CAMBIO: Se cambió variant="body1" a "body2"
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {value}
         </Typography>
       ) : (

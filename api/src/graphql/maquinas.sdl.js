@@ -23,7 +23,7 @@ export const schema = gql`
     infra_afectada: [InfraAfectada!]!
     cluster_nodos: [ClusterNodo!]!
     usuario_roles: [UsuarioRol!]!
-
+    almacenamientoTotal: Int!
     creadoPor: Usuario
     modificadoPor: Usuario
     plataformaInfo: Parametro

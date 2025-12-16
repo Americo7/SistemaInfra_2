@@ -229,7 +229,7 @@ const ClusterNodoPage = ({ id }) => {
         title="Nodos de Cluster"
         titleTo="clusterNodos"
         groupTitle="Infraestructura"
-        breadcrumbItems={[{ label: titulo }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <ClusterNodoCell id={id} />

@@ -222,7 +222,7 @@ const MaquinaPage = ({ id }) => {
         title="Máquinas"
         titleTo="maquinas"
         groupTitle="Infraestructura"
-        breadcrumbItems={[{ label: nombreMaquina }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <MaquinaCell id={id} />

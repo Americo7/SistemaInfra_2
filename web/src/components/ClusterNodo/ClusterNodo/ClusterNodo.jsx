@@ -59,6 +59,26 @@ const getUserFullName = (u) => {
   return `${u.nombres} ${u.primer_apellido} ${u.segundo_apellido || ''}`.trim()
 }
 
+// Helper para calcular almacenamiento total
+const getStorageTotal = (val) => {
+  if (!val) return '-'
+  try {
+    const arr = typeof val === 'string' ? JSON.parse(val) : val
+    if (!Array.isArray(arr) || arr.length === 0) return '-'
+    const total = arr.reduce((acc, curr) => acc + (Number(curr.Valor) || 0), 0)
+    return total > 0 ? `${total} GB` : '-'
+  } catch {
+    return '-'
+  }
+}
+
+const getEstadoOperativoColor = (estado) => {
+  const e = String(estado).toUpperCase()
+  if (['OPERATIVO', 'ACTIVO', 'ONLINE', 'RUNNING'].includes(e)) return 'success'
+  if (['FUERA_SERVICIO', 'ERROR', 'OFFLINE', 'STOPPED', 'BAJA'].includes(e)) return 'error'
+  return 'default'
+}
+
 /* ------------------------------------------
  * SUBCOMPONENTE: RowItem
  * ------------------------------------------ */
@@ -78,13 +98,16 @@ const RowItem = ({ label, value, icon, isLast }) => (
       color="text.secondary"
       sx={{ width: '40%', pr: 2, display: 'flex', alignItems: 'center' }}
     >
-      {icon && <Box sx={{ mr: 1 }}>{icon}</Box>}
+      {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
       {label}
     </Typography>
 
     <Box sx={{ width: '60%' }}>
       {typeof value === 'string' || typeof value === 'number' ? (
-        <Typography sx={{ fontWeight: 600 }}>{value}</Typography>
+        // CAMBIO: Body2 forzado para consistencia
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          {value}
+        </Typography>
       ) : (
         value
       )}
@@ -107,8 +130,13 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
       }}
     >
       <CardHeader
-        avatar={<Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main }}>{icon}</Avatar>}
+        avatar={
+          <Avatar sx={{ bgcolor: bgcolor || theme.palette.primary.main, width: 32, height: 32 }}>
+            {icon}
+          </Avatar>
+        }
         title={<Typography fontWeight={700}>{title}</Typography>}
+        sx={{ py: 1, px: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
       />
       <CardContent sx={{ p: 1.5 }}>{children}</CardContent>
     </Card>
@@ -151,7 +179,7 @@ const ClusterNodo = ({ clusterNodo }) => {
       nombre: 'No asignado',
       route: null,
     }
-  }, [clusterNodo])
+  }, [clusterNodo, isVirtualNode, isPhysicalNode])
 
   return (
     <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
@@ -213,7 +241,7 @@ const ClusterNodo = ({ clusterNodo }) => {
 
                 <RowItem
                   label="Rol"
-                  value={clusterNodo.rolInfo?.nombre || ''}
+                  value={clusterNodo.rolInfo?.nombre || clusterNodo.rolInfo?.codigo || '-'}
                   icon={<ConfigIcon />}
                 />
 
@@ -233,6 +261,8 @@ const ClusterNodo = ({ clusterNodo }) => {
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
+                            display: 'block',
+                            fontSize: '0.75rem',
                           }}
                         >
                           {clusterNodo.identity_key}
@@ -241,23 +271,21 @@ const ClusterNodo = ({ clusterNodo }) => {
                     }
                   />
                 )}
-
-                <RowItem label="Tipo Recurso" value={recurso.tipo} icon={recurso.icon} />
-
                 <RowItem
                   label="Recurso Vinculado"
                   value={
                     recurso.route ? (
-                      <Link
-                        to={recurso.route}
-                        style={{
-                          fontWeight: 600,
-                          color: theme.palette.primary.main,
-                          textDecoration: 'none',
-                        }}
-                      >
-                        {recurso.nombre}
-                      </Link>
+                      <Typography variant="body2" fontWeight={600}>
+                        <Link
+                          to={recurso.route}
+                          style={{
+                            color: theme.palette.primary.main,
+                            textDecoration: 'none',
+                          }}
+                        >
+                          {recurso.nombre}
+                        </Link>
+                      </Typography>
                     ) : (
                       recurso.nombre
                     )
@@ -270,16 +298,17 @@ const ClusterNodo = ({ clusterNodo }) => {
                   isLast
                   value={
                     clusterNodo.cluster ? (
-                      <Link
-                        to={routes.cluster({ id: clusterNodo.cluster.id })}
-                        style={{
-                          fontWeight: 600,
-                          color: theme.palette.primary.main,
-                          textDecoration: 'none',
-                        }}
-                      >
-                        {clusterNodo.cluster.nombre}
-                      </Link>
+                      <Typography variant="body2" fontWeight={600}>
+                        <Link
+                          to={routes.cluster({ id: clusterNodo.cluster.id })}
+                          style={{
+                            color: theme.palette.primary.main,
+                            textDecoration: 'none',
+                          }}
+                        >
+                          {clusterNodo.cluster.nombre}
+                        </Link>
+                      </Typography>
                     ) : (
                       'No asignado'
                     )
@@ -298,6 +327,7 @@ const ClusterNodo = ({ clusterNodo }) => {
                       label={clusterNodo.estado}
                       size="small"
                       color={clusterNodo.estado === 'ACTIVO' ? 'success' : 'error'}
+                      variant="outlined" // CAMBIO: Outlined
                       icon={<StatusIcon fontSize="small" />}
                       sx={{ height: 20, fontWeight: 700 }}
                     />
@@ -351,25 +381,23 @@ const ClusterNodo = ({ clusterNodo }) => {
               <TableContainer component={Paper} elevation={0} sx={{ maxHeight: 400 }}>
                 <Table stickyHeader size="small">
                   <TableHead>
-                    <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: 'background.default' } }}>
+                    <TableRow sx={{ '& th': { fontWeight: 700, bgcolor: 'action.hover' } }}>
                       <TableCell sx={{ pl: 3 }}>VMID</TableCell>
                       <TableCell>Nombre</TableCell>
+                      <TableCell>IP</TableCell>
+                      <TableCell>SO</TableCell> {/* CAMBIO: Nueva columna SO */}
                       <TableCell>RAM (GB)</TableCell>
                       <TableCell>CPU</TableCell>
-                      <TableCell>IP</TableCell>
-                      <TableCell align="center">Estado</TableCell>
+                      <TableCell>Almac. Total</TableCell> {/* CAMBIO: Nueva columna Storage */}
+                      <TableCell align="center">Estado Operativo</TableCell>
                     </TableRow>
                   </TableHead>
 
                   <TableBody>
                     {hostedVms.map((vm) => {
-                      const estado = vm.estadoOperativoInfo?.nombre || 'Desconocido'
-                      const color =
-                        estado === 'Operativo'
-                          ? 'success'
-                          : estado === 'Fuera de Servicio'
-                          ? 'error'
-                          : 'default'
+                      const estadoNombre = vm.estadoOperativoInfo?.nombre || 'Desconocido'
+                      const estadoCodigo = vm.estadoOperativoInfo?.codigo || 'UNKNOWN'
+                      const color = getEstadoOperativoColor(estadoCodigo)
 
                       return (
                         <TableRow key={vm.id} hover>
@@ -378,7 +406,7 @@ const ClusterNodo = ({ clusterNodo }) => {
                             {vm.proxmox_vmid || '-'}
                           </TableCell>
 
-                          {/* Nombre sin subrayado */}
+                          {/* Nombre */}
                           <TableCell>
                             <Link
                               to={routes.maquina({ id: vm.id })}
@@ -391,6 +419,12 @@ const ClusterNodo = ({ clusterNodo }) => {
                               {vm.nombre}
                             </Link>
                           </TableCell>
+                          {/* IP */}
+                          <TableCell>{vm.ip || '-'}</TableCell>
+                          {/* SO (Sistema Operativo) */}
+                          <TableCell>
+                            {vm.so || '-'}
+                          </TableCell>
 
                           {/* RAM */}
                           <TableCell>
@@ -400,20 +434,24 @@ const ClusterNodo = ({ clusterNodo }) => {
                           {/* CPU */}
                           <TableCell>{vm.cpu || '-'}</TableCell>
 
-                          {/* IP */}
-                          <TableCell>{vm.ip || '-'}</TableCell>
+                          {/* Almacenamiento Total */}
+                          <TableCell>
+                            {/* Se asume que viene el campo o se calcula */}
+                            {vm.almacenamientoTotal ? `${vm.almacenamientoTotal} GB` : getStorageTotal(vm.almacenamiento)}
+                          </TableCell>
+
 
                           {/* Estado operativo */}
                           <TableCell align="center">
                             <Chip
-                              label={estado}
+                              label={estadoNombre}
                               size="small"
-                              variant="outlined"
                               color={color}
+                              // variant eliminado para filled
                               sx={{
                                 height: 20,
                                 fontSize: '0.75rem',
-                                minWidth: 120,
+                                minWidth: 100,
                                 fontWeight: 600,
                               }}
                             />

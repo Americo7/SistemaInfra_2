@@ -231,7 +231,7 @@ const ServidorPage = ({ id }) => {
         title="Servidores"
         titleTo="servidors"
         groupTitle="Infraestructura"
-        breadcrumbItems={[{ label: nombreServidor }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <ServidorCell id={id} />

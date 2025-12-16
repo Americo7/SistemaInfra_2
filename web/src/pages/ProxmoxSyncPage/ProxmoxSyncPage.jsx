@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useQuery, gql } from '@redwoodjs/web'
 import { toast } from '@redwoodjs/web/toast'
+// 1. IMPORTAR useAuth DESDE TU CONF LOCAL
+import { useAuth } from 'src/auth'
 
 // Iconos
-import StorageIcon from '@mui/icons-material/Storage' // Nodos
-import ComputerIcon from '@mui/icons-material/Computer' // VMs
+import StorageIcon from '@mui/icons-material/Storage'
+import ComputerIcon from '@mui/icons-material/Computer'
 import SyncIcon from '@mui/icons-material/Sync'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import ErrorIcon from '@mui/icons-material/Error'
 import DnsIcon from '@mui/icons-material/Dns'
 import FactCheckIcon from '@mui/icons-material/FactCheck'
-import AddCircleIcon from '@mui/icons-material/AddCircle' // Para insertados
-import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty' // Icono para ocupado
+import AddCircleIcon from '@mui/icons-material/AddCircle'
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
 
 import {
   Box,
@@ -30,9 +32,6 @@ import {
   Tooltip
 } from '@mui/material'
 
-/* ============================================================
-   GRAPHQL
-============================================================ */
 const CONSULTA_PROXMOX = gql`
   query ProxmoxEndpointsForSync {
     proxmoxEndpoints {
@@ -46,11 +45,11 @@ const CONSULTA_PROXMOX = gql`
   }
 `
 
-/* ============================================================
-   COMPONENTE PRINCIPAL
-============================================================ */
 export default function ProxmoxSyncPage() {
   const { data, loading, refetch } = useQuery(CONSULTA_PROXMOX)
+  
+  // 2. OBTENER LA FUNCIÓN getToken
+  const { getToken } = useAuth()
 
   const [idEnProceso, setIdEnProceso] = useState(null)
   const [tipoProceso, setTipoProceso] = useState(null)
@@ -62,9 +61,6 @@ export default function ProxmoxSyncPage() {
   const API_URL = process.env.API_URL || 'http://localhost:8911'
   const API_HEALTH_CHECK_PATH = '/status'; 
 
-  /* --------------------------------------------------
-     FUNCIÓN: Verificar la salud del API (con AbortController)
-  -------------------------------------------------- */
   const verificarApiActiva = async () => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), 5000); 
@@ -98,9 +94,7 @@ export default function ProxmoxSyncPage() {
     }
   }
 
-  /* ============================================================
-     CONEXIÓN BACKEND (MODIFICADO: Retorna estado de éxito)
-  ============================================================ */
+  // CONEXIÓN BACKEND CORREGIDA
   const conectarBackend = async (endpointId, accion, silencioso = false) => {
     if (apiError) {
       if (!silencioso) toast.error("Imposible iniciar: El servidor API no responde.")
@@ -118,12 +112,30 @@ export default function ProxmoxSyncPage() {
     }))
 
     try {
+      // 3. OBTENER EL TOKEN ASÍNCROANMENTE
+      const token = await getToken()
+      if (!token) {
+        toast.error("La sesión ha expirado. Recarga la página.")
+        setEstadoSincronizacion((prev) => ({
+          ...prev,
+          [endpointId]: { tipo: 'error', mensaje: 'Sin sesión', accion }
+        }))
+        return { success: false }
+      }
       const respuesta = await fetch(`${API_URL}/proxmoxSync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // 4. INYECTAR CABECERAS DE AUTH
+        headers: { 
+            'Content-Type': 'application/json',
+            'auth-provider': 'dbAuth',
+            'authorization': `Bearer ${token}` 
+        },
+        // 5. ENVIAR COOKIES (IMPORTANTE PARA dbAuth)
+        credentials: 'include',
         body: JSON.stringify({
           endpointId,
           soloVerificar: accion === 'verify',
+          trigger: 'MANUAL'
         }),
       })
       
@@ -141,7 +153,6 @@ export default function ProxmoxSyncPage() {
       if (!respuesta.ok) throw new Error(datos.error || 'Error desconocido')
       if (datos.success === false) throw new Error(datos.message || 'Error lógico')
 
-      // Mapeo de datos para el frontend
       const info = {
         nodos: datos.totalNodosDetectados ?? 0,
         nodosNuevos: datos.totalNodosInsertados ?? 0,
@@ -164,7 +175,7 @@ export default function ProxmoxSyncPage() {
       if (!silencioso) toast.success(mensaje)
       if (accion === 'sync') await refetch()
       
-      return { success: true } // 🟢 RETORNO DE ÉXITO
+      return { success: true }
 
     } catch (error) {
       let mensajeError = error.message
@@ -192,7 +203,7 @@ export default function ProxmoxSyncPage() {
          else toast.error(mensajeError)
       }
 
-      return { success: false, esBloqueo: errorTipo === 'warning' } // 🔴 RETORNO DE FALLO
+      return { success: false, esBloqueo: errorTipo === 'warning' }
     } finally {
       if (!silencioso) {
          setIdEnProceso(null)
@@ -201,9 +212,8 @@ export default function ProxmoxSyncPage() {
     }
   }
 
-  /* ============================================================
-     SINCRONIZACIÓN MASIVA (SILENCIOSA Y SECUENCIAL)
-  ============================================================ */
+  // ... (Resto del código sin cambios) ...
+
   const ejecutarSincronizacionMasiva = async () => {
     if (apiError) {
       toast.error("Imposible iniciar: El servidor API no responde.")
@@ -214,20 +224,17 @@ export default function ProxmoxSyncPage() {
     if (lista.length === 0) return
     
     setSincronizandoTodo(true)
-    // 🟢 Toast de carga único
     const toastId = toast.loading(`Sincronizando ${lista.length} entornos Proxmox...`)
     
     let exitosos = 0
     let errores = 0
 
     for (const ep of lista) {
-      // 🟢 'true' activa el modo silencioso
       const resultado = await conectarBackend(ep.id, 'sync', true) 
       if (resultado.success) exitosos++
       else errores++
     }
     
-    // 🟢 Resumen final
     toast.dismiss(toastId)
     
     if (errores === 0) {
@@ -239,9 +246,6 @@ export default function ProxmoxSyncPage() {
     setSincronizandoTodo(false)
   }
 
-  /* ============================================================
-     AUTO-VERIFY
-  ============================================================ */
   useEffect(() => {
     verificarApiActiva() 
     
@@ -265,7 +269,6 @@ export default function ProxmoxSyncPage() {
 
   return (
     <Box p={3} maxWidth={1600} mx="auto">
-      {/* HEADER */}
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" mb={4} sx={{ borderBottom: '1px solid #e0e0e0', pb: 2 }}>
         <Box>
           <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, color: '#e65100' }}>

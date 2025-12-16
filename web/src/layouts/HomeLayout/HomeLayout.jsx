@@ -453,7 +453,7 @@ const HomeLayout = ({ children }) => {
 
   // Get page title for display
   const getPageTitle = useCallback(() => {
-    return 'Sistema de Inventariado y Administración de Infraestructura Tecnológica'
+    return 'Sistema de Inventariado y Gestión de Infraestructura Tecnológica'
   }, [])
 
 

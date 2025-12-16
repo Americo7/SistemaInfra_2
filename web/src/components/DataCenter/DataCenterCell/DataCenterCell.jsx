@@ -67,6 +67,10 @@ export const QUERY = gql`
           componentes {
             id
             nombre
+            entornoInfo {
+              codigo
+              nombre
+            }
             sistemas {
               id
               sigla
@@ -134,6 +138,10 @@ export const QUERY = gql`
             componentes {
               id
               nombre
+              entornoInfo {
+                codigo
+                nombre
+              }
               sistemas {
                 id
                 sigla

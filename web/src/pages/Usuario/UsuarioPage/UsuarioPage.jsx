@@ -230,7 +230,7 @@ const UsuarioPage = ({ id }) => {
         title="Usuarios"
         titleTo="usuarios"
         groupTitle="Gestión de Usuarios"
-        breadcrumbItems={[{ label: fullName }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <UsuarioCell id={id} />

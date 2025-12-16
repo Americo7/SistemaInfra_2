@@ -136,7 +136,8 @@ const RowItem = ({ label, value, icon, isLast }) => {
 
       <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
         {React.isValidElement(displayValue) ? displayValue : (
-          <Typography variant="body1" sx={{ fontWeight: 600 }}>
+          // CORRECCIÓN: body1 -> body2
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
             {displayValue}
           </Typography>
         )}
@@ -311,7 +312,7 @@ const Servidor = ({ servidor }) => {
                 <RowItem label="Sistema Operativo" value={servidor.sistema_operativo} icon={<OSIcon />} />
                 <RowItem label="Dirección IP" value={servidor.ip_primaria} />
 
-                {/* --- ESTADO OPERATIVO CORREGIDO --- */}
+                {/* --- ESTADO OPERATIVO --- */}
                 <RowItem
                   label="Estado Operativo"
                   isLast
@@ -376,9 +377,12 @@ const Servidor = ({ servidor }) => {
                         <RowItem
                           label="Cluster"
                           value={
-                            <Link to={info.clusterLink} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                              {info.clusterNombre}
-                            </Link>
+                            // CORRECCIÓN: Typography body2 para mantener tamaño
+                            <Typography variant="body2" fontWeight={600}>
+                              <Link to={info.clusterLink} style={{ color: theme.palette.primary.main, textDecoration: 'none' }}>
+                                {info.clusterNombre}
+                              </Link>
+                            </Typography>
                           }
                           icon={<ClusterIcon />}
                         />
@@ -409,7 +413,15 @@ const Servidor = ({ servidor }) => {
               <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
                 <RowItem
                   label="Estado Registro"
-                  value={<Chip label={servidor.estado} size="small" color={getStatusColor(servidor.estado)} />}
+                  value={
+                    // CORRECCIÓN: variant="outlined"
+                    <Chip
+                      label={servidor.estado}
+                      size="small"
+                      color={getStatusColor(servidor.estado)}
+                      variant="outlined"
+                    />
+                  }
                 />
                 <RowItem label="Fecha Creación" value={fmtDate(servidor.fecha_creacion)} />
                 <RowItem label="Creado por" value={formatUserName(servidor.creadoPor)} />

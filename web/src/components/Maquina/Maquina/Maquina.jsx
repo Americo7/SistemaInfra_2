@@ -39,6 +39,10 @@ import {
   Info as GeneralIcon,
   ArrowBack as BackIcon,
   Fingerprint as CodeIcon,
+  Person as PersonIcon,
+  Email as EmailIcon,
+  Phone as PhoneIcon,
+  Badge as BadgeIcon,
 } from '@mui/icons-material'
 
 /* -----------------------
@@ -47,11 +51,9 @@ import {
 
 // Helper para obtener el nombre correcto sin forzar mayúsculas
 const getEstadoOperativoLabel = (maquina) => {
-  // 1. Si existe el objeto info con nombre, úsalo (Ej: "Fuera de Servicio")
   if (maquina?.estadoOperativoInfo?.nombre) {
     return maquina.estadoOperativoInfo.nombre
   }
-  // 2. Si no, usa el código plano, quitando guiones bajos si los tiene
   if (maquina?.estado_operativo) {
     return maquina.estado_operativo.replace(/_/g, ' ')
   }
@@ -59,7 +61,6 @@ const getEstadoOperativoLabel = (maquina) => {
 }
 
 const getStatusColor = (codigo) => {
-  // Convertimos a mayúsculas solo para buscar el color, no para mostrar el texto
   const c = codigo?.toUpperCase() || 'UNKNOWN'
   const map = {
     OPERATIVO: 'success',
@@ -73,6 +74,24 @@ const getStatusColor = (codigo) => {
     UNKNOWN: 'default'
   }
   return map[c] || 'default'
+}
+
+// --- HELPER AGREGADO (Faltaba este) ---
+const getStatusVariant = (codigo) => {
+  const c = codigo?.toUpperCase() || ''
+  if (c === 'ACTIVO' || c === 'INACTIVO') {
+    return 'outlined'
+  }
+  return 'filled'
+}
+
+// Helper para el Color del Entorno
+const getEntornoColor = (codigo) => {
+  const c = codigo?.toUpperCase() || ''
+  if (c === 'PROD' || c === 'PRODUCCION') return 'success'
+  if (c === 'PREPROD' || c === 'PRE_PROD' || c === 'STAGING') return 'warning'
+  if (c === 'DEMO' || c === 'DEV' || c === 'QA' || c === 'TEST') return 'info'
+  return 'default'
 }
 
 const fmtDate = (d) => {
@@ -336,14 +355,13 @@ const Maquina = ({ maquina }) => {
                   isLast
                   value={
                     <Chip
-                      label={estadoOpLabel} // Muestra "Fuera de Servicio" (respetando mayúsculas/minúsculas)
+                      label={estadoOpLabel}
                       size="small"
-                      color={getStatusColor(estadoOpCodigo)} // Usa el código para definir el color (rojo/error)
+                      color={getStatusColor(estadoOpCodigo)}
                       sx={{
                         height: 20,
                         fontWeight: 700,
                         fontSize: '0.75rem',
-                        // textTransform eliminado: ahora respeta el formato original
                       }}
                     />
                   }
@@ -359,6 +377,7 @@ const Maquina = ({ maquina }) => {
                       label={maquina.estado}
                       size="small"
                       color={getStatusColor(maquina.estado)}
+                      variant={getStatusVariant(maquina.estado)} // Usa el helper para outline
                     />
                   }
                 />
@@ -470,33 +489,106 @@ const Maquina = ({ maquina }) => {
           <Tab label={<Stack direction="row" spacing={1}><InfraIcon fontSize="small" />Eventos<Chip label={infraAfectada.length} size="small" /></Stack>} />
         </Tabs>
 
-        <CardContent>
+        <CardContent sx={{ p: 0 }}>
           {/* TAB 0: USUARIOS */}
           {tab === 0 && (
-            usuarioRoles.length ? (
-              <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${theme.palette.divider}` }}>
-                <Table size="small">
-                  <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
-                    <TableRow>
-                      <TableCell>Usuario</TableCell>
-                      <TableCell>Rol</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {usuarioRoles.map((r) => (
-                      <TableRow key={r.id} hover>
+            <TableContainer component={Paper} elevation={0}>
+              <Table size="small">
+                <TableHead sx={{ bgcolor: theme.palette.action.hover }}>
+                  <TableRow>
+                    <TableCell>Cuenta</TableCell>
+                    <TableCell>Nombre Completo</TableCell>
+                    <TableCell>Documento</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Celular</TableCell>
+                    <TableCell>Rol</TableCell>
+                    <TableCell>Estado</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {usuarioRoles.length > 0 ? (
+                    usuarioRoles.map((ur) => (
+                      <TableRow key={ur.id} hover>
+                        {/* Cuenta */}
                         <TableCell>
-                          <Link to={routes.usuario({ id: r.usuarios.id })} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                            {formatUserName(r.usuarios)}
-                          </Link>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <PersonIcon fontSize="small" color="action" />
+                            <Link
+                              to={routes.usuario({ id: ur.usuarios.id })}
+                              style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}
+                            >
+                              {ur.usuarios.nombre_usuario || 'Sin usuario'}
+                            </Link>
+                          </Stack>
                         </TableCell>
-                        <TableCell>{r.roles?.nombre}</TableCell>
+
+                        {/* Nombre Completo */}
+                        <TableCell sx={{ fontWeight: 500 }}>
+                          {formatUserName(ur.usuarios)}
+                        </TableCell>
+
+                        {/* Documento */}
+                        <TableCell>
+                          {ur.usuarios.nro_documento ? (
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              <BadgeIcon fontSize="small" sx={{ fontSize: 16, color: 'text.secondary' }} />
+                              <Typography variant="body2">{ur.usuarios.nro_documento}</Typography>
+                            </Stack>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+
+                        {/* Email */}
+                        <TableCell>
+                          {ur.usuarios.email ? (
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              <EmailIcon fontSize="small" sx={{ fontSize: 14, color: 'text.secondary' }} />
+                              <Typography variant="body2">{ur.usuarios.email}</Typography>
+                            </Stack>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+
+                        {/* Celular */}
+                        <TableCell>
+                          {ur.usuarios.celular ? (
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              <PhoneIcon fontSize="small" sx={{ fontSize: 14, color: 'text.secondary' }} />
+                              <Typography variant="body2">{ur.usuarios.celular}</Typography>
+                            </Stack>
+                          ) : (
+                            '-'
+                          )}
+                        </TableCell>
+
+                        {/* Rol */}
+                        <TableCell>
+                          <Chip label={ur.roles?.nombre} size="small" variant="outlined" color="primary" />
+                        </TableCell>
+
+                        {/* Estado */}
+                        <TableCell>
+                          <Chip
+                            label={ur.usuarios.estado}
+                            size="small"
+                            color={getStatusColor(ur.usuarios.estado)}
+                            variant={getStatusVariant(ur.usuarios.estado)}
+                          />
+                        </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : <Typography variant="body2" color="text.secondary">No hay usuarios asociados.</Typography>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                        No hay usuarios asignados.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
 
           {/* TAB 1: DESPLIEGUES */}
@@ -508,6 +600,7 @@ const Maquina = ({ maquina }) => {
                     <TableRow>
                       <TableCell>Componente</TableCell>
                       <TableCell>Sistema</TableCell>
+                      <TableCell>Entorno</TableCell>
                       <TableCell>Fecha Despliegue</TableCell>
                       <TableCell>Estado</TableCell>
                     </TableRow>
@@ -521,6 +614,19 @@ const Maquina = ({ maquina }) => {
                           </Link>
                         </TableCell>
                         <TableCell>{d.componentes?.sistemas?.nombre}</TableCell>
+
+                        {/* CELDA ENTORNO */}
+                        <TableCell>
+                          {d.componentes?.entornoInfo ? (
+                            <Chip
+                              label={d.componentes.entornoInfo.nombre || d.componentes.entornoInfo.codigo}
+                              size="small"
+                              variant="outlined"
+                              color={getEntornoColor(d.componentes.entornoInfo.codigo)}
+                            />
+                          ) : '-'}
+                        </TableCell>
+
                         <TableCell>{fmtDate(d.fecha_despliegue)}</TableCell>
                         <TableCell>
                           <Chip

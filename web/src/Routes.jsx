@@ -5,7 +5,8 @@ import HomePage from 'src/pages/HomePage/HomePage'
 import LoginPage from 'src/pages/LoginPage/LoginPage'
 
 import { useAuth } from './auth'
-
+import EndpointSyncLogPage from './pages/EndpointSyncLog/EndpointSyncLogPage/EndpointSyncLogPage'
+import EndpointSyncLogsPage from './pages/EndpointSyncLog/EndpointSyncLogsPage/EndpointSyncLogsPage'
 const Routes = () => {
   return (
     <Router 
@@ -101,6 +102,9 @@ const Routes = () => {
           <Route path="/proxmox-endpoints/{id:Int}/edit" page={ProxmoxEndpointEditProxmoxEndpointPage} name="editProxmoxEndpoint" />
           <Route path="/proxmox-endpoints/{id:Int}" page={ProxmoxEndpointProxmoxEndpointPage} name="proxmoxEndpoint" />
           <Route path="/proxmox-endpoints" page={ProxmoxEndpointProxmoxEndpointsPage} name="proxmoxEndpoints" />
+
+          <Route path="/endpointSyncLogs/{id:Int}" page={EndpointSyncLogPage} name="endpointSyncLog" />
+          <Route path="/endpointSyncLogs" page={EndpointSyncLogsPage} name="endpointSyncLogs" />
 
           <Route path="/cluster-nodos/new" page={ClusterNodoNewClusterNodoPage} name="newClusterNodo" />
           <Route path="/cluster-nodos/{id:Int}/edit" page={ClusterNodoEditClusterNodoPage} name="editClusterNodo" />

@@ -27,6 +27,10 @@ import {
   AccountCircle as UserIcon,
   Business as OrgIcon,
   Description as DescIcon,
+  // Iconos nuevos para los campos extra
+  Commit as CommitIcon,
+  Tag as VersionIcon,
+  SwapHoriz as TypeIcon,
 } from '@mui/icons-material'
 
 /* -----------------------
@@ -50,26 +54,36 @@ const fmtDate = (d) => {
 const formatUserName = (usuarioObj) => {
   if (!usuarioObj) return '-'
   if (typeof usuarioObj === 'string') return usuarioObj
-  // Ahora soportará correctamente el segundo apellido que viene en tu query
   if (usuarioObj.nombres || usuarioObj.primer_apellido || usuarioObj.segundo_apellido) {
     return `${usuarioObj.nombres || ''} ${usuarioObj.primer_apellido || ''} ${usuarioObj.segundo_apellido || ''}`.trim()
   }
   return '-'
 }
 
+// 1. COLORES DE ESTADO (SEMÁNTICOS)
 const getStatusColor = (codigo) => {
+  const c = codigo?.toUpperCase() || 'UNKNOWN'
   const map = {
-    EXITOSO: 'success',
-    FINALIZADO: 'success',
-    COMPLETADO: 'success',
-    FALLIDO: 'error',
-    ERROR: 'error',
-    EN_PROCESO: 'warning',
-    INICIADO: 'warning',
-    PENDIENTE: 'info',
-    CANCELADO: 'default',
+    // Verdes
+    EXITOSO: 'success', FINALIZADO: 'success', COMPLETADO: 'success', ACTIVO: 'success', OPERATIVO: 'success',
+    // Rojos
+    FALLIDO: 'error', INACTIVO: 'error', FUERA_SERVICIO: 'error',
+    // Azules
+    EN_PROCESO: 'info', EJECUTANDO: 'info',
+    // Naranjas
+    PENDIENTE: 'warning', MANTENIMIENTO: 'warning', INICIADO: 'warning',
+    UNKNOWN: 'default'
   }
-  return map[codigo] || 'default'
+  return map[c] || 'default'
+}
+
+// 2. COLORES DE ENTORNO (NUEVO HELPER)
+const getEntornoColor = (nombre) => {
+  const n = nombre?.toUpperCase() || ''
+  if (n.includes('PROD')) return 'success'    // Verde
+  if (n.includes('PRE')) return 'warning'     // Naranja
+  if (n.includes('DEMO') || n.includes('DEV')) return 'info' // Azul
+  return 'default'
 }
 
 /* -----------------------
@@ -94,9 +108,14 @@ const RowItem = ({ label, value, icon, isLast }) => (
       {icon && <Box sx={{ mr: 1, display: 'flex', color: 'action.active' }}>{icon}</Box>}
       {label}
     </Typography>
+    
     <Box sx={{ width: '60%', display: 'flex', alignItems: 'center' }}>
-      {React.isValidElement(value) ? value : (
-        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+      {React.isValidElement(value) ? (
+        <Box sx={{ fontSize: '0.875rem', fontWeight: 600, width: '100%' }}>
+           {value}
+        </Box>
+      ) : (
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {value}
         </Typography>
       )}
@@ -111,7 +130,7 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
       sx={{
         borderRadius: 2,
         borderTop: `3px solid ${bgcolor || theme.palette.primary.main}`,
-        height: 'auto', // Altura dinámica
+        height: 'auto',
       }}
     >
       <CardHeader
@@ -134,26 +153,21 @@ const SectionCard = ({ icon, title, children, bgcolor }) => {
 const Despliegue = ({ despliegue, componente, maquina, servidor, parametros }) => {
   const theme = useTheme()
 
-  const sistema = Array.isArray(componente?.sistemas)
-    ? componente.sistemas[0]
-    : componente?.sistemas
+  const sistema = Array.isArray(componente?.sistemas) ? componente.sistemas[0] : componente?.sistemas
   const entorno = componente?.entornoInfo?.nombre || '-'
 
   /* --- LOGICA INFRAESTRUCTURA --- */
   const infraInfo = useMemo(() => {
     const arr = []
 
-    // CASO 1: DESPLIEGUE EN MÁQUINA VIRTUAL
+    // CASO 1: MÁQUINA VIRTUAL
     if (maquina) {
-      // A) HOST DE VIRTUALIZACIÓN
       if (maquina.servidores) {
         const host = maquina.servidores
         const hostNodes = Array.isArray(host.cluster_nodos) ? host.cluster_nodos : (host.cluster_nodos ? [host.cluster_nodos] : [])
         const srvNode = hostNodes[0]
-        
         if (srvNode && srvNode.cluster) {
             const dc = Array.isArray(host.data_centers) ? host.data_centers[0] : host.data_centers
-
             arr.push({
                 tipoContexto: 'VIRTUALIZACION',
                 headerTitle: 'Host de Virtualización',
@@ -168,28 +182,26 @@ const Despliegue = ({ despliegue, componente, maquina, servidor, parametros }) =
         }
       }
 
-      // B) ORQUESTACIÓN (K8s)
       const vmNodes = Array.isArray(maquina.cluster_nodos) ? maquina.cluster_nodos : (maquina.cluster_nodos ? [maquina.cluster_nodos] : [])
       for (const n of vmNodes) {
         if (n.cluster) {
+          const rolNombre = n.rolInfo?.nombre || n.nodoTipo || '-';
           arr.push({
             tipoContexto: 'ORQUESTACION',
             headerTitle: 'Orquestación',
             clusterType: n.cluster.tipoClusterInfo?.nombre || 'Orquestación',
             clusterNombre: n.cluster.nombre,
             nodoNombre: n.nombre,
-            rol: n.rolInfo?.nombre || '-', 
+            rol: rolNombre,
             linkCluster: routes.cluster({ id: n.cluster.id }),
           })
         }
       }
     } 
-    
-    // CASO 2: DESPLIEGUE EN SERVIDOR FÍSICO
+    // CASO 2: SERVIDOR FÍSICO
     else if (servidor) {
         const srvNodes = Array.isArray(servidor.cluster_nodos) ? servidor.cluster_nodos : []
         const srvNode = srvNodes[0]
-        
         if (srvNode && srvNode.cluster) {
              arr.push({
                tipoContexto: 'ORQUESTACION',
@@ -208,201 +220,148 @@ const Despliegue = ({ despliegue, componente, maquina, servidor, parametros }) =
              })
         }
     }
-
     return arr
   }, [maquina, servidor])
 
   return (
     <Box sx={{ maxWidth: 1500, mx: 'auto' }}>
       
-      {/* CARD PRINCIPAL WRAPPER */}
-      <Card
-        elevation={0}
-        sx={{
-          border: `1px solid ${theme.palette.divider}`,
-          borderRadius: '0 0 12px 12px',
-          mb: 3,
-        }}
-      >
-        {/* HEADER: Sin título de texto, solo Estado */}
+      <Card elevation={0} sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: '0 0 12px 12px', mb: 3 }}>
         <Box sx={{ px: 5, pt: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Tooltip title="Volver">
-            <IconButton
-              onClick={() => navigate(routes.despliegues())}
-              sx={{
-                bgcolor: 'rgba(156, 39, 176, 0.15)',
-                border: '1px solid rgba(156, 39, 176, 0.3)',
-                color: theme.palette.secondary.dark
-              }}
-            >
+            <IconButton onClick={() => navigate(routes.despliegues())} sx={{ bgcolor: 'rgba(156, 39, 176, 0.15)', border: '1px solid rgba(156, 39, 176, 0.3)', color: theme.palette.secondary.dark }}>
               <BackIcon fontSize="small" />
             </IconButton>
           </Tooltip>
 
-          <Avatar
-            sx={{
-              width: 42,
-              height: 42,
-              background: 'linear-gradient(135deg, #7b1fa2, #e91e63)',
-            }}
-          >
+          <Avatar sx={{ width: 42, height: 42, background: 'linear-gradient(135deg, #7b1fa2, #e91e63)' }}>
             <DeploymentIcon />
           </Avatar>
 
           <Box>
+             {/* 3. ESTADO DEL DESPLIEGUE (HEADER): RELLENO COMPLETO (filled) */}
              <Chip 
                 label={despliegue.estadoDespliegueInfo?.nombre || despliegue.estado_despliegue} 
-                color={getStatusColor(despliegue.estado_despliegue)}
-                sx={{ 
-                    height: 32, 
-                    fontSize: '0.85rem', 
-                    fontWeight: 800, 
-                    textTransform: 'uppercase',
-                    px: 1 
-                }}
+                variant="filled" // Relleno sólido
+                color={getStatusColor(despliegue.estadoDespliegueInfo?.codigo || despliegue.estado_despliegue)}
+                sx={{ height: 32, fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', px: 1 }}
             />
           </Box>
         </Box>
 
-        {/* CONTENIDO PRINCIPAL */}
         <CardContent sx={{ px: 5 }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
             
             {/* --- COLUMNA IZQUIERDA --- */}
             <Stack spacing={2}>
-                
-                {/* 1. CONTEXTO APLICATIVO (PRIMERO) */}
                 <SectionCard icon={<ComponentIcon />} title="Contexto Aplicativo" bgcolor={theme.palette.secondary.main}>
                     {componente ? (
                         <>
                             <RowItem label="Componente" value={componente.nombre} />
                             <RowItem label="Dominio" value={componente.dominio} />
-                            <RowItem label="Entorno" value={<Chip label={entorno} size="small" variant="outlined"/>} />
+                            
+                            {/* 4. CHIP DE ENTORNO: COLOR ESPECÍFICO + OUTLINED */}
+                            <RowItem 
+                                label="Entorno" 
+                                value={
+                                    <Chip 
+                                        label={entorno} 
+                                        size="small" 
+                                        variant="outlined" 
+                                        color={getEntornoColor(entorno)} 
+                                        sx={{ fontWeight: 600 }}
+                                    />
+                                } 
+                            />
                             
                             {sistema && (
                                 <Box sx={{ mt: 2 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-                                        <Typography variant="caption" sx={{ fontWeight: 700, mr: 1, color: 'text.secondary' }}>
-                                            SISTEMA VINCULADO
-                                        </Typography>
+                                        <Typography variant="caption" sx={{ fontWeight: 700, mr: 1, color: 'text.secondary' }}>SISTEMA VINCULADO</Typography>
                                     </Box>
-                                    <RowItem 
-                                        label="Sistema" 
-                                        isLast 
-                                        icon={<SystemIcon fontSize="small"/>}
-                                        value={sistema.nombre} 
-                                    />
+                                    <RowItem label="Sistema" isLast icon={<SystemIcon fontSize="small"/>} value={sistema.nombre} />
                                 </Box>
                             )}
                         </>
-                    ) : (
-                        <Typography variant="body2" color="text.secondary">Sin componente específico.</Typography>
-                    )}
+                    ) : <Typography variant="body2" color="text.secondary">Sin componente específico.</Typography>}
                 </SectionCard>
 
-                {/* 2. DETALLES DE SOLICITUD (SEGUNDO) */}
                 <SectionCard icon={<GeneralIcon />} title="Detalles de Solicitud" bgcolor={theme.palette.info.main}>
+                    <RowItem label="Descripción" value={despliegue.descripcion || '-'} icon={<DescIcon fontSize="small"/>} />
+                    
+                    {/* --- NUEVOS CAMPOS --- */}
                     <RowItem 
-                        label="Descripción" 
-                        value={despliegue.descripcion || '-'} 
-                        icon={<DescIcon fontSize="small"/>}
+                        label="Tipo Acción" 
+                        value={despliegue.tipoDespliegueInfo?.nombre || despliegue.tipo_despliegue || '-'} 
+                        icon={<TypeIcon fontSize="small"/>} 
                     />
+                    <RowItem 
+                        label="Versión App" 
+                        value={despliegue.version_aplicacion || '-'} 
+                        icon={<VersionIcon fontSize="small"/>} 
+                    />
+                    <RowItem 
+                        label="Git Commit" 
+                        value={
+                            despliegue.git_commit ? (
+                                <Chip label={despliegue.git_commit.substring(0,7)} size="small" sx={{ fontFamily: 'monospace' }} />
+                            ) : '-'
+                        } 
+                        icon={<CommitIcon fontSize="small"/>} 
+                    />
+                    {/* --------------------- */}
+
                     <RowItem label="Fecha Solicitud" value={fmtDate(despliegue.fecha_solicitud)} />
                     <RowItem label="Fecha Despliegue" value={fmtDate(despliegue.fecha_despliegue)} />
                     <RowItem label="Solicitante" value={despliegue.solicitante} icon={<UserIcon fontSize="small"/>} />
-                    
-                    {/* USO DE UNIDADINFO (Codigo - Nombre) */}
-                    <RowItem 
-                        label="Unidad" 
-                        value={
-                            despliegue.unidadInfo 
-                                ? `${despliegue.unidadInfo.codigo} - ${despliegue.unidadInfo.nombre}`
-                                : (despliegue.unidad_solicitante || '-')
-                        } 
-                        icon={<OrgIcon fontSize="small"/>} 
-                    />
-                    
-                    <RowItem 
-                        label="Tipo Respaldo" 
-                        value={despliegue.tipoRespaldoInfo?.nombre || despliegue.cod_tipo_respaldo || '-'} 
-                    />
+                    <RowItem label="Unidad" value={despliegue.unidadInfo ? `${despliegue.unidadInfo.codigo} - ${despliegue.unidadInfo.nombre}` : (despliegue.unidad_solicitante || '-')} icon={<OrgIcon fontSize="small"/>} />
+                    <RowItem label="Tipo Respaldo" value={despliegue.tipoRespaldoInfo?.nombre || despliegue.cod_tipo_respaldo || '-'} />
                     <RowItem label="Ref. Respaldo" value={despliegue.referencia_respaldo} isLast />
                 </SectionCard>
-
             </Stack>
 
             {/* --- COLUMNA DERECHA --- */}
             <Stack spacing={2}>
-                {/* 1. INFRAESTRUCTURA DESTINO */}
                 <SectionCard icon={<ServerIcon />} title="Infraestructura Destino" bgcolor={theme.palette.success.main}>
                     {infraInfo.length === 0 ? (
                         <Typography variant="body2" color="text.secondary">No vinculada a infraestructura conocida.</Typography>
                     ) : (
                         infraInfo.map((info, idx) => (
                             <Box key={idx} sx={{ mb: idx < infraInfo.length - 1 ? 2 : 0 }}>
-                                
                                 {info.tipoContexto !== 'SIMPLE' && (
                                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-                                        <Typography variant="caption" sx={{ fontWeight: 700, mr: 1 }}>
-                                        {info.headerTitle}
-                                        </Typography>
-                                        <Chip 
-                                            label={info.clusterType} 
-                                            size="small" 
-                                            variant="outlined" 
-                                            sx={{ height: 18, fontSize: '0.65rem' }} 
-                                        />
+                                        <Typography variant="caption" sx={{ fontWeight: 700, mr: 1 }}>{info.headerTitle}</Typography>
+                                        <Chip label={info.clusterType} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.65rem' }} />
                                     </Box>
                                 )}
-
+                                
                                 {info.tipoContexto === 'VIRTUALIZACION' && (
                                     <>
-                                        <RowItem 
-                                            label="Host Servidor" 
-                                            value={
-                                                <Link to={info.linkHost} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                                    {info.hostServidor}
-                                                </Link>
-                                            } 
-                                        />
+                                        <RowItem label="Host Servidor" value={<Link to={info.linkHost} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none', fontSize: '0.875rem' }}>{info.hostServidor}</Link>} />
                                         <RowItem label="Data Center" value={info.dataCenter} />
                                         <RowItem label="Nodo" value={info.nodoNombre} />
-                                        <RowItem
-                                            label="Cluster"
-                                            value={
-                                                <Link to={info.linkCluster} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                                    {info.clusterNombre}
-                                                </Link>
-                                            }
-                                        />
+                                        <RowItem label="Cluster" value={<Link to={info.linkCluster} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none', fontSize: '0.875rem' }}>{info.clusterNombre}</Link>} />
                                     </>
                                 )}
-
+                                
                                 {info.tipoContexto === 'ORQUESTACION' && (
                                     <>
-                                        <RowItem
-                                            label="Cluster"
-                                            value={
-                                                <Link to={info.linkCluster} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                                    {info.clusterNombre}
-                                                </Link>
-                                            }
-                                        />
+                                        <RowItem label="Cluster" value={<Link to={info.linkCluster} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none', fontSize: '0.875rem' }}>{info.clusterNombre}</Link>} />
                                         <RowItem label="Nodo / Host" value={info.nodoNombre} />
-                                        {info.rol && <RowItem label="Rol" value={<Chip label={info.rol} size="small" />} />}
+                                        <RowItem 
+                                            label="Rol" 
+                                            value={
+                                                info.rol && info.rol !== '-' 
+                                                ? <Chip label={info.rol} size="small" color="primary" variant="outlined" sx={{ height: 24 }} /> 
+                                                : '-'
+                                            } 
+                                        />
                                     </>
                                 )}
                                 
                                 {info.tipoContexto === 'SIMPLE' && (
                                     <>
-                                        <RowItem 
-                                            label="Recurso"
-                                            value={
-                                                <Link to={info.resourceLink} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none' }}>
-                                                    {info.resourceName}
-                                                </Link>
-                                            }
-                                        />
+                                        <RowItem label="Recurso" value={<Link to={info.resourceLink} style={{ fontWeight: 600, color: theme.palette.primary.main, textDecoration: 'none', fontSize: '0.875rem' }}>{info.resourceName}</Link>} />
                                         <RowItem label="Detalle" value={info.detail} isLast />
                                     </>
                                 )}
@@ -411,15 +370,17 @@ const Despliegue = ({ despliegue, componente, maquina, servidor, parametros }) =
                     )}
                 </SectionCard>
 
-                {/* 2. AUDITORÍA DEL REGISTRO */}
                 <SectionCard icon={<AuditIcon />} title="Auditoría del Registro" bgcolor={theme.palette.warning.main}>
+                    {/* 5. ESTADO AUDITORÍA: STRICTAMENTE OUTLINED (Solo líneas) */}
                     <RowItem
                         label="Estado Registro"
                         value={
                             <Chip
-                            label={despliegue.estado}
-                            size="small"
-                            color={despliegue.estado === 'ACTIVO' ? 'success' : 'error'}
+                                label={despliegue.estado}
+                                size="small"
+                                variant="outlined" // <--- Solo borde
+                                color={getStatusColor(despliegue.estado)}
+                                sx={{ fontWeight: 700, borderWidth: 2 }}
                             />
                         }
                     />
@@ -428,9 +389,7 @@ const Despliegue = ({ despliegue, componente, maquina, servidor, parametros }) =
                     <RowItem label="Última Modificación" value={fmtDate(despliegue.fecha_modificacion)} />
                     <RowItem label="Modificado por" value={formatUserName(despliegue.modificadoPor)} isLast />
                 </SectionCard>
-
             </Stack>
-
           </Box>
         </CardContent>
       </Card>

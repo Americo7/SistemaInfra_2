@@ -1,6 +1,5 @@
 import { Link, routes } from '@redwoodjs/router'
 import { gql } from '@redwoodjs/web'
-// Importación con ruta absoluta al componente de lista
 import Despliegues from 'src/components/Despliegue/Despliegues/Despliegues'
 
 export const QUERY = gql`
@@ -16,6 +15,17 @@ export const QUERY = gql`
       referencia_respaldo
       estado_despliegue
       estado
+
+      # --- NUEVOS CAMPOS ---
+      version_aplicacion
+      git_commit
+      tipo_despliegue
+      tipoDespliegueInfo { 
+        id
+        codigo
+        nombre
+      }
+      # ---------------------
       
       # --- AUDITORÍA ---
       fecha_creacion
@@ -100,15 +110,8 @@ export const QUERY = gql`
     }
   }
 `
-
+// ... (Resto del archivo igual)
 export const Loading = () => <div>Cargando despliegues...</div>
-
 export const isEmpty = () => false
-
-export const Failure = ({ error }) => (
-  <div className="rw-cell-error">{error?.message}</div>
-)
-
-export const Success = ({ despliegues }) => {
-  return <Despliegues despliegues={despliegues} />
-}
+export const Failure = ({ error }) => <div className="rw-cell-error">{error?.message}</div>
+export const Success = ({ despliegues }) => <Despliegues despliegues={despliegues} />

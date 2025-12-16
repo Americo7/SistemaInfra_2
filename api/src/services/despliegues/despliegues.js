@@ -17,7 +17,8 @@ export const parametrosFormularioDespliegue = () => {
   return db.parametro.findMany({
     where: {
       grupo: {
-        in: ['TIPO_RESPALDO', 'E_EVENTO_DESPLIEGUE', 'UNIDAD_AGETIC']
+        // AGREGADO: 'TIPO_DESPLIEGUE' para el dropdown de tipo
+        in: ['TIPO_RESPALDO', 'E_EVENTO_DESPLIEGUE', 'UNIDAD_AGETIC', 'TIPO_DESPLIEGUE']
       },
       estado: 'ACTIVO'
     },
@@ -44,6 +45,10 @@ export const createDespliegue = async ({ input }) => {
       cod_tipo_respaldo: input.cod_tipo_respaldo,
       referencia_respaldo: input.referencia_respaldo,
       estado_despliegue: input.estado_despliegue,
+      // --- NUEVOS CAMPOS ---
+      version_aplicacion: input.version_aplicacion,
+      git_commit: input.git_commit,
+      tipo_despliegue: input.tipo_despliegue,
     },
   })
 }
@@ -66,6 +71,10 @@ export const updateDespliegue = async ({ id, input }) => {
       cod_tipo_respaldo: input.cod_tipo_respaldo,
       referencia_respaldo: input.referencia_respaldo,
       estado_despliegue: input.estado_despliegue,
+      // --- NUEVOS CAMPOS ---
+      version_aplicacion: input.version_aplicacion,
+      git_commit: input.git_commit,
+      tipo_despliegue: input.tipo_despliegue,
     },
     where: { id },
   })
@@ -126,6 +135,17 @@ export const Despliegue = {
       where: {
         codigo: root.estado_despliegue,
         grupo: 'E_EVENTO_DESPLIEGUE'
+      }
+    })
+  },
+  
+  // NUEVO RESOLVER
+  tipoDespliegueInfo: (_obj, { root }) => {
+    if (!root.tipo_despliegue) return null
+    return db.parametro.findFirst({
+      where: {
+        codigo: root.tipo_despliegue,
+        grupo: 'TIPO_DESPLIEGUE'
       }
     })
   },

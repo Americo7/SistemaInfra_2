@@ -227,7 +227,7 @@ const ParametroPage = ({ id }) => {
         titleTo="parametros"
         groupTitle="Configuración"
         breadcrumbItems={[
-          { label: nombreParametro }
+          { label: 'Detalle' }
         ]}
         actionButtons={actionButtons}
       >

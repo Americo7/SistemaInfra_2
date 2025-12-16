@@ -113,8 +113,8 @@ export const authDecoder = async (token, type) => {
       })
 
       // Asignar Roles por Defecto
-      const rolDefault = await db.role.findFirst({ where: { cod_tipo_rol: 'SI_VIEW' } })
-      const sistemaDefault = await db.sistema.findFirst({ where: { codigo: 'SIS-IT' } })
+      const rolDefault = await db.role.findFirst({ where: { cod_tipo_rol: 'SI_USER' } })
+      const sistemaDefault = await db.sistema.findFirst({ where: { codigo: 'SIS001' } })
       
       if (rolDefault && sistemaDefault) {
         await db.usuarioRol.create({

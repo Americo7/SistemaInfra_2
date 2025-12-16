@@ -226,7 +226,7 @@ const RolePage = ({ id }) => {
         title="Roles"
         titleTo="roles"
         groupTitle="Gestión de Usuarios"
-        breadcrumbItems={[{ label: nombreRole }]}
+        breadcrumbItems={[{ label: 'Detalle' }]}
         actionButtons={actionButtons}
       >
         <RoleCell id={id} />

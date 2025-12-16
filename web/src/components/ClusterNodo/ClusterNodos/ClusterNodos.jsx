@@ -272,12 +272,12 @@ const ClusterNodos = ({ clusterNodos }) => {
       showGlobalFilter: true,
       columnVisibility: { 
         id: false, 
-        estado: false,
+        estado: true,
         identity_key: false,
         fecha_creacion: false, 
         creadoPor: false, 
-        fecha_modificacion: false, 
-        modificadoPor: false 
+        fecha_modificacion: true, 
+        modificadoPor: true 
       },
     },
     muiTablePaperProps: {

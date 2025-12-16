@@ -46,7 +46,10 @@ import {
   Description as DetailsIcon,
   Storage as ServerIcon,
   Cloud as VirtualIcon,
-  Save as SaveIcon // Agregado para consistencia
+  Save as SaveIcon,
+  // Iconos nuevos para los campos extra
+  Commit as CommitIcon,
+  Tag as VersionIcon
 } from '@mui/icons-material'
 
 /* ---------------------------------------------
@@ -165,6 +168,8 @@ const DespliegueForm = (props) => {
   const unidadesOptions = useMemo(() => parametros.filter(p => p.grupo === 'UNIDAD_AGETIC'), [parametros])
   const tipoRespaldoOptions = useMemo(() => parametros.filter(p => p.grupo === 'TIPO_RESPALDO'), [parametros])
   const estadoDespliegueOptions = useMemo(() => parametros.filter(p => p.grupo === 'E_EVENTO_DESPLIEGUE'), [parametros])
+  // NUEVO: Lista para Tipo de Despliegue (Deploy/Rollback)
+  const tipoDespliegueOptions = useMemo(() => parametros.filter(p => p.grupo === 'TIPO_DESPLIEGUE'), [parametros])
 
   // --- React Hook Form ---
   const { control, handleSubmit, watch, setValue, formState: { errors } } = useForm({
@@ -183,6 +188,11 @@ const DespliegueForm = (props) => {
       cod_tipo_respaldo: props.despliegue?.cod_tipo_respaldo || '',
       referencia_respaldo: props.despliegue?.referencia_respaldo || '',
       descripcion: props.despliegue?.descripcion || '',
+      
+      // --- NUEVOS CAMPOS (INICIALIZACIÓN) ---
+      version_aplicacion: props.despliegue?.version_aplicacion || '',
+      git_commit: props.despliegue?.git_commit || '',
+      tipo_despliegue: props.despliegue?.tipo_despliegue || '',
     },
   })
 
@@ -227,18 +237,18 @@ const DespliegueForm = (props) => {
             borderTopLeftRadius: '0 !important',
             borderTopRightRadius: '0 !important',
             mb: 3,
-            bgcolor: theme.palette.background.paper, // Soporte Dark Mode
+            bgcolor: theme.palette.background.paper, 
           }}
         >
           {/* HEADER (Estilo Estandarizado) */}
           <Box sx={{ 
               px: 5, py: 4, display: 'flex', alignItems: 'center', gap: 2,
-              bgcolor: theme.palette.background.paper, // Soporte Dark Mode
+              bgcolor: theme.palette.background.paper, 
               borderTopLeftRadius: 16, borderTopRightRadius: 16,
             }}>
               <Avatar
                 sx={{
-                    width: 48, height: 48, // Ajustado a 48px para consistencia
+                    width: 48, height: 48,
                     background: 'linear-gradient(135deg, #1565C0, #7B1FA2)',
                     color: 'white', boxShadow: 3
                   }}
@@ -248,7 +258,6 @@ const DespliegueForm = (props) => {
               <Box>
                 <Typography variant="h5" fontWeight={800} sx={{ 
                     lineHeight: 1.2, mb: 0.5,
-                    // GRADIENTE
                     background: 'linear-gradient(90deg, #1565C0 0%, #7B1FA2 100%)',
                     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                   }}>
@@ -473,6 +482,62 @@ const DespliegueForm = (props) => {
               >
                 <Stack spacing={2.5}>
                   
+                  {/* --- NUEVO: TIPO ACCIÓN (Deploy/Rollback) --- */}
+                  <FormControl fullWidth>
+                    <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Tipo de Acción</FormLabel>
+                    <Controller
+                        name="tipo_despliegue"
+                        control={control}
+                        render={({ field }) => (
+                        <Select {...field} size="small" displayEmpty>
+                            <MenuItem value=""><em>Seleccione (Opcional)</em></MenuItem>
+                            {tipoDespliegueOptions.map(opt => (
+                            <MenuItem key={opt.id} value={opt.codigo}>{opt.nombre}</MenuItem>
+                            ))}
+                        </Select>
+                        )}
+                    />
+                  </FormControl>
+
+                  {/* --- NUEVO: VERSIÓN Y COMMIT (Fila doble) --- */}
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <FormControl fullWidth>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Versión App</FormLabel>
+                        <Controller
+                        name="version_aplicacion"
+                        control={control}
+                        render={({ field }) => (
+                            <TextField 
+                                {...field} 
+                                size="small" 
+                                placeholder="v1.0.0" 
+                                InputProps={{
+                                    startAdornment: <InputAdornment position="start"><VersionIcon fontSize="small" /></InputAdornment>,
+                                }}
+                            />
+                        )}
+                        />
+                    </FormControl>
+
+                    <FormControl fullWidth>
+                        <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Git Commit</FormLabel>
+                        <Controller
+                        name="git_commit"
+                        control={control}
+                        render={({ field }) => (
+                            <TextField 
+                                {...field} 
+                                size="small" 
+                                placeholder="Hash corto (sha)" 
+                                InputProps={{
+                                    startAdornment: <InputAdornment position="start"><CommitIcon fontSize="small" /></InputAdornment>,
+                                }}
+                            />
+                        )}
+                        />
+                    </FormControl>
+                  </Box>
+
                   {/* Unidad Solicitante */}
                   <FormControl fullWidth error={!!errors.unidad_solicitante}>
                     <FormLabel sx={{ mb: 0.5, fontWeight: 600 }}>Unidad Solicitante *</FormLabel>
@@ -639,9 +704,8 @@ const DespliegueForm = (props) => {
                 onClick={() => navigate(routes.despliegues())}
                 sx={{ 
                   minWidth: 140, 
-                  borderRadius: 50, // Pill Shape
+                  borderRadius: 50, 
                   textTransform: 'none', 
-                  // COLOR VIOLETA
                   borderColor: '#7B1FA2', 
                   color: '#7B1FA2',
                   '&:hover': {
@@ -660,10 +724,9 @@ const DespliegueForm = (props) => {
                 loading={props.loading}
                 startIcon={<DeployIcon />}
                 sx={{ 
-                  // GRADIENTE
                   background: 'linear-gradient(135deg, #1565C0 0%, #7B1FA2 100%)',
                   boxShadow: 4, px: 4, minWidth: 160, 
-                  borderRadius: 50, // Pill Shape
+                  borderRadius: 50, 
                   textTransform: 'none', fontWeight: 700
                 }}
               >

@@ -18,6 +18,10 @@ import {
   Computer as VmIcon,
   Storage as ServerIcon,
   Hub as ClusterIcon,
+  // Iconos nuevos para visualización en tabla
+  Commit as CommitIcon,
+  Tag as VersionIcon,
+  SwapHoriz as TypeIcon,
 } from '@mui/icons-material'
 
 import {
@@ -31,7 +35,6 @@ import {
   ListItemIcon,
   Typography,
   Divider,
-  // --- IMPORTACIONES ADICIONALES PARA DIÁLOGO MUI ---
   Dialog,
   DialogTitle,
   DialogContent,
@@ -47,7 +50,6 @@ import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 // --- GRAPHQL LOCAL ---
-// Solo pedimos lo necesario para refrescar la cache tras editar
 const QUERY_REFETCH = gql`
   query FindDesplieguesRefetch {
     despliegues {
@@ -100,16 +102,14 @@ const Despliegues = ({ despliegues }) => {
   const [exportMenuAnchorEl, setExportMenuAnchorEl] = useState(null)
   const [bulkMenuAnchorEl, setBulkMenuAnchorEl] = useState(null)
   
-  // --- ESTADOS PARA EL DIÁLOGO ---
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false)
-  const [rowsToDelete, setRowsToDelete] = useState([]) // Almacena las filas seleccionadas (objetos de datos)
+  const [rowsToDelete, setRowsToDelete] = useState([]) 
 
   const [updateDespliegue] = useMutation(UPDATE_DESPLIEGUE_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
   })
 
-  // CORRECCIÓN: Eliminado onCompleted para manejar el toast fuera de la mutación
   const [deleteDespliegue] = useMutation(DELETE_DESPLIEGUE_MUTATION, {
     onError: (error) => toast.error(error.message),
     refetchQueries: [{ query: QUERY_REFETCH }],
@@ -162,6 +162,9 @@ const Despliegues = ({ despliegues }) => {
         
         respaldoNombre: (d) => d.tipoRespaldoInfo?.nombre || d.cod_tipo_respaldo || '-',
         estadoDespliegueNombre: (d) => d.estadoDespliegueInfo?.nombre || d.estado_despliegue || '-',
+        
+        // --- NUEVOS HELPERS PARA CAMPOS ---
+        tipoDespliegueNombre: (d) => d.tipoDespliegueInfo?.nombre || d.tipo_despliegue || '-',
     }
   }, []) 
   
@@ -176,42 +179,28 @@ const Despliegues = ({ despliegues }) => {
   const handleSoftDelete = (rows) => {
     rows.forEach((despliegue) => {
       const newState = showDeleted ? 'ACTIVO' : 'INACTIVO'
-      
       updateDespliegue({
-        variables: {
-            id: despliegue.id,
-            input: {
-                estado: newState,
-            },
-        },
+        variables: { id: despliegue.id, input: { estado: newState } },
       })
     })
-
     toast.success(`${rows.length} registros ${showDeleted ? 'restaurados' : 'desactivados'}.`)
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
   }
 
-  // MODIFICACIÓN: Abre el diálogo y guarda las filas
   const handleHardDelete = (rows) => {
     const dataObjects = rows.map((r) => r.original)
     setRowsToDelete(dataObjects)
     setOpenDeleteDialog(true)
   }
 
-  // NUEVA FUNCIÓN: Ejecuta la eliminación tras confirmar en el diálogo MUI
   const confirmHardDelete = () => {
     setOpenDeleteDialog(false)
-    
     if (rowsToDelete.length === 0) return
-
     rowsToDelete.forEach((d) => {
       deleteDespliegue({ variables: { id: d.id } })
     })
-
-    // Muestra el toast de éxito UNA SOLA VEZ
     toast.success(`${rowsToDelete.length} registro(s) eliminado(s) permanentemente.`) 
-
     table.toggleAllRowsSelected(false)
     closeAllDialogs()
     setRowsToDelete([]) 
@@ -226,20 +215,16 @@ const Despliegues = ({ despliegues }) => {
   }, [despliegues, showDeleted])
 
   /* -----------------------------------------------------------------
-   * COLUMNAS (ESTRATEGIA AJUSTADA AL ENCABEZADO)
+   * COLUMNAS
    * ----------------------------------------------------------------- */
   const columns = useMemo(
     () => [
-      /* ANCHO FIJO: Corto y numérico */
       { accessorKey: 'id', header: 'ID', size: 60 }, 
 
-      /* FLEXIBLE: Ocupa espacio restante (contenido muy variable) */
       {
         id: 'componente',
         header: 'Componente',
         minSize: 150, 
-        size: 180, 
-        flex: 1, 
         accessorFn: (row) => deploymentHelpers.componenteNombre(row),
         Cell: ({ row }) => (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -250,31 +235,20 @@ const Despliegues = ({ despliegues }) => {
         ),
       },
       
-      /* ANCHO FIJO: Sigla (corto) */
       {
         id: 'sistema',
         header: 'Sistema',
-        size: 100, 
+        size: 50,
         accessorFn: (row) => deploymentHelpers.sistemaSigla(row),
         Cell: ({ row }) => {
             const sistemaSigla = deploymentHelpers.sistemaSigla(row.original)
             const sistemaId = row.original.componentes?.sistemas?.id
             
             if (!sistemaSigla || !sistemaId) {
-                return (
-                    <Chip 
-                        label={sistemaSigla || '-'} 
-                        size="small" 
-                        variant="outlined"
-                        sx={{ fontWeight: 'bold', borderColor: theme.palette.divider }}
-                    />
-                )
+                return <Chip label={sistemaSigla || '-'} size="small" variant="outlined" sx={{ fontWeight: 'bold', borderColor: theme.palette.divider }} />
             }
             return (
-                <Link 
-                    to={routes.sistema({ id: sistemaId })}
-                    style={{ textDecoration: 'none', color: 'inherit' }}
-                >
+                <Link to={routes.sistema({ id: sistemaId })} style={{ textDecoration: 'none', color: 'inherit' }}>
                     <Chip 
                         label={sistemaSigla} 
                         size="small" 
@@ -284,9 +258,7 @@ const Despliegues = ({ despliegues }) => {
                             color: theme.palette.primary.main, 
                             borderColor: theme.palette.primary.light,
                             cursor: 'pointer',
-                            '&:hover': {
-                                backgroundColor: theme.palette.primary.light,
-                            }
+                            '&:hover': { backgroundColor: theme.palette.primary.light }
                         }}
                     />
                 </Link>
@@ -294,11 +266,9 @@ const Despliegues = ({ despliegues }) => {
         },
       },
       
-      /* ANCHO FIJO: 'Recurso Destino' es un encabezado largo */
       {
         id: 'recursoDestino',
         header: 'Recurso Destino',
-        size: 200, 
         accessorFn: (row) => deploymentHelpers.recursoDestino(row).nombre,
         Cell: ({ row }) => {
             const recurso = deploymentHelpers.recursoDestino(row.original)
@@ -319,23 +289,15 @@ const Despliegues = ({ despliegues }) => {
                     />
                 </Stack>
             )
-            
-            if (recurso.route) {
-                return (
-                    <Link to={recurso.route({ id: recurso.id })} style={{ textDecoration: 'none', color: 'inherit' }}>
-                        {Content}
-                    </Link>
-                )
-            }
-            return Content
+            return recurso.route ? (
+                <Link to={recurso.route({ id: recurso.id })} style={{ textDecoration: 'none', color: 'inherit' }}>{Content}</Link>
+            ) : Content
         },
       },
 
-      /* ANCHO FIJO: 'Cluster' */
       {
         id: 'cluster',
         header: 'Cluster',
-        size: 160, 
         accessorFn: (row) => deploymentHelpers.clusterInfo(row)?.nombre || '-',
         Cell: ({ row }) => {
             const cluster = deploymentHelpers.clusterInfo(row.original)
@@ -351,27 +313,71 @@ const Despliegues = ({ despliegues }) => {
         }
       },
 
-      /* ANCHO FIJO: Formato de fecha y hora */
+      // --- NUEVOS CAMPOS ---
+      {
+        id: 'tipoAccion',
+        header: 'Acción',
+        accessorFn: (row) => deploymentHelpers.tipoDespliegueNombre(row),
+        size: 100,
+        Cell: ({ row }) => {
+            const val = deploymentHelpers.tipoDespliegueNombre(row.original);
+            if (val === '-') return '-';
+            return (
+                <Chip 
+                    icon={<TypeIcon style={{fontSize: 14}}/>}
+                    label={val} 
+                    size="small" 
+                    variant="outlined" 
+                    color="primary"
+                    sx={{ fontSize: '0.75rem', height: 24 }}
+                />
+            )
+        }
+      },
+      {
+        accessorKey: 'version_aplicacion',
+        header: 'Versión',
+        size: 80,
+        Cell: ({ cell }) => cell.getValue() ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <VersionIcon fontSize="small" sx={{ opacity: 0.6, fontSize: 16 }} />
+                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{cell.getValue()}</Typography>
+            </Box>
+        ) : '-'
+      },
+      {
+        accessorKey: 'git_commit',
+        header: 'Commit',
+        size: 90,
+        Cell: ({ cell }) => cell.getValue() ? (
+            <Tooltip title={cell.getValue()}>
+                <Chip 
+                    icon={<CommitIcon style={{fontSize: 14}}/>}
+                    label={cell.getValue().substring(0,7)} 
+                    size="small" 
+                    variant="outlined"
+                    sx={{ fontFamily: 'monospace', fontSize: '0.75rem', height: 24 }}
+                />
+            </Tooltip>
+        ) : '-'
+      },
+      // ---------------------
+
       {
         accessorKey: 'fecha_despliegue',
         header: 'F. Despliegue',
-        size: 140, 
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
       },
 
-      /* ANCHO FIJO: Formato de fecha y hora */
       {
         accessorKey: 'fecha_solicitud',
         header: 'F. Solicitud',
-        size: 140, 
         Cell: ({ cell }) => formatDateTime(cell.getValue()),
       },
 
-      /* ANCHO FIJO: Chip */
       {
         id: 'tipoRespaldo',
         header: 'Tipo Respaldo',
-        size: 120, 
         accessorFn: (row) => deploymentHelpers.respaldoNombre(row),
         Cell: ({ row }) => (
             <Chip 
@@ -382,18 +388,15 @@ const Despliegues = ({ despliegues }) => {
         ),
       },
       
-      /* ANCHO FIJO: Chip con color */
       {
         id: 'estadoDespliegue',
         header: 'Estado Despliegue',
-        size: 130, 
         accessorFn: (row) => deploymentHelpers.estadoDespliegueNombre(row),
         Cell: ({ row }) => {
             const estadoNombre = deploymentHelpers.estadoDespliegueNombre(row.original);
             const estadoCodigo = (row.original.estadoDespliegueInfo?.codigo || row.original.estado_despliegue || '').toUpperCase();
             
             let chipColor = 'default';
-            
             if (estadoCodigo.includes('COMPLETADO') || estadoCodigo.includes('FINALIZADO') || estadoCodigo.includes('OK')) {
                 chipColor = 'success';
             } else if (estadoCodigo.includes('INICIADO') || estadoCodigo.includes('PROCESO')) {
@@ -408,65 +411,50 @@ const Despliegues = ({ despliegues }) => {
               <Chip 
                   label={estadoNombre}
                   size="small"
-                  variant="outlined"
+                  variant="filled" // CAMBIO REALIZADO: Ahora es relleno (sólido)
                   color={chipColor}
-                  sx={{ fontSize: '0.7rem' }}
+                  sx={{ fontSize: '0.7rem', fontWeight: 'bold' }} // Agregado negrita para contraste
               />
             )
         },
       },
 
-      /* ANCHO FIJO: Texto corto */
-      { accessorKey: 'unidad_solicitante', header: 'Unidad', size: 100 }, 
+      { accessorKey: 'unidad_solicitante', header: 'Unidad' }, 
       
-      /* FLEXIBLE: Ocupa espacio restante (contenido muy variable) */
-      { 
-        accessorKey: 'solicitante', 
-        header: 'Solicitante', 
-        size: 150, 
-        minSize: 120,
-        flex: 1, 
-      }, 
+      { accessorKey: 'solicitante', header: 'Solicitante' }, 
       
-      /* ANCHO FIJO: Chip muy corto */
       {
         accessorKey: 'estado',
         header: 'Estado (Soft)',
-        size: 80, 
         Cell: ({ cell }) => (
           <Chip
             label={cell.getValue()}
             color={cell.getValue() === 'ACTIVO' ? 'success' : 'error'}
             size="small"
-            variant="outlined"
-            sx={{ fontSize: '0.7rem' }}
+            variant="filled"
+            sx={{ fontSize: '0.7rem', fontWeight: 600 }}
           />
         ),
       },
 
-      /* --- COLUMNAS DE AUDITORÍA (Fijas) --- */
       { 
         accessorKey: 'fecha_creacion', 
         header: 'F. Creación', 
-        size: 140, 
         Cell: ({ cell }) => formatDateTime(cell.getValue()) 
       },
       { 
         id: 'creadoPor',
         header: 'Creado por', 
-        size: 160, 
         accessorFn: (row) => formatUser(row.creadoPor)
       },
       { 
         accessorKey: 'fecha_modificacion', 
         header: 'F. Modificación', 
-        size: 140, 
         Cell: ({ cell }) => formatDateTime(cell.getValue()) 
       },
       { 
         id: 'modificadoPor',
         header: 'Modif. por', 
-        size: 160, 
         accessorFn: (row) => formatUser(row.modificadoPor)
       },
       
@@ -482,8 +470,7 @@ const Despliegues = ({ despliegues }) => {
     enableRowActions: true,
     enableRowSelection: true,
     enableGlobalFilter: true,
-    enableRowVirtualization: true,
-    rowVirtualizerOptions: { overscan: 5 },
+    layoutMode: 'semantic', 
     initialState: {
       density: 'compact',
       showGlobalFilter: true,
@@ -491,9 +478,9 @@ const Despliegues = ({ despliegues }) => {
         id: false,
         descripcion: false,
         solicitante: false,
+        unidad_solicitante: false,
         estado: false,
         fecha_solicitud: false,
-        // Ocultamos auditoría por defecto para no saturar
         fecha_creacion: false,
         creadoPor: false, 
         fecha_modificacion: false,
@@ -505,8 +492,7 @@ const Despliegues = ({ despliegues }) => {
       sx: {
         maxWidth: 1500,
         mx: 'auto',
-        px: 2, 
-        py: 1,
+        px: 2, py: 1,
         border: `1px solid ${theme.palette.divider}`,
         borderTop: 'none', 
         borderRadius: 2, 
@@ -524,25 +510,14 @@ const Despliegues = ({ despliegues }) => {
        }
     },
     muiTopToolbarProps: {
-      sx: {
-        pl: 1, 
-        pr: 1,
-        backgroundColor: 'background.paper',
-        mb: 1, 
-      }
+      sx: { pl: 1, pr: 1, backgroundColor: 'background.paper', mb: 1 }
     },
     muiBottomToolbarProps: {
-        sx: {
-            backgroundColor: 'background.paper',
-            border: 'none', 
-            boxShadow: 'none',
-        }
+        sx: { backgroundColor: 'background.paper', border: 'none', boxShadow: 'none' }
     },
     renderTopToolbarCustomActions: () => (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Despliegues
-        </Typography>
+        <Typography variant="h6" sx={{ fontWeight: 600 }}>Despliegues</Typography>
       </Box>
     ),
     muiTableHeadCellProps: {
@@ -554,6 +529,7 @@ const Despliegues = ({ despliegues }) => {
         borderBottom: `1px solid ${theme.palette.divider}`, 
         borderRight: `1px solid ${theme.palette.divider}`,  
         '&:last-child': { borderRight: 'none' },
+        whiteSpace: 'nowrap', 
       }
     },
     muiTableBodyCellProps: {
@@ -563,9 +539,7 @@ const Despliegues = ({ despliegues }) => {
     },
     muiTableBodyRowProps: ({ row }) => ({
       sx: {
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
-        },
+        '&:hover': { backgroundColor: theme.palette.action.hover },
       }
     }),
     renderRowActions: ({ row }) => (
@@ -587,15 +561,11 @@ const Despliegues = ({ despliegues }) => {
   // --- EXPORTAR ---
   const handleExport = (scope, suffix, format) => {
     let rowsToExport = []
-
     if (scope === 'page') {
       const allRows = table.getPrePaginationRowModel().rows
       const { pageIndex, pageSize } = table.getState().pagination
-      const startRow = pageIndex * pageSize
-      const endRow = startRow + pageSize
-      rowsToExport = allRows.slice(startRow, endRow)
+      rowsToExport = allRows.slice(pageIndex * pageSize, (pageIndex * pageSize) + pageSize)
     }
-
     if (scope === 'all') rowsToExport = table.getPrePaginationRowModel().rows
     if (scope === 'selected') rowsToExport = table.getSelectedRowModel().rows
 
@@ -603,13 +573,11 @@ const Despliegues = ({ despliegues }) => {
         toast.error('No hay datos para exportar')
         return
     }
-
     const visibleColumns = table.getVisibleLeafColumns().filter((col) => !['mrt-row-actions', 'mrt-row-select', 'mrt-row-expand', 'id'].includes(col.id))
     
     if (format === 'excel') exportToExcel(rowsToExport, visibleColumns, helpers, suffix)
     if (format === 'pdf') exportToPDF(rowsToExport, visibleColumns, helpers, suffix)
     if (format === 'csv') exportToCSV(rowsToExport, visibleColumns, helpers, suffix)
-    
     closeAllDialogs()
   }
 
@@ -619,39 +587,17 @@ const Despliegues = ({ despliegues }) => {
     
     const ExportMenu = (
       <Menu anchorEl={exportMenuAnchorEl} open={Boolean(exportMenuAnchorEl)} onClose={closeAllDialogs}>
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-        
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" color="text.secondary" fontWeight={700}>EXCEL</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'excel')}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'excel')} disabled={selectedRowCount === 0}><ListItemIcon><ExcelIcon fontSize="small" color="success" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
-
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" color="text.secondary" fontWeight={700}>PDF</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'pdf')}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'pdf')} disabled={selectedRowCount === 0}><ListItemIcon><PdfIcon fontSize="small" color="error" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
         <Divider />
-
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}>
-          <Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography>
-        </Box>
-        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual
-        </MenuItem>
-        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}>
-          <ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})
-        </MenuItem>
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.default' }}><Typography variant="caption" color="text.secondary" fontWeight={700}>CSV</Typography></Box>
+        <MenuItem onClick={() => handleExport('page', '-Pagina', 'csv')}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Página Actual</MenuItem>
+        <MenuItem onClick={() => handleExport('selected', '-Seleccionados', 'csv')} disabled={selectedRowCount === 0}><ListItemIcon><CsvIcon fontSize="small" color="info" /></ListItemIcon> Selección ({selectedRowCount})</MenuItem>
       </Menu>
     )
 
@@ -673,34 +619,17 @@ const Despliegues = ({ despliegues }) => {
       selectedRowCount,
       handleSwitchChange: (e) => setShowDeleted(e.target.checked),
       handleBulkAction: (e) => {
-        if (selectedRowCount === 0) {
-            toast.error('Debe seleccionar al menos un registro.')
-            return;
-        }
-        if (showDeleted) {
-             handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original))
-        } else {
-             setBulkMenuAnchorEl(e.currentTarget)
-        }
+        if (selectedRowCount === 0) { toast.error('Debe seleccionar al menos un registro.'); return; }
+        if (showDeleted) { handleSoftDelete(table.getSelectedRowModel().rows.map(r => r.original)) } 
+        else { setBulkMenuAnchorEl(e.currentTarget) }
       },
       handleExportClick: (e) => setExportMenuAnchorEl(e.currentTarget),
       exportMenu: ExportMenu,
       bulkActionMenu: BulkActionMenu,
     }
-  }, [
-    table, 
-    showDeleted, 
-    exportMenuAnchorEl, 
-    bulkMenuAnchorEl, 
-    table.getState().rowSelection,
-    table.getState().pagination,
-  ])
+  }, [table, showDeleted, exportMenuAnchorEl, bulkMenuAnchorEl, table.getState().rowSelection, table.getState().pagination])
 
-  // Lógica segura para obtener el nombre(s) en el diálogo
-  // Usamos el nombre del componente como identificador principal
-  const namesToDelete = rowsToDelete.length === 1 
-    ? rowsToDelete[0]?.componentes?.nombre || `el despliegue ID ${rowsToDelete[0]?.id}` 
-    : `${rowsToDelete.length} registros`
+  const namesToDelete = rowsToDelete.length === 1 ? rowsToDelete[0]?.componentes?.nombre || `el despliegue ID ${rowsToDelete[0]?.id}` : `${rowsToDelete.length} registros`
 
   return (
     <ScaffoldLayout
@@ -712,47 +641,23 @@ const Despliegues = ({ despliegues }) => {
       listActionsConfig={listActionsConfig}
     >
       <MaterialReactTable table={table} />
-
-      {/* --- DIÁLOGO DE CONFIRMACIÓN DE ELIMINACIÓN --- */}
       <Dialog
         open={openDeleteDialog}
         onClose={() => setOpenDeleteDialog(false)}
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-description"
       >
-        <DialogTitle id="delete-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>
-          ADVERTENCIA: ¡Eliminación Definitiva!
-        </DialogTitle>
+        <DialogTitle id="delete-dialog-title" sx={{ color: theme.palette.error.main, fontWeight: 'bold' }}>ADVERTENCIA: ¡Eliminación Definitiva!</DialogTitle>
         <DialogContent>
           <DialogContentText id="delete-dialog-description">
-            Estás a punto de eliminar **{namesToDelete}** de forma permanente.
-            <br />
-            **Esta acción es irreversible** y eliminará los datos de la base de datos.
-            <br />
-            ¿Deseas continuar?
+            Estás a punto de eliminar **{namesToDelete}** de forma permanente.<br />**Esta acción es irreversible** y eliminará los datos de la base de datos.<br />¿Deseas continuar?
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button 
-            onClick={() => { 
-                setOpenDeleteDialog(false); 
-                setRowsToDelete([]); 
-            }} 
-            color="primary"
-          >
-            Cancelar
-          </Button>
-          <Button 
-            onClick={confirmHardDelete} 
-            color="error" 
-            variant="contained" 
-            autoFocus
-          >
-            Eliminar
-          </Button>
+          <Button onClick={() => { setOpenDeleteDialog(false); setRowsToDelete([]); }} color="primary">Cancelar</Button>
+          <Button onClick={confirmHardDelete} color="error" variant="contained" autoFocus>Eliminar</Button>
         </DialogActions>
       </Dialog>
-      {/* ----------------------------------------------------- */}
     </ScaffoldLayout>
   )
 }

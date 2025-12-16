@@ -23,6 +23,18 @@ export const QUERY = gql`
       referencia_respaldo
       estado_despliegue
       estado
+      
+      # --- NUEVOS CAMPOS ---
+      version_aplicacion
+      git_commit
+      tipo_despliegue
+      tipoDespliegueInfo { # Nuevo resolver
+        id
+        codigo
+        nombre
+      }
+      # ---------------------
+
       creadoPor {
         id
         nombres
@@ -59,7 +71,7 @@ export const QUERY = gql`
           nombre
         }
       }
-            # 2. Máquina Virtual (con sus relaciones de Cluster y Host)
+      # 2. Máquina Virtual (con sus relaciones de Cluster y Host)
       maquinas {
         id
         nombre
@@ -93,6 +105,7 @@ export const QUERY = gql`
           nodoTipo
           rolInfo {
             id
+            codigo
             nombre
           }
           cluster {
@@ -121,15 +134,10 @@ export const QUERY = gql`
     }
   }
 `
-
+// ... (Resto del archivo Loading, Empty, Failure, Success igual)
 export const Loading = () => <div>Cargando despliegue...</div>
-
 export const Empty = () => <div>Despliegue no encontrado</div>
-
-export const Failure = ({ error }) => (
-  <div className="rw-cell-error">{error?.message}</div>
-)
-
+export const Failure = ({ error }) => <div className="rw-cell-error">{error?.message}</div>
 export const Success = ({ despliegue, parametrosFormularioDespliegue }) => {
   return (
     <Despliegue

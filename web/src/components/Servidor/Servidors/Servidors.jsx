@@ -170,54 +170,8 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     const toastId = toast.loading(`Generando reporte detallado de ${rows.length} servidor(es)...`)
 
     try {
-      const QUERY_DETALLE = gql`
-        query FindServidorDetalle($id: Int!) {
-          servidor(id: $id) {
-            id nombre ip_primaria marca modelo serie sistema_operativo
-            ram almacenamiento cod_inventario_agetic cod_tipo_servidor
-            estado_operativo estado fecha_creacion fecha_modificacion
-            tipoServidorInfo { nombre }
-            estadoOperativoInfo { nombre }
-            creadoPor { nombres primer_apellido segundo_apellido }
-            modificadoPor { nombres primer_apellido segundo_apellido }
-            data_centers { id nombre direccion }
-            servidores_padre { id nombre ip_primaria }
-            maquinas {
-              id nombre ip so estado_operativo
-              estadoOperativoInfo { nombre }
-            }
-            despliegue {
-              fecha_despliegue estado_despliegue
-              componentes { nombre sistemas { sigla } }
-            }
-          }
-        }
-      `
-
-      const promises = rows.map(async (row) => {
-        const response = await fetch(global.RWJS_API_GRAPHQL_URL || '/graphql', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'auth-provider': 'dbAuth',
-          },
-          body: JSON.stringify({
-            query: QUERY_DETALLE.loc.source.body,
-            variables: { id: row.id }
-          }),
-          credentials: 'include'
-        })
-        const result = await response.json()
-        return result.data?.servidor
-      })
-
-      const servidoresCompletos = (await Promise.all(promises)).filter(Boolean)
-
-      if (servidoresCompletos.length === 0) {
-        throw new Error('No se pudieron obtener los datos completos')
-      }
-
-      for (const srv of servidoresCompletos) {
+      // Se eliminó la QUERY_DETALLE manual. Usamos los datos pasados directamente.
+      for (const srv of rows) {
         const pdfDataUri = await generateDetailedPDF(srv)
         const link = document.createElement('a')
         link.href = pdfDataUri
@@ -225,7 +179,7 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
         link.click()
       }
 
-      toast.success(`${servidoresCompletos.length} reporte(s) generado(s) exitosamente`, { id: toastId })
+      toast.success(`${rows.length} reporte(s) generado(s) exitosamente`, { id: toastId })
       closeAllDialogs()
     } catch (error) {
       console.error('Error al generar reporte detallado:', error)
@@ -241,17 +195,15 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     )
   }, [servidores, showDeleted])
 
-  // --- COLUMNAS (Corrección de anchos) ---
+  // --- COLUMNAS ---
   const columns = useMemo(() => [
     {
       accessorKey: 'id',
       header: 'ID',
-      // Se eliminó size para auto-ancho
     },
     {
       accessorKey: 'nombre',
       header: 'Nombre',
-      // Se eliminó size: 200
       Cell: ({ row }) => (
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <ServerIcon color={row.original.estado === 'INACTIVO' ? 'disabled' : 'primary'} fontSize="small" />
@@ -264,14 +216,12 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
       accessorKey: 'ip_primaria',
       header: 'IP',
-      // Se eliminó size: 130
       Cell: ({ cell }) => cell.getValue() || '-',
     },
-    // --- MANTENEMOS FIJOS RAM Y DISCO ---
     {
       accessorKey: 'ram',
       header: 'RAM',
-      size: 110, // FIJO
+      size: 110,
       Cell: ({ cell }) => {
         const val = cell.getValue()
         return val ? `${val} GB` : '-'
@@ -280,18 +230,16 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
       accessorKey: 'almacenamiento',
       header: 'Disco',
-      size: 110, // FIJO
+      size: 110,
       Cell: ({ cell }) => {
         const val = cell.getValue()
         return val ? `${val} GB` : '-'
       },
     },
-    // ------------------------------------
     {
       id: 'servidores_padre',
       header: 'Serv. Padre',
       accessorFn: (row) => row.servidores_padre?.nombre,
-      // Se eliminó size: 150
       Cell: ({ cell }) => {
         const val = cell.getValue()
         if (!val) return '-'
@@ -308,7 +256,6 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
       accessorKey: 'data_centers',
       header: 'Data Center',
-      // Se eliminó size: 150
       Cell: ({ row }) => {
         const dc = row.original.data_centers
         if (!dc) return '-'
@@ -322,7 +269,6 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
       accessorKey: 'nodos',
       header: 'Nodo',
-      // Se eliminó size: 180
       Cell: ({ row }) => {
         const nodos = row.original.cluster_nodos
         if (!nodos?.length) return '-'
@@ -344,7 +290,6 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
       accessorKey: 'clusters',
       header: 'Cluster',
-      // Se eliminó size: 180
       Cell: ({ row }) => {
         const nodos = row.original.cluster_nodos
         if (!nodos?.length) return '-'
@@ -366,7 +311,6 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
       accessorKey: 'estadoOperativoInfo',
       header: 'Estado Operativo',
-      // Se eliminó size: 150
       Cell: ({ row }) => {
         const info = row.original.estadoOperativoInfo
         const label = info?.nombre || '-'
@@ -385,7 +329,6 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
       accessorKey: 'estado',
       header: 'Estado',
-      // Se eliminó size: 100
       Cell: ({ cell }) => (
         <Chip
           label={cell.getValue()}
@@ -399,25 +342,21 @@ const Servidores = ({ servidores, parametros, usuarios }) => {
     {
       accessorKey: 'fecha_creacion',
       header: 'Creación',
-      // Se eliminó size: 150
       Cell: ({ cell }) => formatDate(cell.getValue()),
     },
     {
       accessorKey: 'usuario_creacion',
       header: 'Creado por',
-      // Se eliminó size: 150
       Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
     },
     {
       accessorKey: 'fecha_modificacion',
       header: 'Modificación',
-      // Se eliminó size: 150
       Cell: ({ cell }) => formatDate(cell.getValue()),
     },
     {
       accessorKey: 'usuario_modificacion',
       header: 'Modif. por',
-      // Se eliminó size: 150
       Cell: ({ cell }) => helpers.getUsuarioNombre(cell.getValue()),
     },
   ], [theme, usuariosMap, estadosOperativosMap])

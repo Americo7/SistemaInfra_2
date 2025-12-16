@@ -225,7 +225,7 @@ const ProxmoxEndpointPage = ({ id }) => {
         titleTo="proxmoxEndpoints"
         groupTitle="Sincronización"
         breadcrumbItems={[
-          { label: nombre }
+          { label: 'Detalle' }
         ]}
         actionButtons={actionButtons}
       >

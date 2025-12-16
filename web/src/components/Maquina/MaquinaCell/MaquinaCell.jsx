@@ -94,6 +94,12 @@ export const QUERY = gql`
           nombres
           primer_apellido
           segundo_apellido
+          nombre_usuario
+          nro_documento
+          nombres
+          celular
+          email
+          estado
         }
         roles {
           id
@@ -114,18 +120,16 @@ export const QUERY = gql`
         componentes {
           id
           nombre
+          entornoInfo {
+            codigo
+            nombre
+          }
           sistemas {
             id
             nombre
             sigla
             descripcion
             estado
-            componentes {
-              id
-              nombre
-              dominio
-              estado
-            }
           }
         }
       }

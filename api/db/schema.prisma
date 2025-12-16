@@ -52,6 +52,9 @@ model Despliegue {
   referencia_respaldo  String    @db.VarChar(100)
   estado_despliegue    String    @db.VarChar(20)
   descripcion          String
+  version_aplicacion   String? @db.VarChar(50)
+  git_commit           String? @db.VarChar(40)
+  tipo_despliegue      String? @db.VarChar(20) // DEPLOY / ROLLBACK
 
   servidores  Servidor?  @relation(fields: [id_servidor], references: [id], onDelete: NoAction, onUpdate: NoAction)
   componentes Componente @relation(fields: [id_componente], references: [id])
@@ -84,7 +87,7 @@ model Entidad {
 model Role {
   id                   Int          @id(map: "roles_pk") @default(autoincrement())
   nombre               String       @db.VarChar(30)
-  cod_tipo_rol         String       @db.VarChar(20)
+  cod_tipo_rol         String       @unique @db.VarChar(20)
   descripcion          String
   estado               estado       @map("_estado")
   fecha_creacion       DateTime     @default(now()) @map("_fecha_creacion") @db.Timestamptz(6)
@@ -102,7 +105,7 @@ model Sistema {
   id                   Int          @id(map: "sistema_pk") @default(autoincrement())
   id_padre             Int?
   id_entidad           Int
-  codigo               String       @db.VarChar(20)
+  codigo               String       @db.VarChar(20)        @unique
   sigla                String?      @db.VarChar(25)
   nombre               String       @db.VarChar(150)
   descripcion          String
@@ -129,12 +132,14 @@ model UsuarioRol {
   id_rol               Int
   id_maquina           Int?
   id_sistema           Int?
+  id_servidor          Int?
   estado               estado    @map("_estado")
   fecha_creacion       DateTime  @default(now()) @map("_fecha_creacion") @db.Timestamp(6)
   usuario_creacion     Int       @map("_usuario_creacion")
   fecha_modificacion   DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?      @map("_usuario_modificacion")
   maquinas             Maquina?  @relation(fields: [id_maquina], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_maquina_usuario_roles")
+  servidores Servidor? @relation(fields: [id_servidor], references: [id], map: "fk_servidor_usuario_roles")
   roles                Role      @relation(fields: [id_rol], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_rol_id")
   sistemas             Sistema?  @relation(fields: [id_sistema], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sistema_2_id")
   usuarios             Usuario   @relation(fields: [id_usuario], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_id")
@@ -321,6 +326,7 @@ model Servidor {
   cluster_nodos    ClusterNodo[] // Si este servidor es parte de un cluster (Proxmox/K8s)
   despliegue       Despliegue[] // Apps desplegadas directo en Bare Metal
   infra_afectada   InfraAfectada[]
+  usuario_roles    UsuarioRol[]
 
   @@map("servidores")
   @@schema("registro")
@@ -389,7 +395,7 @@ model ProxmoxEndpoint {
   usuario_creacion     Int       @map("_usuario_creacion")
   fecha_modificacion   DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?      @map("_usuario_modificacion")
-
+  sync_logs            EndpointSyncLog[]
   clusters Cluster[]
 
   @@map("proxmox_endpoints")
@@ -409,8 +415,48 @@ model K8sEndpoint {
   fecha_modificacion   DateTime? @map("_fecha_modificacion") @db.Timestamp(6)
   usuario_modificacion Int?      @map("_usuario_modificacion")
   clusters             Cluster[]
-
+  sync_logs            EndpointSyncLog[]
   @@map("k8s_endpoints")
+  @@schema("registro")
+}
+
+model EndpointSyncLog {
+  id                  Int @id @default(autoincrement())
+
+  tipo_endpoint       TipoEndpoint
+  id_proxmox_endpoint Int?
+  id_k8s_endpoint     Int?
+
+  estado_sync         EstadoSync
+  trigger             SyncTrigger
+
+  mensaje             String?
+  error_detalle       String?
+  snapshot_resultado  Json?
+
+  total_clusters      Int?
+  total_servidores    Int?
+  total_maquinas      Int?
+  total_nodos         Int?
+
+  fecha_inicio        DateTime
+  fecha_fin           DateTime?
+  duracion_ms         Int?
+
+  estado              estado @map("_estado")
+  fecha_creacion      DateTime @default(now()) @map("_fecha_creacion")
+  usuario_creacion    Int @map("_usuario_creacion")
+
+  proxmox_endpoint ProxmoxEndpoint? @relation(fields: [id_proxmox_endpoint], references: [id])
+  k8s_endpoint     K8sEndpoint?     @relation(fields: [id_k8s_endpoint], references: [id])
+
+  @@index([id_proxmox_endpoint, fecha_inicio])
+  @@index([id_k8s_endpoint, fecha_inicio])
+  @@index([fecha_inicio])
+  @@index([tipo_endpoint])
+  @@index([estado_sync])
+
+  @@map("endpoint_sync_log")
   @@schema("registro")
 }
 
@@ -444,5 +490,30 @@ enum NodoTipo {
   FISICO // Servidor Bare Metal
 
   @@map("nodo_tipo")
+  @@schema("registro")
+}
+
+enum TipoEndpoint {
+  PROXMOX
+  K8S
+
+  @@map("tipo_endpoint")
+  @@schema("registro")
+}
+
+enum EstadoSync {
+  INICIADO
+  EXITOSO
+  ERROR
+  PARCIAL
+
+  @@map("estado_sync")
+  @@schema("registro")
+}
+enum SyncTrigger {
+  MANUAL
+  CRON
+
+  @@map("sync_trigger")
   @@schema("registro")
 }

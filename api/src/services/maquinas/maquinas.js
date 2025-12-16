@@ -174,6 +174,26 @@ export const Maquina = {
   usuario_roles: (_obj, { root }) => db.maquina.findUnique({ where: { id: root.id } }).usuario_roles(),
   cluster_nodos: (_obj, { root }) => db.maquina.findUnique({ where: { id: root.id } }).cluster_nodos(),
 
+  almacenamientoTotal: (_obj, { root }) => {
+    if (!root.almacenamiento) return 0
+
+    let discos = root.almacenamiento
+
+    // Por si viene como string JSON desde la BD
+    if (typeof discos === 'string') {
+      try {
+        discos = JSON.parse(discos)
+      } catch {
+        return 0
+      }
+    }
+
+    if (!Array.isArray(discos)) return 0
+
+    return discos.reduce((total, disco) => {
+      return total + (Number(disco?.Valor) || 0)
+    }, 0)
+  },
   // --- Relaciones Calculadas: USUARIOS ---
   creadoPor: (_obj, { root }) => {
     if (!root.usuario_creacion) return null
