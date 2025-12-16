@@ -7,25 +7,30 @@ WORKDIR /app
 # Activar Corepack y Yarn 4
 RUN corepack enable && corepack prepare yarn@4.6.0 --activate
 
-# Copiar el monorepo completo (necesario para workspaces)
+# Copiar el monorepo completo
 COPY . .
 
-# Instalar TODAS las dependencias del monorepo
+# Instalar dependencias
 RUN yarn install --frozen-lockfile
 
 # Build de Redwood Web
 RUN yarn rw build web
-
 
 # ============================
 #  RUNTIME STAGE — NGINX
 # ============================
 FROM nginx:stable-alpine
 
-# Copiar build del front-end
+# 1. Copiar build del front-end (Igual que antes)
 COPY --from=builder /app/web/dist /usr/share/nginx/html
 
-# Opcional: eliminar archivo source maps (más pequeño)
+# 2. [NUEVO] Copiar la configuración personalizada para SPA
+# Asegúrate de que la ruta local './docker/nginx.web.conf' exista
+COPY docker/nginx.web.conf /etc/nginx/conf.d/default.conf
+
+# 3. Limpieza opcional
 RUN find /usr/share/nginx/html -type f -name "*.map" -delete || true
 
 EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

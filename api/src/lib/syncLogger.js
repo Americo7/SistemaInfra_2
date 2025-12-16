@@ -5,23 +5,26 @@ import { context } from '@redwoodjs/graphql-server'
 
 /**
  * Crea el registro inicial.
- * Determina el usuario automáticamente según el trigger.
+ * CORREGIDO: Ahora acepta 'usuarioIdExplicit' en los argumentos.
  */
-export const startSyncLog = async ({ tipo, endpointId, trigger }) => {
+export const startSyncLog = async ({ tipo, endpointId, trigger, usuarioIdExplicit }) => {
   try {
     // === LÓGICA DE USUARIO CENTRALIZADA ===
     let usuarioId = 1 // Por defecto: 1 (System)
 
-    // Solo si es MANUAL intentamos buscar al usuario real en el contexto
-    if (trigger === 'MANUAL') {
-      // context.currentUser se llena automáticamente si el frontend envió el token
+    // 1. PRIORIDAD MÁXIMA: Si nos pasaron el ID explícitamente (desde Handler/Function API)
+    if (usuarioIdExplicit) {
+        usuarioId = usuarioIdExplicit
+    } 
+    // 2. PRIORIDAD MEDIA: Si estamos en GraphQL (Cells, Services) y hay sesión
+    else if (trigger === 'MANUAL') {
       if (context.currentUser?.id) {
         usuarioId = context.currentUser.id
       } else {
-        console.warn('Sync manual detectada, pero no se encontró usuario en sesión. Usando ID 1.')
+        console.warn('Sync manual detectada, pero no se encontró usuario en sesión ni ID explícito. Usando ID 1.')
       }
     } 
-    // Si es CRON, ignoramos el contexto y dejamos el 1.
+    // Si es CRON, ignoramos todo y dejamos el 1.
 
     const data = {
       tipo_endpoint: tipo, // 'PROXMOX' | 'K8S'
@@ -57,7 +60,7 @@ export const finishSyncLog = async ({ logId, success, error, metrics = {}, start
     fecha_fin: fechaFin,
     duracion_ms: parseInt(duration),
     estado_sync: success ? 'EXITOSO' : 'ERROR',
-    // Opcional: Si quisieras registrar quién lo terminó (usualmente el mismo que lo inició)
+    // Opcional: Si quisieras registrar quién lo terminó
     // usuario_modificacion: context.currentUser?.id || 1 
   }
 
